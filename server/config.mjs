@@ -72,6 +72,15 @@ export const CONFIG = {
   isDev,
   port: Number(env.PORT || 4000),
   /**
+   * 2026-11-07 D-248（用户反馈「上传大文件报 Payload Too Large」）：
+   * 单文件上传上限，默认 8 GiB；.env.local 里可用 MAX_UPLOAD_GB 调整（例如 16 / 4 / 2）。
+   * 旧版硬编码 2 GiB，超过会被截断成 2 GiB 的半截文件并可能入库。
+   */
+  maxUploadBytes: (() => {
+    const gb = Number(env.MAX_UPLOAD_GB);
+    return Number.isFinite(gb) && gb > 0 ? Math.floor(gb * 1024 ** 3) : 8 * 1024 ** 3;
+  })(),
+  /**
    * 账号模式（2026-11-06 M6 P2-1，D-200）：
    * - `local`（默认）：单机本地模式，行为与以前完全一致，不需要登录；
    * - `multi`：云端多用户模式，启用账号 / 会话 / 邀请码（P2-2 起所有数据接口按用户隔离）。

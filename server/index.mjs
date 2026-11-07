@@ -161,7 +161,7 @@ function tdtKeyFor(req) {
 /** multi 模式下当前用户还没填自己的天地图 Key 时，搜索 / 逆地理统一返回这个提示（400） */
 const NEED_OWN_TDT_KEY = '请先在 设置 → 天地图 Key 里填写你自己的天地图 Key（每个账号一份）';
 
-await app.register(fastifyMultipart, { limits: { fileSize: 2 * 1024 ** 3 } });
+await app.register(fastifyMultipart, { limits: { fileSize: CONFIG.maxUploadBytes } });
 
 // ───────────── 工具 ─────────────
 
@@ -363,10 +363,12 @@ app.get('/api/health', async (req) => {
 // multi 模式（D-202 / D-205）：Key 只返回当前账号自己的（D-182 每人自填；不回落全局），
 // 没填时前端显示「配置天地图 Key」引导页；home 一律 null —— 家是 place.home=1 的地点。
 app.get('/api/config', async (req) => {
-  if (CONFIG.authMode !== 'multi') return { tdtTk: CONFIG.tdtTk, home: CONFIG.home };
+  if (CONFIG.authMode !== 'multi') {
+    return { tdtTk: CONFIG.tdtTk, home: CONFIG.home, maxUploadBytes: CONFIG.maxUploadBytes };
+  }
   const st = getUserSetting(ownerOf(req));
   const ownTk = typeof st?.tdt_tk === 'string' ? st.tdt_tk.trim() : '';
-  return { tdtTk: ownTk, home: null };
+  return { tdtTk: ownTk, home: null, maxUploadBytes: CONFIG.maxUploadBytes };
 });
 
 // 设置页写入天地图 Key（F-SYS-02 / M5）：只校验并保存，绝不回显 key、绝不写日志。
@@ -1629,7 +1631,12 @@ app.post('/api/media/upload', async (req, reply) => {
   const skipped = [];
   const errors = [];
 
-  for await (const part of req.files()) {
+  // D-248：单文件上限可配置（CONFIG.maxUploadBytes）；throwFileSizeLimit: false 让超限时
+  // 走「流被截断」而不是直接抛错，这样下面能检测 truncated、删掉半截文件并给中文提示。
+  for await (const part of req.files({
+    limits: { fileSize: CONFIG.maxUploadBytes },
+    throwFileSizeLimit: false,
+  })) {
     const original = part.filename || 'file';
     const ext = extname(original).toLowerCase();
     const isPhoto = PHOTO_EXT.has(ext);
@@ -1644,6 +1651,14 @@ app.post('/api/media/upload', async (req, reply) => {
     let inserted = false;
     try {
       await pipeline(part.file, createWriteStream(dest));
+      // D-248：超限文件会在上限处被截断，必须删掉半截文件且不入库。
+      if (part.file.truncated) {
+        errors.push(
+          `${original}：文件超过单文件上限（${(CONFIG.maxUploadBytes / 1024 ** 3).toFixed(0)} GB）`
+        );
+        try { unlinkSync(dest); } catch { /* ignore */ }
+        continue;
+      }
       const st = statSync(dest);
       if (st.size === 0) {
         errors.push(`${original}：空文件`);
@@ -1715,7 +1730,14 @@ app.post('/api/media/upload', async (req, reply) => {
       if (!inserted) {
         try { unlinkSync(dest); } catch { /* ignore */ }
       }
-      errors.push(`${original}：${e.message}`);
+      const tooLarge = e?.code === 'FST_REQ_FILE_TOO_LARGE';
+      errors.push(
+        `${original}：${
+          tooLarge
+            ? `文件超过单文件上限（${(CONFIG.maxUploadBytes / 1024 ** 3).toFixed(0)} GB）`
+            : e.message
+        }`
+      );
     }
   }
 

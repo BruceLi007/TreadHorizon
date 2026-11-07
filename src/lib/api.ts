@@ -81,7 +81,10 @@ export const api = {
         globalStats?: Record<string, number>;
       }>(r)
     ),
-  config: () => fetch('/api/config').then((r) => json<{ tdtTk: string; home: HomePoint | null }>(r)),
+  config: () =>
+    fetch('/api/config').then((r) =>
+      json<{ tdtTk: string; home: HomePoint | null; maxUploadBytes: number }>(r)
+    ),
 
   /**
    * 保存家的位置（M5.1）：一个独立坐标点，写 data/config.json.home。

@@ -7,8 +7,11 @@ import { pointInFeature } from '../map/provinces';
  * 天地图只有很粗的全球底图、搜索 / 逆地理基本只覆盖国内，所以打点时如果落点在国外，
  * 直接提示「暂不支持国外到访记录」并拒绝落点 / 保存。
  *
- * 判定数据用 34 个省级行政区边界（public/province-boundaries-low.json，约 40KB 概化版，
+ * 判定数据用 34 个省级行政区边界（public/province-boundaries.json，完整版约 490KB，
  * 与统计面板省份点亮同源）做点在多边形内判定；首次需要时懒加载并缓存。
+ * 2026-11-07 D-249（用户反馈）：原来用 province-boundaries-low.json（40KB 概化版），
+ * 香港 / 澳门这种小区域被简化掉大半，中环、铜锣湾、机场等坐标会落在多边形外 → 被误判
+ * 「不支持国外到访」；改用完整版后香港/澳门/台湾的细边界都能正确命中。
  * 加载失败时退化为「中国大致经纬度范围」兜底（偏严格），避免国外坐标漏过。
  */
 let bounds: ProvinceBoundaryData | null = null;
@@ -18,7 +21,7 @@ let loading: Promise<ProvinceBoundaryData | null> | null = null;
 export function loadChinaBounds(): Promise<ProvinceBoundaryData | null> {
   if (bounds) return Promise.resolve(bounds);
   if (!loading) {
-    loading = fetch('/province-boundaries-low.json')
+    loading = fetch('/province-boundaries.json')
       .then((r) => (r.ok ? r.json() : null))
       .then((d: ProvinceBoundaryData | null) => {
         if (d && Array.isArray(d.features) && d.features.length > 0) {

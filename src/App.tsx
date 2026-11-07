@@ -513,6 +513,7 @@ export default function App() {
         setAuthMe(me);
         if (me.mode === 'multi' && !me.user) return;
         const cfg = await api.config();
+        if (Number(cfg.maxUploadBytes) > 0) setMaxUploadBytes(Number(cfg.maxUploadBytes));
         if (!cfg.tdtTk) {
           // 没读到天地图 Key：multi（每账号一份）与 local（本机一份）都先显示全屏「配置天地图 Key」引导页，
           // 由用户在页面里填写（2026-11-07 D-238：local 模式不再抛「启动失败」，新用户无需先改 .env.local）。
@@ -959,6 +960,17 @@ export default function App() {
   const uploadingRef = useRef(false);
   const abortRef = useRef<null | (() => void)>(null);
   const uploadRefreshTimer = useRef<number | null>(null);
+  /** D-251：全部上传成功后 3 秒自动收起队列 */
+  const uploadAutoCloseTimer = useRef<number | null>(null);
+  /** D-248：单文件上限（从 /api/config 读，默认 8GiB）；上传前预检，避免大文件白传 */
+  const [maxUploadBytes, setMaxUploadBytes] = useState(8 * 1024 ** 3);
+
+  const clearUploadAutoClose = useCallback(() => {
+    if (uploadAutoCloseTimer.current !== null) {
+      window.clearTimeout(uploadAutoCloseTimer.current);
+      uploadAutoCloseTimer.current = null;
+    }
+  }, []);
 
   const commitUploads = useCallback((next: UploadItem[]) => {
     uploadsRef.current = next;
@@ -1038,14 +1050,40 @@ export default function App() {
         if (errored) parts.push(tr('失败 {n}', { n: errored }));
         say(tr('上传结束：') + parts.join(' · '));
       }
+      // D-251：这一批全部成功（完成 / 跳过重复，无失败 / 取消）→ 3 秒后自动收起上传队列
+      clearUploadAutoClose();
+      const allSuccess =
+        items.length > 0 && items.every((x) => x.status === 'done' || x.status === 'skipped');
+      if (allSuccess) {
+        uploadAutoCloseTimer.current = window.setTimeout(() => {
+          uploadAutoCloseTimer.current = null;
+          const cur = uploadsRef.current;
+          if (cur.length > 0 && cur.every((x) => x.status === 'done' || x.status === 'skipped')) {
+            commitUploads([]);
+          }
+        }, 3000);
+      }
       refreshAfterUpload();
     }
-  }, [patchUpload, refreshAfterUpload, say]);
+  }, [patchUpload, refreshAfterUpload, say, clearUploadAutoClose, commitUploads]);
 
   const enqueueUploads = useCallback(
     (visitId: string, files: File[]) => {
       if (!files.length) return;
-      const items: UploadItem[] = files.map((file) => ({
+      clearUploadAutoClose();
+      // D-248：超过单文件上限的文件直接跳过并提示（服务端也会兜底，但前端先拦省得白传）
+      const accepted = files.filter((f) => f.size <= maxUploadBytes);
+      const rejected = files.length - accepted.length;
+      if (rejected > 0) {
+        say(
+          tr('有 {n} 个文件超过单文件上限（{gb} GB），已跳过', {
+            n: rejected,
+            gb: (maxUploadBytes / 1024 ** 3).toFixed(0),
+          })
+        );
+      }
+      if (!accepted.length) return;
+      const items: UploadItem[] = accepted.map((file) => ({
         key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         file,
         visitId,
@@ -1055,7 +1093,7 @@ export default function App() {
       commitUploads([...uploadsRef.current, ...items]);
       void processUploadQueue();
     },
-    [commitUploads, processUploadQueue]
+    [commitUploads, processUploadQueue, maxUploadBytes, say, clearUploadAutoClose]
   );
 
   const cancelUpload = useCallback(
@@ -1084,19 +1122,23 @@ export default function App() {
   );
 
   const clearFinishedUploads = useCallback(() => {
+    // D-251：只清掉成功 / 跳过 / 已取消的，失败项保留，方便点「重试」
     commitUploads(
-      uploadsRef.current.filter((x) => x.status === 'queued' || x.status === 'uploading')
+      uploadsRef.current.filter(
+        (x) => x.status === 'queued' || x.status === 'uploading' || x.status === 'error'
+      )
     );
   }, [commitUploads]);
 
   /** 关闭上传队列卡片：取消未完成项并清空列表 */
   const closeUploadQueue = useCallback(() => {
+    clearUploadAutoClose();
     for (const item of uploadsRef.current) {
       if (item.status === 'queued') patchUpload(item.key, { status: 'canceled', error: tr('已取消') });
     }
     abortRef.current?.();
     commitUploads([]);
-  }, [commitUploads, patchUpload]);
+  }, [commitUploads, patchUpload, clearUploadAutoClose]);
 
   const backToChina = () => mapApi.current?.flyTo(104.0, 35.0, 4);
 

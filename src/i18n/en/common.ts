@@ -239,6 +239,13 @@ const dict: Dict = {
   '下个月': 'Next month',
   '上一年': 'Previous year',
   '下一年': 'Next year',
+
+  // ── 上传单文件上限（2026-11-07，D-248）──
+  '有 {n} 个文件超过单文件上限（{gb} GB），已跳过':
+    'Skipped {n} file(s) larger than the single-file limit ({gb} GB)',
+
+  // ── 照片墙按月分组（2026-11-07，D-251）──
+  '未知月份': 'Unknown month',
 };
 
 export default dict;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import type { PhotoWallData, PhotoWallItem, PhotoWallQuery } from '../lib/types';
-import { useT, useTp, type TPfn } from '../i18n';
+import { useLang, useT, useTp, type TPfn } from '../i18n';
 import SortToggle, { type SortOrder } from './SortToggle';
 import Segmented from './Segmented';
 import Lightbox from './Lightbox';
@@ -13,7 +13,7 @@ import './PhotoWall.css';
  *
  * - 自己分页拉 /api/photos：limit=60 + offset 递增，IntersectionObserver 哨兵无限滚动，到底停止。
  * - 顶部年份 chip（响应里的 years）+ 全部；可选省份下拉；focus.placeId 时默认只看该地点（可清除）。
- * - 按年分组倒序；缩略图懒加载；视频 ▶ 角标 + 时长；hover 显示日期 · 地点名 · 省市区。
+ * - 按月分组倒序（2026年11月 / 2026年10月…，组内日期倒序）；缩略图懒加载；视频 ▶ 角标 + 时长；hover 显示日期 · 地点名 · 省市区。
  * - 点击一张 → onPick(place.id, media.id)，由 App 负责关面板 / 飞地点 / 开侧栏。
  * - focus.mediaId：加载到它就滚动过去并高亮；没加载到就保留 focus.placeId 过滤，不报错。
  */
@@ -87,10 +87,14 @@ const fmtDuration = (s?: number | null): string => {
   return `${m}:${String(sec).padStart(2, '0')}`;
 };
 
-const yearOf = (it: PhotoWallItem): string => {
-  if (it.date && it.date.length >= 4) return it.date.slice(0, 4);
+const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** 分组键：YYYY-MM（2026-11-07 D-251 用户要求照片墙按月分隔）；拿不到日期就归「未知月份」 */
+const monthOf = (it: PhotoWallItem): string => {
+  if (it.date && /^\d{4}-\d{2}/.test(it.date)) return it.date.slice(0, 7);
   const d = new Date(it.created_at);
-  return Number.isFinite(d.getTime()) ? String(d.getFullYear()) : '';
+  if (!Number.isFinite(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 };
 
 const dateText = (it: PhotoWallItem): string => (it.date ? it.date.replace(/-/g, '.') : '');
@@ -186,6 +190,7 @@ function Tile({
 export default function PhotoWall({ onClose, onPick, focus }: Props) {
   const t = useT();
   const tp = useTp();
+  const lang = useLang();
   const focusMediaId = focus?.mediaId ?? null;
 
   // ── 筛选 ──
@@ -465,26 +470,26 @@ export default function PhotoWall({ onClose, onPick, focus }: Props) {
     scrollRef.current?.focus({ preventScroll: true });
   }, []);
 
-  // ── 分组：年份倒序，组内日期倒序 ──
+  // ── 分组：按月倒序（2026年11月 / 2026年10月…），组内日期倒序 ──
   const groups = useMemo(() => {
     const map = new Map<string, PhotoWallItem[]>();
     for (const it of items) {
-      const y = yearOf(it) || t('未知年份');
-      const arr = map.get(y);
+      const k = monthOf(it) || t('未知月份');
+      const arr = map.get(k);
       if (arr) arr.push(it);
-      else map.set(y, [it]);
+      else map.set(k, [it]);
     }
     const entries = [...map.entries()];
-    // 排序方向：desc = 2024、2023…（最新在前）；asc = 从早到晚。
-    // 「未知年份」不参与方向反转，永远排在最后。
+    // 排序方向：desc = 最新月份在前；asc = 从早到晚。
+    // 「未知月份」不参与方向反转，永远排在最后。
     const dir = order === 'desc' ? -1 : 1;
     entries.sort((a, b) => {
-      const an = /^\d{4}$/.test(a[0]) ? Number(a[0]) : null;
-      const bn = /^\d{4}$/.test(b[0]) ? Number(b[0]) : null;
+      const an = /^\d{4}-\d{2}$/.test(a[0]) ? a[0] : null;
+      const bn = /^\d{4}-\d{2}$/.test(b[0]) ? b[0] : null;
       if (an === null && bn === null) return 0;
       if (an === null) return 1;
       if (bn === null) return -1;
-      return (an - bn) * dir;
+      return an.localeCompare(bn) * dir;
     });
     // 组内同样按 date desc（再 created_at）排序，asc 时整体反转
     for (const [, arr] of entries) {
@@ -504,6 +509,14 @@ export default function PhotoWall({ onClose, onPick, focus }: Props) {
   }, [items, placeFilter]);
 
   const hasFilter = year !== null || province !== null || placeFilter !== null;
+
+  /** 月份分组标题：中文「2026年11月」，英文「Nov 2026」；无日期归「未知月份」 */
+  const groupLabel = (key: string): string => {
+    if (!/^\d{4}-\d{2}$/.test(key)) return t('未知月份');
+    const [y, m] = key.split('-');
+    const mi = Number(m);
+    return lang === 'en' ? `${MONTHS_EN[mi - 1]} ${y}` : `${y}年${mi}月`;
+  };
 
   const resetFilters = () => {
     setYear(null);
@@ -633,14 +646,10 @@ export default function PhotoWall({ onClose, onPick, focus }: Props) {
             </div>
           )}
 
-          {groups.map(([y, list]) => (
-            <section
-              className="pw-group"
-              key={y}
-              aria-label={/^\d{4}$/.test(y) ? t('{y} 年', { y }) : t('未知年份')}
-            >
+          {groups.map(([key, list]) => (
+            <section className="pw-group" key={key} aria-label={groupLabel(key)}>
               <h3 className="pw-group-title">
-                {y}
+                {groupLabel(key)}
                 <span className="pw-group-n">
                   {list.length} {t('张')}
                 </span>
