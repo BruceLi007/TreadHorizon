@@ -246,6 +246,27 @@ const dict: Dict = {
 
   // ── 照片墙按月分组（2026-11-07，D-251）──
   '未知月份': 'Unknown month',
+  // ── 照片墙多选删除（2026-11-07，D-255）──
+  '选择': 'Select',
+  '取消全选': 'Deselect all',
+  '删除所选': 'Delete selected',
+  '点击选择': 'Click to select',
+  '已选 {n} 张': '{n} selected',
+  '删除选中的 {n} 张照片/视频？': 'Delete the selected {n} photos/videos?',
+  '会移到回收站，可恢复。': 'They will be moved to Trash and can be restored.',
+  '有 {n} 张删除失败，请重试': 'Failed to delete {n} item(s); please try again.',
+
+  // ── 回收站恢复 / 彻底删除确认弹窗（2026-11-07，D-256）──
+  '恢复后会回到原来的位置。': 'It will be restored to its original position.',
+  '清空回收站？': 'Empty Trash?',
+  '彻底删除 {n} 项，释放约 {size}？': 'Permanently delete {n} item(s) and free about {size}?',
+  '数据库记录和 B 库里的原片、缩略图/预览/封面帧缓存会被':
+    'Database records and the copies, thumbnails/previews/cover frames in library B will be',
+  '确认': 'Confirm',
+
+  // ── 照片墙按月全选（2026-11-07，D-257）──
+  '全选本月': 'Select this month',
+  '取消本月': 'Deselect this month',
 };
 
 export default dict;

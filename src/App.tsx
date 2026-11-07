@@ -1516,7 +1516,9 @@ export default function App() {
               setTopAction(null);
               closePanels();
               exitAdd();
-              setSettingsInitialTab(undefined);
+              // 2026-11-07 D-260：顶栏红点 = 备份待办时，打开设置直接落在「备份与恢复」，
+              // 让红点「按级」可追溯（顶栏红点 → 设置导航红点 → 备份页红色提醒条）。
+              setSettingsInitialTab(backupDue ? 'backup' : undefined);
               setSettingsOpen(true);
               void refreshBackupStatus();
               void refreshTrashCount();
@@ -1735,6 +1737,9 @@ export default function App() {
             say(tr('已从备份恢复 · 地图和清单已刷新'));
           }}
           onBackupStatus={setBackupStatus}
+          // 2026-11-07 D-260：把顶栏「设置」红点延续到设置导航的分类上（目前只有备份提醒），
+          // 用户点进设置后能一眼看到待办在哪个分类，再点进去就是具体提醒。
+          navDots={backupDue ? { backup: t('该备份了：{text}', { text: backupDueText }) } : undefined}
           trashCount={trashCount}
           theme={theme}
           effectiveTheme={effectiveTheme}
@@ -1768,7 +1773,8 @@ export default function App() {
           onClose={() => setStatsOpen(false)}
           onOpenBackup={() => {
             setStatsOpen(false);
-            setSettingsInitialTab(undefined);
+            // 2026-11-07 D-260：统计面板「去备份」直接落在「备份与恢复」分类
+            setSettingsInitialTab('backup');
             setSettingsOpen(true);
             void refreshBackupStatus();
             void refreshTrashCount();
@@ -1784,6 +1790,10 @@ export default function App() {
             void openPlaceById(placeId, { fly: true });
           }}
           focus={photoWall.focus}
+          onChanged={() => {
+            void refreshTrashCount();
+            void refreshPlaces();
+          }}
         />
       )}
 

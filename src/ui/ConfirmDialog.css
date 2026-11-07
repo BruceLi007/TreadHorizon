@@ -1,0 +1,96 @@
+/**
+ * 2026-11-07 D-256：通用确认弹窗样式（照片墙批量删除 / 回收站彻底删除 / 恢复）。
+ * 与设置窗口、灯箱等弹层使用同一套主题变量与按钮体系。
+ */
+.cd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.cd-card {
+  width: min(440px, 100%);
+  padding: 18px 18px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg-panel);
+  color: var(--text-1);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+  outline: none;
+}
+
+.cd-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.cd-title {
+  flex: 1;
+  margin: 0;
+  font-size: calc(15px * var(--fs-scale));
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.cd-close {
+  flex: none;
+}
+
+.cd-body {
+  margin-top: 10px;
+  color: var(--text-2);
+  font-size: calc(13px * var(--fs-scale));
+  line-height: 1.65;
+}
+
+.cd-body p {
+  margin: 0 0 6px;
+}
+
+.cd-body p:last-child {
+  margin-bottom: 0;
+}
+
+.cd-body b {
+  color: var(--text-1);
+}
+
+.cd-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.cd-check input {
+  margin: 3px 0 0;
+  flex: none;
+}
+
+.cd-check small {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-3);
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.cd-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.cd-actions .ghost,
+.cd-actions .danger-btn,
+.cd-actions .primary {
+  min-width: 96px;
+}

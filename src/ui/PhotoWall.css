@@ -561,3 +561,150 @@
     transition: none;
   }
 }
+
+/* ── 照片墙多选删除（2026-11-07 D-255；用户要求） ── */
+.pw-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex: none;
+}
+
+.pw-head-actions .pw-close {
+  margin-left: 0;
+}
+
+.pw-select-btn {
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-2);
+  font-size: calc(12px * var(--fs-scale));
+  cursor: pointer;
+}
+
+.pw-select-btn:hover {
+  color: var(--text-1);
+  border-color: var(--text-3);
+}
+
+.pw-select-btn.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.pw-tile.select-mode:hover img {
+  transform: none;
+}
+
+.pw-tile.is-selected {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+
+.pw-tile.is-selected img {
+  opacity: 0.82;
+}
+
+.pw-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  background: rgba(0, 0, 0, 0.35);
+  color: transparent;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+}
+
+.pw-check.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.pw-bulkbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-panel);
+}
+
+.pw-bulk-count {
+  font-size: calc(13px * var(--fs-scale));
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.pw-bulk-spacer {
+  flex: 1;
+}
+
+.pw-bulk-text {
+  min-width: 0;
+  font-size: calc(13px * var(--fs-scale));
+  color: var(--text-1);
+}
+
+.pw-bulk-text small {
+  display: block;
+  margin-top: 2px;
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+.pw-bulk-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  flex: none;
+}
+
+.pw-bulk-err {
+  color: var(--bad);
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.pw-bulkbar .danger-btn {
+  height: 32px;
+}
+
+/* 多选时隐藏右下角缩放手柄，避免压住底部「删除所选」按钮 */
+.pw-panel.select-mode .pw-resize {
+  display: none;
+}
+
+/* 按月全选 / 取消本月（D-257） */
+.pw-group-select {
+  align-self: center;
+  margin-left: auto;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: calc(11px * var(--fs-scale));
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.pw-group-select:hover {
+  color: var(--text-1);
+  border-color: var(--text-3);
+}

@@ -1157,7 +1157,8 @@ html:is([data-theme='light'], [data-theme='white']) .folder-drop-overlay {
 .visit-form .vf-row {
   display: flex;
   align-items: flex-end;
-  gap: 6px;
+  /* 2026-11-07 D-258：日期框内容曾比容器宽 1px，和标题挤在一起；加大列间距 */
+  gap: 10px;
 }
 
 .visit-form .field {
@@ -1167,7 +1168,8 @@ html:is([data-theme='light'], [data-theme='white']) .folder-drop-overlay {
 }
 
 .visit-form .vf-date {
-  flex: 0 0 118px;
+  /* 118px 时日期文字 + 日历图标会溢出 1px；加宽到 132px 留出余量 */
+  flex: 0 0 132px;
 }
 
 .visit-form .field > span {
@@ -3571,7 +3573,8 @@ html:is([data-theme='light'], [data-theme='white']) .upload-queue {
 }
 
 .trash-confirm {
-  margin: 10px 14px 0;
+  /* 2026-11-07 D-253：确认框放在底部操作栏上方，靠近触发按钮，避免出现在列表顶部 */
+  margin: 10px 14px;
   flex: none;
 }
 

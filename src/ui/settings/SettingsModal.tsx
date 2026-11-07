@@ -65,6 +65,12 @@ interface Props {
   onProfileChanged?: () => void;
   /** 打开时默认落在哪个分类（2026-11-07 D-224：点顶栏头像 / 名称 → 直接打开「账号」） */
   initialTab?: TabId;
+  /**
+   * 左侧分类上的红点（2026-11-07 D-260）：值 = 悬停提示文案。
+   * 目前用于把顶栏「设置」的备份提醒红点延续到「备份与恢复」分类上，
+   * 让用户点进设置后能按级找到红点对应的待办；后续其它待办也可复用。
+   */
+  navDots?: Partial<Record<TabId, string>>;
 }
 
 export type TabId =
@@ -254,6 +260,7 @@ export default function SettingsModal({
   onLoggedOut,
   onProfileChanged,
   initialTab,
+  navDots,
 }: Props) {
   const t = useT();
   const [tab, setTab] = useState<TabId>(initialTab ?? 'general');
@@ -381,6 +388,14 @@ export default function SettingsModal({
                   >
                     {trashCount > 99 ? '99+' : trashCount}
                   </span>
+                )}
+                {/* 2026-11-07 D-260：分类级红点（顶栏红点的下一级指引） */}
+                {navDots?.[item.id] && (
+                  <span
+                    className="set-nav-dot"
+                    title={navDots[item.id]}
+                    aria-label={navDots[item.id]}
+                  />
                 )}
               </button>
             ))}

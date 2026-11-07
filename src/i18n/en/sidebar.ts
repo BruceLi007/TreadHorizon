@@ -118,6 +118,12 @@ const dict: Dict = {
   '关闭上传队列（未完成项会被取消）':
     'Close the upload queue (unfinished items will be cancelled)',
   '关闭上传队列': 'Close upload queue',
+  // D-261：有失败项时关闭队列的二次确认
+  '还有 {n} 个文件上传失败，仍要关闭上传队列？':
+    '{n} file(s) failed to upload. Close the upload queue anyway?',
+  '关闭后，失败的文件需要重新选择上传（不会自动重试）。':
+    'After closing, failed files must be selected again to upload (they will not retry automatically).',
+  '仍然关闭': 'Close anyway',
 
   // ── Sidebar · 拖文件夹新建到访（D-246）──
   '松开鼠标：按文件夹名新建一次到访并上传':

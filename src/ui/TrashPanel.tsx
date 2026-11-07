@@ -4,6 +4,7 @@ import { useT, useTp, type TFn, type TPfn } from '../i18n';
 import SortToggle, { type SortOrder } from './SortToggle';
 import Segmented from './Segmented';
 import CloseIcon from './CloseIcon';
+import ConfirmDialog from './ConfirmDialog';
 import type {
   PurgeTrashResult,
   RestoreTrashResult,
@@ -215,11 +216,8 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
       },
       { visits: 0, media: 0 }
     );
-    if (earlier.visits || earlier.media) {
-      setRestoreAsk({ items: list, includeEarlier: false, skipped: targets.length - list.length });
-    } else {
-      void finishRestore(list, false, targets.length - list.length);
-    }
+    // 2026-11-07 D-256（用户要求）：恢复也要先弹独立确认窗口，不再点一下就直接恢复。
+    setRestoreAsk({ items: list, includeEarlier: false, skipped: targets.length - list.length });
   };
 
   const startPurge = (targets: TrashItem[], all = false) => {
@@ -415,96 +413,6 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
         </button>
       </div>
 
-      {restoreAsk && (
-        <div className="confirm-del trash-confirm">
-          <div className="confirm-text">
-            {t('恢复 {n} 项？', { n: restoreAsk.items.length })}
-            <small>
-              {t('所选中有')}{' '}
-              {[
-                restoreEarlierTotals.visits
-                  ? t('{n} 次到访', { n: restoreEarlierTotals.visits })
-                  : '',
-                restoreEarlierTotals.media
-                  ? t('{n} 张照片/视频', { n: restoreEarlierTotals.media })
-                  : '',
-              ]
-                .filter(Boolean)
-                .join(' / ')}{' '}
-              {t('是此前单独删除的，默认不随父级恢复。')}
-            </small>
-          </div>
-          <label className="trash-file-opt">
-            <input
-              type="checkbox"
-              checked={restoreAsk.includeEarlier}
-              onChange={(e) => setRestoreAsk({ ...restoreAsk, includeEarlier: e.target.checked })}
-            />
-            <span>
-              {t('同时恢复此前单独删除的子项')}
-              <small>{t('不勾选的话，它们会继续留在回收站里，之后可单独恢复。')}</small>
-            </span>
-          </label>
-          <div className="row">
-            <button className="ghost" onClick={() => setRestoreAsk(null)} disabled={!!busy}>
-              {t('取消')}
-            </button>
-            <button
-              className="primary"
-              onClick={() =>
-                finishRestore(
-                  restoreAsk.items,
-                  restoreAsk.includeEarlier,
-                  restoreAsk.skipped
-                )
-              }
-              disabled={!!busy}
-            >
-              {busy === 'restore' ? t('恢复中…') : t('恢复')}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {purge && (
-        <div className="confirm-del trash-confirm">
-          <div className="confirm-text">
-            {purge.all
-              ? t('清空回收站')
-              : t('彻底删除 {n} 项', { n: purge.items.length })}
-            {t('，释放约')} <b>{fmtBytes(purgeSize)}</b>
-            {t('？')}
-            <small>
-              {t('数据库记录和 B 库里的原片、缩略图/预览/封面帧缓存会')}
-              <b>{t('永久删除，无法恢复')}</b>
-              {t('； 你的本地原件 A 不受影响。')}
-              {purgeEarlier.visits || purgeEarlier.media
-                ? t(' 会连带清理此前单独删除的 {items}。', {
-                    items: [
-                      purgeEarlier.visits
-                        ? t('{n} 次到访', { n: purgeEarlier.visits })
-                        : '',
-                      purgeEarlier.media
-                        ? t('{n} 张照片/视频', { n: purgeEarlier.media })
-                        : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' / '),
-                  })
-                : ''}
-            </small>
-          </div>
-          <div className="row">
-            <button className="ghost" onClick={() => setPurge(null)} disabled={!!busy}>
-              {t('取消')}
-            </button>
-            <button className="danger-btn" onClick={doPurge} disabled={!!busy}>
-              {busy === 'purge' ? t('删除中…') : t('确认彻底删除')}
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="visits">
         {loading && !data && <div className="muted pad">{t('读取中…')}</div>}
 
@@ -663,6 +571,90 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
           {t('彻底删除所选')}
         </button>
       </div>
+      {restoreAsk && (
+        <ConfirmDialog
+          title={t('恢复 {n} 项？', { n: restoreAsk.items.length })}
+          busy={busy === 'restore'}
+          busyText={t('恢复中…')}
+          confirmText={t('恢复')}
+          onCancel={() => setRestoreAsk(null)}
+          onConfirm={() =>
+            void finishRestore(restoreAsk.items, restoreAsk.includeEarlier, restoreAsk.skipped)
+          }
+        >
+          {restoreEarlierTotals.visits || restoreEarlierTotals.media ? (
+            <>
+              <p>
+                {t('所选中有')}{' '}
+                {[
+                  restoreEarlierTotals.visits
+                    ? t('{n} 次到访', { n: restoreEarlierTotals.visits })
+                    : '',
+                  restoreEarlierTotals.media
+                    ? t('{n} 张照片/视频', { n: restoreEarlierTotals.media })
+                    : '',
+                ]
+                  .filter(Boolean)
+                  .join(' / ')}{' '}
+                {t('是此前单独删除的，默认不随父级恢复。')}
+              </p>
+              <label className="cd-check">
+                <input
+                  type="checkbox"
+                  checked={restoreAsk.includeEarlier}
+                  onChange={(e) =>
+                    setRestoreAsk({ ...restoreAsk, includeEarlier: e.target.checked })
+                  }
+                  disabled={busy === 'restore'}
+                />
+                <span>
+                  {t('同时恢复此前单独删除的子项')}
+                  <small>{t('不勾选的话，它们会继续留在回收站里，之后可单独恢复。')}</small>
+                </span>
+              </label>
+            </>
+          ) : (
+            <p>{t('恢复后会回到原来的位置。')}</p>
+          )}
+        </ConfirmDialog>
+      )}
+
+      {purge && (
+        <ConfirmDialog
+          title={
+            purge.all
+              ? t('清空回收站？')
+              : t('彻底删除 {n} 项，释放约 {size}？', {
+                  n: purge.items.length,
+                  size: fmtBytes(purgeSize),
+                })
+          }
+          danger
+          busy={busy === 'purge'}
+          busyText={t('删除中…')}
+          confirmText={t('确认彻底删除')}
+          onCancel={() => setPurge(null)}
+          onConfirm={() => void doPurge()}
+        >
+          <p>
+            {t('数据库记录和 B 库里的原片、缩略图/预览/封面帧缓存会被')}
+            <b>{t('永久删除，无法恢复')}</b>
+            {t('； 你的本地原件 A 不受影响。')}
+          </p>
+          {(purgeEarlier.visits || purgeEarlier.media) && (
+            <p>
+              {t(' 会连带清理此前单独删除的 {items}。', {
+                items: [
+                  purgeEarlier.visits ? t('{n} 次到访', { n: purgeEarlier.visits }) : '',
+                  purgeEarlier.media ? t('{n} 张照片/视频', { n: purgeEarlier.media }) : '',
+                ]
+                  .filter(Boolean)
+                  .join(' / '),
+              })}
+            </p>
+          )}
+        </ConfirmDialog>
+      )}
     </aside>
   );
 }

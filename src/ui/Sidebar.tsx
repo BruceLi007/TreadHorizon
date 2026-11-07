@@ -17,6 +17,7 @@ import { MEDIA_COLS } from './settings/types';
 import Segmented from './Segmented';
 import CloseIcon from './CloseIcon';
 import DatePicker from './DatePicker';
+import ConfirmDialog from './ConfirmDialog';
 // 秘密基地共用样式（styles.css 由 Lead 维护，本任务不改）
 import './SecretPrompt.css';
 
@@ -349,15 +350,21 @@ export default function Sidebar({
 
   // 上传队列卡片的本地关闭兜底：即使父组件的状态没来得及清（或 HMR 旧闭包），点 × 也应立刻收起
   const [queueClosed, setQueueClosed] = useState(false);
+  // 2026-11-07 D-261：有上传失败项时，点 × 先弹确认，避免把「失败 + 可重试」记录静默清掉
+  const [closeQueueAsk, setCloseQueueAsk] = useState(false);
   const prevUploadLen = useRef(0);
   useEffect(() => {
     if (uploads.length === 0) {
       setQueueClosed(false);
+      setCloseQueueAsk(false);
       prevUploadLen.current = 0;
       return;
     }
     // 新加了一批文件 → 重新显示队列
-    if (uploads.length > prevUploadLen.current) setQueueClosed(false);
+    if (uploads.length > prevUploadLen.current) {
+      setQueueClosed(false);
+      setCloseQueueAsk(false);
+    }
     prevUploadLen.current = uploads.length;
   }, [uploads.length]);
 
@@ -768,6 +775,8 @@ export default function Sidebar({
 
   // 上传队列汇总（F-MED-10）
   const uploadDone = uploads.filter((x) => x.status === 'done').length;
+  // D-261：失败项数量 —— 关闭队列前若有失败项，先弹确认（失败项清掉后需要重新选文件）
+  const uploadFailed = uploads.filter((x) => x.status === 'error').length;
   const uploadActive = uploads.some((x) => x.status === 'queued' || x.status === 'uploading');
   const uploadHasFinished = uploads.some((x) =>
     ['done', 'skipped', 'canceled'].includes(x.status)
@@ -1088,6 +1097,35 @@ export default function Sidebar({
                       </div>
                     )}
 
+                    {confirmingVisit === v.id && (
+                      <div className="confirm-del" onClick={(e) => e.stopPropagation()}>
+                        <div className="confirm-text">
+                          {t('删除这次到访？')}
+                          <small>
+                            {t('{n} 个照片/视频会一起移到回收站，可恢复', {
+                              n: v.media.length,
+                            })}
+                          </small>
+                        </div>
+                        <div className="row">
+                          <button
+                            className="ghost"
+                            onClick={() => setConfirmingVisit(null)}
+                            disabled={saving}
+                          >
+                            {t('取消')}
+                          </button>
+                          <button
+                            className="danger-btn"
+                            onClick={() => removeVisit(v)}
+                            disabled={saving}
+                          >
+                            {saving ? t('删除中…') : t('确认删除')}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* 到访编辑表单：2026-11-07 D-244（用户要求）从照片下方移到照片上方，
                         点「编辑」后立刻在眼前，不用滚过整排照片。 */}
                     {editingVisit === v.id && (
@@ -1159,35 +1197,6 @@ export default function Sidebar({
                       </div>
                     )}
 
-                    {confirmingVisit === v.id && (
-                      <div className="confirm-del" onClick={(e) => e.stopPropagation()}>
-                        <div className="confirm-text">
-                          {t('删除这次到访？')}
-                          <small>
-                            {t('{n} 个照片/视频会一起移到回收站，可恢复', {
-                              n: v.media.length,
-                            })}
-                          </small>
-                        </div>
-                        <div className="row">
-                          <button
-                            className="ghost"
-                            onClick={() => setConfirmingVisit(null)}
-                            disabled={saving}
-                          >
-                            {t('取消')}
-                          </button>
-                          <button
-                            className="danger-btn"
-                            onClick={() => removeVisit(v)}
-                            disabled={saving}
-                          >
-                            {saving ? t('删除中…') : t('确认删除')}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
                     {v.note && <div className="note">{v.note}</div>}
               </div>
 
@@ -1225,6 +1234,11 @@ export default function Sidebar({
                       type="button"
                       className="icon uq-close"
                       onClick={() => {
+                        // D-261：还有失败项时先确认（关闭会清空重试入口，需要重新选文件）
+                        if (uploadFailed > 0) {
+                          setCloseQueueAsk(true);
+                          return;
+                        }
                         // 本地先收起（保证点了立刻有反馈），再通知 App 清空队列/取消未完成项
                         setQueueClosed(true);
                         onCloseUploadQueue?.();
@@ -1289,6 +1303,21 @@ export default function Sidebar({
                   })}
                 </div>
               </div>
+            )}
+            {/* D-261：还有失败项时关闭上传队列 → 先确认（失败项会丢，需要重新选文件） */}
+            {closeQueueAsk && uploadFailed > 0 && (
+              <ConfirmDialog
+                title={t('还有 {n} 个文件上传失败，仍要关闭上传队列？', { n: uploadFailed })}
+                confirmText={t('仍然关闭')}
+                onCancel={() => setCloseQueueAsk(false)}
+                onConfirm={() => {
+                  setCloseQueueAsk(false);
+                  setQueueClosed(true);
+                  onCloseUploadQueue?.();
+                }}
+              >
+                <p>{t('关闭后，失败的文件需要重新选择上传（不会自动重试）。')}</p>
+              </ConfirmDialog>
             )}
             <input
               ref={fileRef}

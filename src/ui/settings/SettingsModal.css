@@ -149,6 +149,18 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 分类级红点（2026-11-07 D-260）：把顶栏「设置」按钮上的备份提醒红点
+   延续到具体分类，让用户点进设置后能按级找到红点对应的待办。
+   尺寸 / 颜色与顶栏 .backup-dot 一致；导航项 hover / 选中会换底色，所以不画描边圈。 */
+.set-nav-dot {
+  margin-left: auto;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--bad);
+}
+
 /* 左下角单独的「账号」入口：2026-11-07 用户要求（D-221），固定在设置左下角；
    2026-11-07 用户要求删除入口上方的细分隔线（只保留底部固定，不画线） */
 .set-nav-bottom {

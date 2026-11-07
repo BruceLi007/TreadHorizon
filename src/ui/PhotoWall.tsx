@@ -6,6 +6,7 @@ import SortToggle, { type SortOrder } from './SortToggle';
 import Segmented from './Segmented';
 import Lightbox from './Lightbox';
 import CloseIcon from './CloseIcon';
+import ConfirmDialog from './ConfirmDialog';
 import './PhotoWall.css';
 
 /**
@@ -22,6 +23,8 @@ interface Props {
   onClose: () => void;
   onPick: (placeId: string, mediaId: string) => void;
   focus?: { mediaId?: string; placeId?: string } | null;
+  /** 批量删除后通知 App 刷新回收站角标 / 地点媒体计数 */
+  onChanged?: () => void;
 }
 
 /** 每页条数（与服务端约定） */
@@ -106,14 +109,20 @@ const regionOf = (place: PhotoWallItem['place'], tp: TPfn): string =>
 function Tile({
   item,
   active,
+  selectMode,
+  selected,
   onPick,
   onPreview,
+  onToggleSelect,
   register,
 }: {
   item: PhotoWallItem;
   active: boolean;
+  selectMode: boolean;
+  selected: boolean;
   onPick: (placeId: string, mediaId: string) => void;
   onPreview: (mediaId: string) => void;
+  onToggleSelect: (mediaId: string) => void;
   register: (id: string, el: HTMLElement | null) => void;
 }) {
   const t = useT();
@@ -123,6 +132,7 @@ function Tile({
   const region = regionOf(item.place, tp);
   const when = dateText(item);
   const preview = () => onPreview(item.id);
+  const activate = () => (selectMode ? onToggleSelect(item.id) : preview());
   const kindLabel = t(item.kind === 'video' ? '视频||type' : '照片||type');
   const namePart = item.place.name ? ` · ${item.place.name}` : '';
 
@@ -131,18 +141,32 @@ function Tile({
       ref={(el) => register(item.id, el)}
       role="button"
       tabIndex={0}
-      className={active ? 'pw-tile is-target' : 'pw-tile'}
-      title={`${when}${namePart}${region ? t('（{region}）', { region }) : ''} · ${t('点击预览')}`}
-      aria-label={t('{kind} {when} {name}：点击预览，下方按钮在地图中查看', {
-        kind: kindLabel,
-        when,
-        name: item.place.name,
-      })}
-      onClick={preview}
+      className={
+        'pw-tile' +
+        (active ? ' is-target' : '') +
+        (selectMode ? ' select-mode' : '') +
+        (selected ? ' is-selected' : '')
+      }
+      title={
+        selectMode
+          ? t('点击选择')
+          : `${when}${namePart}${region ? t('（{region}）', { region }) : ''} · ${t('点击预览')}`
+      }
+      aria-label={
+        selectMode
+          ? t('点击选择')
+          : t('{kind} {when} {name}：点击预览，下方按钮在地图中查看', {
+              kind: kindLabel,
+              when,
+              name: item.place.name,
+            })
+      }
+      aria-pressed={selectMode ? selected : undefined}
+      onClick={activate}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          preview();
+          activate();
         }
       }}
     >
@@ -161,37 +185,65 @@ function Tile({
       {item.kind === 'video' && !broken && <span className="pw-play">▶</span>}
       {item.kind === 'video' && dur && <span className="pw-dur">{dur}</span>}
 
+      {selectMode && (
+        <span className={selected ? 'pw-check on' : 'pw-check'} aria-hidden="true">
+          {selected ? '✓' : ''}
+        </span>
+      )}
+
       <span className="pw-meta">
         <span className="pw-meta-line">
           {when}
           {namePart}
         </span>
         {region && <span className="pw-meta-sub">{region}</span>}
-        <span className="pw-meta-hint">{t('点击预览')}</span>
+        <span className="pw-meta-hint">{selectMode ? t('点击选择') : t('点击预览')}</span>
       </span>
 
-      <button
-        type="button"
-        className="pw-map-btn"
-        onClick={(e) => {
-          e.stopPropagation();
-          onPick(item.place.id, item.id);
-        }}
-        title={t('在地图中查看这个地点')}
-      >
-        {t('在地图中查看')}
-      </button>
+      {!selectMode && (
+        <button
+          type="button"
+          className="pw-map-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPick(item.place.id, item.id);
+          }}
+          title={t('在地图中查看这个地点')}
+        >
+          {t('在地图中查看')}
+        </button>
+      )}
 
       {active && <span className="pw-target-flag">{t('目标照片')}</span>}
     </div>
   );
 }
 
-export default function PhotoWall({ onClose, onPick, focus }: Props) {
+export default function PhotoWall({ onClose, onPick, focus, onChanged }: Props) {
   const t = useT();
   const tp = useTp();
   const lang = useLang();
   const focusMediaId = focus?.mediaId ?? null;
+
+  // ── 多选删除（2026-11-07 D-255 用户要求）──
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [confirmBulk, setConfirmBulk] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+
+  const exitSelectMode = useCallback(() => {
+    setSelectMode(false);
+    setSelectedIds([]);
+    setConfirmBulk(false);
+    setBulkError(null);
+  }, []);
+
+  const toggleSelect = useCallback((id: string) => {
+    setConfirmBulk(false);
+    setBulkError(null);
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }, []);
 
   // ── 筛选 ──
   const [placeFilter, setPlaceFilter] = useState<string | null>(focus?.placeId ?? null);
@@ -287,6 +339,65 @@ export default function PhotoWall({ onClose, onPick, focus }: Props) {
     if (el) tileRefs.current.set(id, el);
     else tileRefs.current.delete(id);
   }, []);
+
+  // ── 多选删除（D-255）：全选当前已加载 / 批量移入回收站 ──
+  const allLoadedSelected = items.length > 0 && items.every((it) => selectedIds.includes(it.id));
+
+  const toggleSelectAll = () => {
+    setConfirmBulk(false);
+    setBulkError(null);
+    setSelectedIds(allLoadedSelected ? [] : items.map((it) => it.id));
+  };
+
+  /** 按月全选 / 取消本月（D-257 用户要求） */
+  const toggleMonthSelect = (list: PhotoWallItem[]) => {
+    setConfirmBulk(false);
+    setBulkError(null);
+    const ids = list.map((it) => it.id);
+    const all = ids.length > 0 && ids.every((id) => selectedIds.includes(id));
+    setSelectedIds((prev) =>
+      all ? prev.filter((id) => !ids.includes(id)) : [...new Set([...prev, ...ids])]
+    );
+  };
+
+  const deleteSelected = async () => {
+    if (!selectedIds.length || deleting) return;
+    setDeleting(true);
+    setBulkError(null);
+    const ids = [...selectedIds];
+    const failed = new Set<string>();
+    for (const id of ids) {
+      try {
+        await api.deleteMedia(id);
+      } catch {
+        failed.add(id);
+      }
+    }
+    const okIds = ids.filter((id) => !failed.has(id));
+    if (okIds.length) {
+      const removed = itemsRef.current.filter((it) => okIds.includes(it.id));
+      const next = itemsRef.current.filter((it) => !okIds.includes(it.id));
+      itemsRef.current = next;
+      setItems(next);
+      setTotal((n) => Math.max(0, n - okIds.length));
+      setYearChips((prev) =>
+        prev.map((y) => {
+          const hit = removed.filter((it) => it.date?.startsWith(y.year)).length;
+          return hit ? { ...y, count: Math.max(0, y.count - hit) } : y;
+        })
+      );
+      if (previewId && okIds.includes(previewId)) setPreviewId(null);
+      onChanged?.();
+    }
+    setDeleting(false);
+    setConfirmBulk(false);
+    if (failed.size) {
+      setSelectedIds([...failed]);
+      setBulkError(t('有 {n} 张删除失败，请重试', { n: failed.size }));
+    } else {
+      exitSelectMode();
+    }
+  };
 
   const buildQuery = useCallback(
     (offset: number): PhotoWallQuery => ({
@@ -459,11 +570,24 @@ export default function PhotoWall({ onClose, onPick, focus }: Props) {
   // ── Esc 关闭（预览灯箱打开时交给灯箱自己处理，避免把照片墙一起关掉）──
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !previewId) onClose();
+      if (e.key !== 'Escape' || previewId) return;
+      if (selectMode) {
+        if (confirmBulk) setConfirmBulk(false);
+        else exitSelectMode();
+        return;
+      }
+      onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, previewId]);
+  }, [onClose, previewId, selectMode, confirmBulk, exitSelectMode]);
+
+  // 筛选 / 排序变化后，已选项可能已不在当前视图里：清空选择，避免误删看不见的照片
+  useEffect(() => {
+    setSelectedIds([]);
+    setConfirmBulk(false);
+    setBulkError(null);
+  }, [year, province, placeFilter, order]);
 
   // 打开时把焦点给滚动容器，方向键 / PageDown 可直接翻
   useEffect(() => {
@@ -532,7 +656,11 @@ export default function PhotoWall({ onClose, onPick, focus }: Props) {
       <div className="pw-overlay" onClick={onClose} role="presentation">
       <div
         ref={panelRef}
-        className={resizing ? 'pw-panel resizing' : 'pw-panel'}
+        className={
+          'pw-panel' +
+          (resizing ? ' resizing' : '') +
+          (selectMode ? ' select-mode' : '')
+        }
         style={size ? { width: size.w, height: size.h, maxHeight: 'none' } : undefined}
         role="dialog"
         aria-modal="true"
@@ -546,14 +674,26 @@ export default function PhotoWall({ onClose, onPick, focus }: Props) {
               <span className="pw-count">{t('共 {total} 张', { total })}</span>
             )}
           </div>
-          <button
-            className="icon pw-close"
-            onClick={onClose}
-            aria-label={t('关闭照片墙')}
-            title={t('关闭（Esc）')}
-          >
-            <CloseIcon />
-          </button>
+          <div className="pw-head-actions">
+            {items.length > 0 && (
+              <button
+                type="button"
+                className={selectMode ? 'pw-select-btn on' : 'pw-select-btn'}
+                onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+                disabled={deleting}
+              >
+                {selectMode ? t('完成') : t('选择')}
+              </button>
+            )}
+            <button
+              className="icon pw-close"
+              onClick={onClose}
+              aria-label={t('关闭照片墙')}
+              title={t('关闭（Esc）')}
+            >
+              <CloseIcon />
+            </button>
+          </div>
         </div>
 
         <div className="pw-filters">
@@ -653,6 +793,15 @@ export default function PhotoWall({ onClose, onPick, focus }: Props) {
                 <span className="pw-group-n">
                   {list.length} {t('张')}
                 </span>
+                {selectMode && (
+                  <button
+                    type="button"
+                    className="pw-group-select"
+                    onClick={() => toggleMonthSelect(list)}
+                  >
+                    {list.every((it) => selectedIds.includes(it.id)) ? t('取消本月') : t('全选本月')}
+                  </button>
+                )}
               </h3>
               <div
                 className="pw-grid"
@@ -663,8 +812,11 @@ export default function PhotoWall({ onClose, onPick, focus }: Props) {
                     key={it.id}
                     item={it}
                     active={it.id === focusMediaId}
+                    selectMode={selectMode}
+                    selected={selectedIds.includes(it.id)}
                     onPick={onPick}
                     onPreview={setPreviewId}
+                    onToggleSelect={toggleSelect}
                     register={registerTile}
                   />
                 ))}
@@ -707,6 +859,38 @@ export default function PhotoWall({ onClose, onPick, focus }: Props) {
           </div>
         </div>
 
+        {selectMode && (
+          <div className="pw-bulkbar">
+            <span className="pw-bulk-count">{t('已选 {n} 张', { n: selectedIds.length })}</span>
+            <button
+              type="button"
+              className="text-btn"
+              onClick={toggleSelectAll}
+              disabled={!items.length}
+            >
+              {allLoadedSelected ? t('取消全选') : t('全选')}
+            </button>
+            {bulkError && <span className="pw-bulk-err">{bulkError}</span>}
+            <span className="pw-bulk-spacer" />
+            <button
+              type="button"
+              className="text-btn"
+              onClick={exitSelectMode}
+              disabled={deleting}
+            >
+              {t('取消')}
+            </button>
+            <button
+              type="button"
+              className="danger-btn"
+              onClick={() => setConfirmBulk(true)}
+              disabled={!selectedIds.length || deleting}
+            >
+              {t('删除所选')}
+            </button>
+          </div>
+        )}
+
         {/* 右下角拖拽缩放：拖动改变大小，双击恢复默认（D-135） */}
         <div
           className="pw-resize"
@@ -728,6 +912,20 @@ export default function PhotoWall({ onClose, onPick, focus }: Props) {
         </div>
       </div>
       </div>
+
+      {confirmBulk && (
+        <ConfirmDialog
+          title={t('删除选中的 {n} 张照片/视频？', { n: selectedIds.length })}
+          danger
+          busy={deleting}
+          busyText={t('删除中…')}
+          confirmText={t('确认删除')}
+          onCancel={() => setConfirmBulk(false)}
+          onConfirm={() => void deleteSelected()}
+        >
+          <p>{t('会移到回收站，可恢复。')}</p>
+        </ConfirmDialog>
+      )}
 
       {previewIndex >= 0 && (
         <Lightbox
