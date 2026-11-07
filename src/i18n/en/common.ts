@@ -230,6 +230,15 @@ const dict: Dict = {
   '图片太大，请选择 10MB 以内的图片': 'The image is too large — choose one under 10 MB',
   '头像已更新': 'Avatar updated',
   '头像上传失败：{msg}': 'Avatar upload failed: {msg}',
+
+  // ── 自定义日期选择器（2026-11-07，D-247）──
+  '选择日期': 'Choose date',
+  '选择年月': 'Choose month and year',
+  '返回日期选择': 'Back to date selection',
+  '上个月': 'Previous month',
+  '下个月': 'Next month',
+  '上一年': 'Previous year',
+  '下一年': 'Next year',
 };
 
 export default dict;

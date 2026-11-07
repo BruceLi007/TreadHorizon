@@ -4,6 +4,7 @@ import { useT, useTp } from '../i18n';
 import type { Poi } from '../lib/types';
 import Segmented from './Segmented';
 import CloseIcon from './CloseIcon';
+import DatePicker from './DatePicker';
 
 interface Props {
   draft: DraftState | null;
@@ -192,11 +193,7 @@ export default function AddPanel({
                   >
                     {t('今天')}
                   </button>
-                  <input
-                    type="date"
-                    value={draft.date}
-                    onChange={(e) => onChange({ date: e.target.value })}
-                  />
+                  <DatePicker value={draft.date} onChange={(date) => onChange({ date })} />
                 </div>
               </div>
             )}

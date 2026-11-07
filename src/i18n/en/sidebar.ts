@@ -119,6 +119,28 @@ const dict: Dict = {
     'Close the upload queue (unfinished items will be cancelled)',
   '关闭上传队列': 'Close upload queue',
 
+  // ── Sidebar · 拖文件夹新建到访（D-246）──
+  '松开鼠标：按文件夹名新建一次到访并上传':
+    'Release to create a visit named after the folder and upload its media',
+  '文件夹中的图片 / 视频会批量上传；日期默认今天，之后可编辑':
+    'Photos / videos in the folder are uploaded in bulk; the date defaults to today and can be edited later',
+  '正在按文件夹新建到访并加入上传队列…':
+    'Creating visits from folders and adding files to the upload queue…',
+  '这个地点还是「想去」，先转为「去过」再拖文件夹':
+    'This place is still on the wishlist — mark it as visited before dropping folders',
+  '文件夹「{name}」里没有可上传的图片 / 视频':
+    'Folder "{name}" contains no photos / videos to upload',
+  '新建到访后找不到它': 'Could not find the new visit after creating it',
+  '按文件夹新建到访失败：{msg}': 'Failed to create a visit from the folder: {msg}',
+  '先添加一次到访，再把零散文件拖进来':
+    'Add a visit first, then drag individual files in',
+  '已按文件夹名新建 {n} 次到访，开始上传 {files} 个文件':
+    'Created {n} visit(s) from folder names; uploading {files} files',
+  '已加入上传队列：{files} 个文件': 'Added {files} files to the upload queue',
+  '没有识别到可上传的文件夹或图片 / 视频':
+    'No folder or photos / videos found to upload',
+  '已忽略 {n} 个非图片 / 视频文件': 'Ignored {n} non-media files',
+
   // ── Sidebar · 底部操作 / 删除地点确认 ──
   '+ 添加一次到访': '+ Add a visit',
   '这是最后一个到访，地点还在。': 'This was the last visit; the place still exists.',

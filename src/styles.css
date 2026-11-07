@@ -828,6 +828,47 @@ code {
   }
 }
 
+/* D-246：拖文件夹到侧栏的覆盖提示（pointer-events: none，保证 drop 仍落在面板上） */
+.folder-drop-overlay {
+  position: absolute;
+  inset: 8px;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  border: 2px dashed rgba(255, 255, 255, 0.4);
+  border-radius: 14px;
+  background: rgba(10, 12, 16, 0.72);
+  pointer-events: none;
+}
+
+html:is([data-theme='light'], [data-theme='white']) .folder-drop-overlay {
+  border-color: rgba(20, 30, 50, 0.32);
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.folder-drop-card {
+  padding: 18px 22px;
+  text-align: center;
+  color: var(--text-1);
+}
+
+.folder-drop-icon {
+  font-size: 30px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.folder-drop-title {
+  font-size: calc(13px * var(--fs-scale));
+  font-weight: 600;
+}
+
+.folder-drop-sub {
+  margin-top: 6px;
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-2);
+}
+
 .panel-head {
   display: flex;
   align-items: center;
@@ -1225,15 +1266,6 @@ code {
   align-items: center;
 }
 
-.row input[type="date"] {
-  flex: 1;
-  height: 34px;
-  padding: 0 10px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--bg-raised);
-}
-
 .chip {
   height: 34px;
   padding: 0 14px;
@@ -1319,7 +1351,8 @@ code {
   background: rgba(255, 255, 255, 0.028);
 }
 
-/* 编辑中的到访卡片：保持与其它到访框同宽，仅做轻高亮；编辑表单在它下方以抽屉形式展开（2026-11-04，D-108） */
+/* 编辑中的到访卡片：保持与其它到访框同宽，仅做轻高亮；编辑表单在卡片内部、照片上方展开
+   （2026-11-04 D-108 原先放照片下方；2026-11-07 D-244 用户要求移到照片上方，避免滚过整排照片才能编辑） */
 .visit.editing {
   border-color: var(--line);
   background: rgba(255, 255, 255, 0.02);
@@ -1329,7 +1362,8 @@ html:is([data-theme='light'], [data-theme='white']) .visit.editing {
   background: rgba(20, 30, 50, 0.03);
 }
 
-/* 到访编辑抽屉：点「编辑」时在该条到访卡片下方像抽屉一样展开，宽度与到访卡片一致（2026-11-04，D-108） */
+/* 到访编辑表单：点「编辑」时在到访卡片内部展开，位于照片网格上方（D-244 从下方移上来），
+   宽度与到访卡片一致；底部 8px 与照片网格隔开（2026-11-04 D-108 原为卡片下方抽屉）。 */
 @keyframes visit-drawer-in {
   from {
     opacity: 0;

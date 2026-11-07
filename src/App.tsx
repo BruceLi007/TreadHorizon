@@ -1537,6 +1537,7 @@ export default function App() {
           onAutoAddVisitHandled={() => setAutoAddVisitFor(null)}
           uploads={uploads}
           onPickFiles={enqueueUploads}
+          onToast={say}
           onCancelUpload={cancelUpload}
           onCancelAllUploads={cancelAllUploads}
           onRetryUpload={retryUpload}

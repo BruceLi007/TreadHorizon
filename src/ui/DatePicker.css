@@ -1,0 +1,246 @@
+/**
+ * 2026-11-07 D-247：自定义日期选择器样式。
+ * 触发器与 .field input 同款；弹层用主题变量，深浅主题一致；Portal 到 body，z-index 高于侧栏。
+ */
+
+.date-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-raised);
+  color: var(--text-1);
+  font-size: calc(12px * var(--fs-scale));
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease;
+}
+
+.date-trigger:hover {
+  border-color: var(--text-3);
+}
+
+.date-trigger:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.date-trigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.date-trigger-text {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.date-trigger-icon {
+  flex: none;
+  color: var(--text-3);
+}
+
+/* 到访编辑表单里跟其它小输入框同高（.visit-form .field input 是 28px） */
+.visit-form .date-trigger {
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: calc(12px * var(--fs-scale));
+}
+
+/* 添加足迹的日期行里跟「今天」chip 同高、占满剩余宽度 */
+.row .date-trigger {
+  flex: 1;
+  height: 34px;
+  padding: 0 10px;
+}
+
+/* ── 弹层 ── */
+.date-pop {
+  position: fixed;
+  z-index: 120;
+  width: 272px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-raised);
+  color: var(--text-1);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  font-size: calc(12px * var(--fs-scale));
+  user-select: none;
+}
+
+html:is([data-theme='light'], [data-theme='white']) .date-pop {
+  background: #ffffff;
+  box-shadow: 0 16px 44px rgba(20, 30, 50, 0.18);
+}
+
+.date-pop-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.dp-nav {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.dp-nav:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-1);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .dp-nav:hover {
+  background: rgba(20, 30, 50, 0.06);
+}
+
+.dp-title {
+  flex: 1;
+  height: 28px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-1);
+  font-size: calc(12.5px * var(--fs-scale));
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dp-title:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .dp-title:hover {
+  background: rgba(20, 30, 50, 0.06);
+}
+
+.date-pop-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.date-pop-week span {
+  padding: 4px 0;
+  text-align: center;
+  font-size: calc(10.5px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+.date-pop-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.dp-day {
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-1);
+  font-size: calc(12px * var(--fs-scale));
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.dp-day:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .dp-day:hover {
+  background: rgba(20, 30, 50, 0.07);
+}
+
+.dp-day.outside {
+  color: var(--text-3);
+  opacity: 0.55;
+}
+
+.dp-day.today {
+  box-shadow: inset 0 0 0 1px var(--text-3);
+}
+
+.dp-day.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  opacity: 1;
+}
+
+.dp-day.on:hover {
+  background: var(--accent);
+}
+
+.date-pop-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.dp-today {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: calc(11.5px * var(--fs-scale));
+  cursor: pointer;
+}
+
+.dp-today:hover {
+  border-color: var(--text-3);
+  color: var(--text-1);
+}
+
+.date-pop-months {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 2px;
+}
+
+.dp-month {
+  height: 46px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-1);
+  font-size: calc(12px * var(--fs-scale));
+  cursor: pointer;
+}
+
+.dp-month:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .dp-month:hover {
+  background: rgba(20, 30, 50, 0.06);
+}
+
+.dp-month.on {
+  border-color: var(--accent);
+  color: var(--text-1);
+}

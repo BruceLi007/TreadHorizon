@@ -1,5 +1,14 @@
-import { Fragment, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import {
+  Fragment,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type DragEvent,
+  type SetStateAction,
+} from 'react';
 import { api } from '../lib/api';
+import { collectFolderDrop } from '../lib/folderDrop';
 import { fmtKm } from '../lib/geo';
 import { useT, useTp } from '../i18n';
 import type { MediaItem, PlaceDetail, UploadItem, Visit } from '../lib/types';
@@ -7,6 +16,7 @@ import type { MediaCols } from './settings/types';
 import { MEDIA_COLS } from './settings/types';
 import Segmented from './Segmented';
 import CloseIcon from './CloseIcon';
+import DatePicker from './DatePicker';
 // 秘密基地共用样式（styles.css 由 Lead 维护，本任务不改）
 import './SecretPrompt.css';
 
@@ -22,6 +32,8 @@ interface Props {
   /** F-MED-10 上传队列（状态由 App 管理，关掉侧栏也会继续传） */
   uploads: UploadItem[];
   onPickFiles: (visitId: string, files: File[]) => void;
+  /** 拖文件夹等操作的轻提示（App 传 say；不传则静默） */
+  onToast?: (msg: string) => void;
   onCancelUpload: (key: string) => void;
   onCancelAllUploads: () => void;
   onRetryUpload: (key: string) => void;
@@ -56,6 +68,9 @@ const splitCompanions = (s: string) =>
     .split(/[、,，;；\s]+/)
     .map((x) => x.trim())
     .filter(Boolean);
+
+/** 「今天」YYYY-MM-DD（新建到访的默认日期，与 + 添加一次到访 一致） */
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
 /** 相册里的一格：缩略图 / 视频封面帧 + 悬停操作（封面 / 移动 / 删除） */
 function MediaTile({
@@ -198,14 +213,13 @@ function VisitFormEditor({
     <>
       <div className="visit-form">
         <div className="vf-row">
-          <label className="field vf-date">
+          <div className="field vf-date">
             <span>{t('日期')}</span>
-            <input
-              type="date"
+            <DatePicker
               value={form.date}
-              onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+              onChange={(date) => setForm((f) => ({ ...f, date }))}
             />
-          </label>
+          </div>
           <label className="field">
             <span>{t('标题')}</span>
             <input
@@ -274,6 +288,7 @@ export default function Sidebar({
   onAutoAddVisitHandled,
   uploads,
   onPickFiles,
+  onToast,
   onCancelUpload,
   onCancelAllUploads,
   onRetryUpload,
@@ -324,6 +339,10 @@ export default function Sidebar({
   // 删除到访（F-VST-04）
   const [confirmingVisit, setConfirmingVisit] = useState<string | null>(null);
   const [askDeletePlace, setAskDeletePlace] = useState(false);
+  // D-246：拖文件夹到侧栏 → 按文件夹名新建一次到访并批量上传
+  const [folderDropActive, setFolderDropActive] = useState(false);
+  const [folderDropBusy, setFolderDropBusy] = useState(false);
+  const folderDragDepth = useRef(0);
 
   // 媒体操作（F-MED-05 / F-MED-06）
   const [moving, setMoving] = useState<string | null>(null);
@@ -390,6 +409,102 @@ export default function Sidebar({
     fileRef.current?.click();
   };
 
+  // ── D-246：拖文件夹到侧栏 → 按文件夹名新建一次到访并批量上传 ──
+  const hasFileDrag = (e: DragEvent<HTMLElement>) => {
+    const types = e.dataTransfer?.types;
+    return Boolean(types && Array.from(types).includes('Files'));
+  };
+
+  const onPanelDragEnter = (e: DragEvent<HTMLElement>) => {
+    if (!hasFileDrag(e)) return;
+    e.preventDefault();
+    folderDragDepth.current += 1;
+    setFolderDropActive(true);
+  };
+
+  const onPanelDragOver = (e: DragEvent<HTMLElement>) => {
+    if (!hasFileDrag(e)) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const onPanelDragLeave = (e: DragEvent<HTMLElement>) => {
+    if (!hasFileDrag(e)) return;
+    folderDragDepth.current = Math.max(0, folderDragDepth.current - 1);
+    if (folderDragDepth.current === 0) setFolderDropActive(false);
+  };
+
+  const onPanelDrop = async (e: DragEvent<HTMLElement>) => {
+    if (!hasFileDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    folderDragDepth.current = 0;
+    setFolderDropActive(false);
+    if (folderDropBusy) return;
+    if (detail.kind === 'wishlist') {
+      onToast?.(t('这个地点还是「想去」，先转为「去过」再拖文件夹'));
+      return;
+    }
+    setFolderDropBusy(true);
+    try {
+      const items = Array.from(e.dataTransfer?.items ?? []);
+      const { folders, looseFiles, skipped } = await collectFolderDrop(items);
+      let created = 0;
+      let queued = 0;
+      let lastCreatedId: string | null = null;
+      for (const folder of folders) {
+        if (!folder.files.length) {
+          onToast?.(t('文件夹「{name}」里没有可上传的图片 / 视频', { name: folder.name }));
+          continue;
+        }
+        try {
+          const before = new Set(detail.visits.map((v) => v.id));
+          const updated = await api.addVisit(detail.id, {
+            date: todayISO(),
+            title: folder.name.slice(0, 100),
+          });
+          const createdVisit = updated.visits.find((v) => !before.has(v.id));
+          if (!createdVisit) throw new Error(t('新建到访后找不到它'));
+          created += 1;
+          queued += folder.files.length;
+          lastCreatedId = createdVisit.id;
+          onPickFiles(createdVisit.id, folder.files);
+        } catch (err: any) {
+          onToast?.(t('按文件夹新建到访失败：{msg}', { msg: err?.message || String(err) }));
+        }
+      }
+      if (looseFiles.length) {
+        const targetId = activeVisit?.id ?? detail.visits[0]?.id;
+        if (targetId) {
+          onPickFiles(targetId, looseFiles);
+          queued += looseFiles.length;
+        } else {
+          onToast?.(t('先添加一次到访，再把零散文件拖进来'));
+        }
+      }
+      if (created || queued) {
+        if (lastCreatedId) setTarget(lastCreatedId);
+        onChanged();
+        const skippedText =
+          skipped > 0 ? ' · ' + t('已忽略 {n} 个非图片 / 视频文件', { n: skipped }) : '';
+        const msg =
+          created > 0
+            ? t('已按文件夹名新建 {n} 次到访，开始上传 {files} 个文件', {
+                n: created,
+                files: queued,
+              })
+            : t('已加入上传队列：{files} 个文件', { files: queued });
+        onToast?.(msg + skippedText);
+      } else if (skipped > 0) {
+        onToast?.(t('已忽略 {n} 个非图片 / 视频文件', { n: skipped }));
+      } else {
+        onToast?.(t('没有识别到可上传的文件夹或图片 / 视频'));
+      }
+    } finally {
+      setFolderDropBusy(false);
+    }
+  };
+
   /** F-MED-09：打开本地文件夹（服务端调资源管理器） */
   const revealMedia = async (m: MediaItem) => {
     setErr(null);
@@ -407,7 +522,7 @@ export default function Sidebar({
    */
   const startAddVisit = () => {
     setVform({
-      date: new Date().toISOString().slice(0, 10),
+      date: todayISO(),
       title: '',
       note: '',
       rating: 0,
@@ -677,7 +792,31 @@ export default function Sidebar({
   };
 
   return (
-    <aside className="panel">
+    <aside
+      className="panel"
+      onDragEnter={onPanelDragEnter}
+      onDragOver={onPanelDragOver}
+      onDragLeave={onPanelDragLeave}
+      onDrop={(e) => void onPanelDrop(e)}
+    >
+      {/* D-246：拖文件夹到侧栏的提示 / 处理中状态（覆盖层不接收鼠标事件，避免挡住 drop） */}
+      {(folderDropActive || folderDropBusy) && (
+        <div className="folder-drop-overlay" aria-hidden="true">
+          <div className="folder-drop-card">
+            <div className="folder-drop-icon">📁</div>
+            <div className="folder-drop-title">
+              {folderDropBusy
+                ? t('正在按文件夹新建到访并加入上传队列…')
+                : t('松开鼠标：按文件夹名新建一次到访并上传')}
+            </div>
+            {!folderDropBusy && (
+              <div className="folder-drop-sub">
+                {t('文件夹中的图片 / 视频会批量上传；日期默认今天，之后可编辑')}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       <div className="panel-head">
         <div className="head-left">
           {onBackToList && !editingPlace && (
@@ -949,20 +1088,23 @@ export default function Sidebar({
                       </div>
                     )}
 
-                    <div className="grid">
-                      {v.media.map((m, i) => (
-                        <MediaTile
-                          key={m.id}
-                          m={m}
-                          cover={detail.cover_id === m.id}
-                          onClick={() => onOpenLightbox(v.id, i)}
-                          onCover={() => setCover(m)}
-                          onMove={() => setMoving(m.id)}
-                          onReveal={() => revealMedia(m)}
-                          onDelete={() => trashMedia(m.id)}
+                    {/* 到访编辑表单：2026-11-07 D-244（用户要求）从照片下方移到照片上方，
+                        点「编辑」后立刻在眼前，不用滚过整排照片。 */}
+                    {editingVisit === v.id && (
+                      <div className="visit-edit-drawer" onClick={(e) => e.stopPropagation()}>
+                        <VisitFormEditor
+                          form={vform}
+                          setForm={setVform}
+                          err={err}
+                          saving={saving}
+                          onSave={() => void saveVisit(v)}
+                          onCancel={() => setEditingVisit(null)}
                         />
-                      ))}
-                      {/* 照片后面的空白「+」格：给这次到访补素材（D-110 / D-111） */}
+                      </div>
+                    )}
+
+                    <div className="grid">
+                      {/* 「+ 添加素材」格始终放在第一格（2026-11-07 D-245，用户要求），照片依次排在后面 */}
                       <div className="tile-wrap">
                         <button
                           type="button"
@@ -979,6 +1121,18 @@ export default function Sidebar({
                           <span className="tile-add-label">{t('添加素材')}</span>
                         </button>
                       </div>
+                      {v.media.map((m, i) => (
+                        <MediaTile
+                          key={m.id}
+                          m={m}
+                          cover={detail.cover_id === m.id}
+                          onClick={() => onOpenLightbox(v.id, i)}
+                          onCover={() => setCover(m)}
+                          onMove={() => setMoving(m.id)}
+                          onReveal={() => revealMedia(m)}
+                          onDelete={() => trashMedia(m.id)}
+                        />
+                      ))}
                     </div>
 
                     {moving && v.media.some((m) => m.id === moving) && (
@@ -1037,18 +1191,6 @@ export default function Sidebar({
                     {v.note && <div className="note">{v.note}</div>}
               </div>
 
-              {editingVisit === v.id && (
-                <div className="visit-edit-drawer" onClick={(e) => e.stopPropagation()}>
-                  <VisitFormEditor
-                    form={vform}
-                    setForm={setVform}
-                    err={err}
-                    saving={saving}
-                    onSave={() => void saveVisit(v)}
-                    onCancel={() => setEditingVisit(null)}
-                  />
-                </div>
-              )}
               </Fragment>
             ))}
 
