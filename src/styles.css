@@ -147,13 +147,18 @@ html[data-fontweight='bold'] {
   font-weight: inherit;
 }
 
-/* 2026-11-06 追加（用户反馈「有几个字体的常规和加粗没区别」）：
+/* 2026-11-06 追加（D-183，用户反馈「有几个字体的常规和加粗没区别」）：
    单个字面、且字体本身偏粗的字体（例如 喵咛狗爬 usWeightClass=700），
    浏览器认为「已经是粗体」，不会再合成加粗 → 切到加粗档没有可见变化。
-   这里在加粗档额外加一层很轻的同色描边做兜底：所有字体都能看出加粗；
+   这里在加粗档额外加一层很轻的同色描边做兜底。
+   2026-11-07 D-243（用户反馈「微软雅黑和宋体的加粗模式字有重影」）：
+   这个描边**只给随仓库发布的 2 款单字重 OFL 字体**用；系统字体（微软雅黑 / 宋体 /
+   黑体 / 楷体）本身有真实粗体或由浏览器合成粗体，再叠加描边就会出现重影。
    逐元素用 currentColor，彩色文字不会变成正文色描边。 */
-html[data-fontweight='bold'] body,
-html[data-fontweight='bold'] body * {
+html[data-fontweight='bold'][data-font='miao-goupa'] body,
+html[data-fontweight='bold'][data-font='miao-goupa'] body *,
+html[data-fontweight='bold'][data-font='aowu-suiyin'] body,
+html[data-fontweight='bold'][data-font='aowu-suiyin'] body * {
   -webkit-text-stroke-width: calc(0.32px * var(--fs-scale));
   -webkit-text-stroke-color: currentColor;
 }
