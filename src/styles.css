@@ -1,0 +1,4204 @@
+/* ── 令牌 ── */
+:root {
+  --bg-map: #0b0d10;
+  --bg-panel: #12151a;
+  --bg-raised: #191d24;
+  --line: #262b33;
+  --text-1: #e9ecef;
+  --text-2: #98a2b3;
+  --text-3: #5c6675;
+  /* D-168 全局强调色（方案 B，黑白）：深色 / 纯黑档用近白，浅色 / 纯白档用近黑（见下方主题块）。
+     --accent-ink = 强调色底上的字色（浅色 / 纯白档改为白字，因为强调色变深了）；
+     --accent-map = 画在浅色地图上的强调元素（草稿飞镖投影 / 涟漪兜底）——
+     地图底图在 4 档外观下都是浅色，纯白在地图上不可见，所以这组固定用深色档，不随主题变。
+     （省界点亮是例外：按用户要求保持橙色，见下方 --province 系列。） */
+  --accent: #f2f4f7;
+  --accent-soft: rgba(242, 244, 247, 0.14);
+  --accent-rgb: 242, 244, 247;
+  --accent-ink: #14181d;
+  --accent-map: #161b22;
+  --accent-map-rgb: 22, 27, 34;
+  /* D-168 用户补充：省界点亮 / 省份点亮 4 档保持橙色（比原来的强调橙亮一档），不跟黑白强调色走；
+     地图底图在 4 档外观下都是浅色，所以这组橙色在 4 档外观下固定不变。 */
+  --province: #f4ae62;
+  --province-rgb: 244, 174, 98;
+  --province-hi-rgb: 255, 226, 186;
+  --wish: #6aa9d8;
+  --bad: #e06c75;
+  --blur: blur(20px) saturate(130%);
+  /* 2026-11-04 UIUX：右侧浮层/列表抽屉统一宽度（D-96；D-101 加宽到 520）。
+     地点详情、添加足迹、My旅迹、统计、聚合簇、合并候选都用这一个值，改一处全统一。 */
+  --panel-w: 520px;
+  /* 2026-11-04 D-126：顶栏大按钮组的固定宽度。My旅迹 / 统计抽屉也用它，
+     这样抽屉和按钮组左右两边完全对齐（抽屉右侧留 64px、宽度相同 → 左缘也对齐）。 */
+  --hud-w: 632px;
+  /* 2026-11-04 UIUX：顶栏（标题 / 搜索胶囊 / 右侧按钮）整体下移量。
+     用户反馈「太靠上」，调这一个值即可整体上/下微调。 */
+  --topbar-shift: 10px;
+
+  /* 2026-11-04 界面字体（D-92；2026-11-07 D-227 字体精简为 2 款 OFL + 系统 4 款）：
+     --font-ui 是当前生效的字体，由设置页写入 html[data-font]。
+     --font-opt-* 只给设置页的字体选项做预览。 */
+  --font-opt-system: -apple-system, "PingFang SC", "Source Han Sans SC", "Microsoft YaHei",
+    system-ui, sans-serif;
+  --font-opt-yahei: "Microsoft YaHei", "PingFang SC", "Source Han Sans SC", system-ui, sans-serif;
+  --font-opt-songti: SimSun, "Songti SC", "Noto Serif CJK SC", serif;
+  --font-opt-heiti: SimHei, "Heiti SC", "Noto Sans CJK SC", sans-serif;
+  --font-opt-kaiti: KaiTi, "Kaiti SC", STKaiti, "Noto Serif CJK SC", serif;
+  --font-ui: var(--font-opt-system);
+
+  /* 2026-11-05 D-142 / D-157：界面字号三档（小 / 中 / 大）的整体缩放系数。
+     全站 .css 里的文字大小都写成 calc(Npx * var(--fs-scale))，只缩文字，
+     不改图片、图标、布局盒子比例；设置 → 通用 → 字体 里切换，值见下方
+     html[data-fontsize=...] 规则。
+     D-157（用户反馈字号偏小）：三档整体上移一档 → 1.0 / 1.1 / 1.2（默认中 = 1.1）。 */
+  --fs-scale: 1.1;
+  /* 2026-11-06 用户要求：界面字重（常规 400 / 加粗 600），由 html[data-fontweight] 覆盖。 */
+  --font-weight-ui: 400;
+}
+
+/* 设置 → 通用 → 字体：只换 UI 字体，不动布局；等宽字体（code / .mono）保持 monospace */
+html[data-font='yahei'] {
+  --font-ui: var(--font-opt-yahei);
+}
+
+html[data-font='songti'] {
+  --font-ui: var(--font-opt-songti);
+}
+
+html[data-font='heiti'] {
+  --font-ui: var(--font-opt-heiti);
+}
+
+html[data-font='kaiti'] {
+  --font-ui: var(--font-opt-kaiti);
+}
+
+html[data-font='kaiti'] {
+  --font-ui: var(--font-opt-kaiti);
+}
+
+/* ── 2026-11-05 D-140 字体；2026-11-07 D-227（公开发布准备）精简为 2 款 SIL OFL 字体 ──
+   文件在 public/fonts/（随仓库发布，许可见 public/fonts/LICENSES.md；不进备份）。
+   已删除：乐米栀夏浅风体 / 乐米清砚方墨体（© 乐米 All rights reserved，不适合公开仓库）、
+   方塘像素体（无许可声明）、系统「仿宋」选项（用户要求）。
+   - font-display: swap：先用系统字体渲染，字体就绪后替换，避免首屏被 34MB 阻塞。
+   - 每个自定义字体后面都接系统中文栈：字体缺字时按字回退，不会出现方块。
+   - 单字重字体声明 font-weight: normal，粗体由浏览器合成（D-183 另加同色描边兜底）。 */
+@font-face {
+  font-family: 'TM Miorning Goupa Hei';
+  src: url('/fonts/miao-goupa-hei.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TM Howl Shattered';
+  src: url('/fonts/aowu-suiyin-hei.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* D-140 / D-227：下载字体的选项预览变量（后面接系统中文栈做缺字回退） */
+  --font-opt-miao-goupa: 'TM Miorning Goupa Hei', -apple-system, 'PingFang SC',
+    'Microsoft YaHei', system-ui, sans-serif;
+  --font-opt-aowu-suiyin: 'TM Howl Shattered', -apple-system, 'PingFang SC', 'Microsoft YaHei',
+    system-ui, sans-serif;
+}
+
+html[data-font='miao-goupa'] {
+  --font-ui: var(--font-opt-miao-goupa);
+}
+
+html[data-font='aowu-suiyin'] {
+  --font-ui: var(--font-opt-aowu-suiyin);
+}
+
+/* 2026-11-05 D-142 / D-157：界面字号三档（设置 → 通用 → 字体 → 字号）。
+   只改 --fs-scale（全站文字都是 calc(Npx * var(--fs-scale))），不动图片 / 图标 / 布局比例。
+   D-157（用户反馈整体偏小）把三档整体上移一档：小 1.0 / 中 1.1 / 大 1.2；
+   顶栏 6 键也跟随缩放（D-143），1.2 倍下中英文标签仍能放进 632px 轨道（按字体实测过）。 */
+html[data-fontsize='sm'] {
+  --fs-scale: 1;
+}
+
+html[data-fontsize='md'] {
+  --fs-scale: 1.1;
+}
+
+html[data-fontsize='lg'] {
+  --fs-scale: 1.2;
+}
+
+/* 2026-11-06 用户要求：界面字重两档（设置 → 通用 → 字体 → 字重）。
+   常规 = 正文 400（和原来一致）；加粗 = 正文 600。
+   只改「正文」字重：标题 / 按钮等自己写死字重的元素权重更高，不受影响。 */
+html[data-fontweight='bold'] {
+  --font-weight-ui: 600;
+}
+
+/* 表单控件默认不跟随正文字重（表单控件有自己的 UA 样式），加粗时让它们跟正文。
+   整条选择器放在 :where() 里 = 0 优先级：只压过浏览器默认样式，
+   任何自己写死了字重的组件规则（标题 / 播放键等）都仍然优先。 */
+:where(html[data-fontweight='bold']) :where(button, input, select, textarea) {
+  font-weight: inherit;
+}
+
+/* 2026-11-06 追加（用户反馈「有几个字体的常规和加粗没区别」）：
+   单个字面、且字体本身偏粗的字体（例如 喵咛狗爬 usWeightClass=700），
+   浏览器认为「已经是粗体」，不会再合成加粗 → 切到加粗档没有可见变化。
+   这里在加粗档额外加一层很轻的同色描边做兜底：所有字体都能看出加粗；
+   逐元素用 currentColor，彩色文字不会变成正文色描边。 */
+html[data-fontweight='bold'] body,
+html[data-fontweight='bold'] body * {
+  -webkit-text-stroke-width: calc(0.32px * var(--fs-scale));
+  -webkit-text-stroke-color: currentColor;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-map);
+  color: var(--text-1);
+  font-size: calc(14px * var(--fs-scale));
+  line-height: 1.6;
+  font-family: var(--font-ui);
+  font-weight: var(--font-weight-ui, 400);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: 0;
+  background: none;
+}
+
+input {
+  font: inherit;
+  color: inherit;
+}
+
+code {
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 0.92em;
+  background: var(--bg-raised);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.mono {
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 布局 ── */
+.app {
+  position: fixed;
+  inset: 0;
+}
+
+/* 地图容器 + 自绘标记层
+   天地图内部图层 z-index 高达 400+（Leaflet 系），必须给 .map-wrap 建立
+   独立层叠上下文，才能把它的子元素关在下面，否则顶栏(z20)、空状态(z15) 会被盖住。 */
+.map-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  isolation: isolate;
+}
+
+.map {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-map);
+}
+
+/* 标记层：不用天地图的覆盖物，自己用绝对定位的 div 画。
+   必须给一个高于天地图内部图层（Leaflet 系的 pane 用到 600+）的 z-index，
+   否则会被底图盖住 —— 标签层默认 no z-index 是画在它们下面的。 */
+.pin-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 700;
+  transition: opacity 90ms ease-out;
+}
+
+/* 缩放动画期间淡出：动画只作用于天地图自己的图层，
+   我们的标记跟不动，硬跟会「先停住再瞬移」。 */
+.pin-layer.zooming {
+  opacity: 0;
+  /* D-162：缩放期间标记层本来就不显示，直接隐藏可省掉标记的绘制/合成开销 */
+  visibility: hidden;
+}
+
+.pin {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+  pointer-events: auto;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.pin img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.55));
+}
+
+/* 聚合点（2026-11-05 D-151，用户指定）：3 个单点图标以**同一个底尖**为锚点抱在一起。
+   - 左 / 右两个内倾 ±20°、缩到 0.76；中间一个 0.80 最后画、盖在最上面；
+   - 纯去过 = 3 琥珀 / 纯想去 = 3 冷蓝 / 混合 = 多数色 2 + 少数色 1（由 MapView 选 img.src）；
+   - 外层 .pin 的 transform 由 positionAll() 独占定位，内层 .cluster-body 做轻微脉冲。 */
+.pin.cluster {
+  transition: filter 140ms ease;
+}
+
+.cluster-body {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  /* 以 3 个图标共同的底尖为原点脉冲，尖端不会被放大/缩小带离坐标点 */
+  transform-origin: 50% 100%;
+  /* D-150：常驻轻微脉冲（相位由聚合 key 哈希出，错峰）；幅度远小于单点呼吸 */
+  animation: cluster-pulse var(--pulse-dur, 5.6s) ease-in-out var(--pulse-delay, 0s) infinite;
+}
+
+.cluster-pin {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  /* 3 个图标共用容器底部中心（= 地图坐标点）作为旋转/缩放锚点 */
+  transform-origin: 50% 100%;
+}
+
+.pin.cluster:hover {
+  filter: brightness(1.12);
+}
+
+/* 悬停气泡：单个飞镖和聚合点共用 */
+.map-tip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 20;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(18, 21, 26, 0.97);
+  border: 1px solid var(--line);
+  color: var(--text-1);
+  font-size: calc(12px * var(--fs-scale));
+  line-height: 1.5;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  transform: translate(-9999px, -9999px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+/* 第一行 = 名称 + 右侧「离家 X km」（2026-11-06 D-185 用户指定） */
+.map-tip .tip-t {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: calc(12.5px * var(--fs-scale));
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+
+.map-tip .tip-name {
+  white-space: nowrap;
+}
+
+.map-tip .tip-dist {
+  margin-left: auto;
+  font-size: calc(11px * var(--fs-scale));
+  font-weight: 500;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.map-tip .tip-s {
+  margin-top: 2px;
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.pin.draft {
+  width: 46px;
+  height: 46px;
+  cursor: grab;
+}
+
+.pin.draft.dragging {
+  cursor: grabbing;
+}
+
+.pin.draft img {
+  filter: drop-shadow(0 3px 10px rgba(var(--accent-map-rgb), 0.55));
+}
+
+/* 让天地图默认控件不那么扎眼 */
+.map .tdt-control-scale-line {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #fff;
+}
+
+/* ── 顶栏 ── */
+.topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* 高度 = 内容行 56px + 下移量；padding-top 把整行内容压下来，渐变底同步加高 */
+  height: calc(56px + var(--topbar-shift));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--topbar-shift) 18px 0;
+  z-index: 20;
+  background: linear-gradient(to bottom, rgba(11, 13, 16, 0.86), rgba(11, 13, 16, 0));
+  pointer-events: none;
+}
+
+.topbar > * {
+  pointer-events: auto;
+}
+
+/* ── 品牌文字 logo（2026-11-06 D-181，用户指定：项目正式命名 Tread Horizon）──
+   左上角纯文字 wordmark：第一行品牌名、第二行中文释义「脚步丈量世界」。
+   字体跟随设置里的界面字体（--font-ui / data-font 切换即时生效）；绝对定位不参与顶栏 flex；
+   4 档主题用文字色 token + 轻投影，保证叠在地图上也清楚。
+   D-190：两行等宽（第二行 flex space-between 均分）。
+   D-191（用户指定）：整体放大；左边距与大按钮组右边距对称（都是 64px）；
+   logo 底边与大按钮组下缘对齐（宽屏按钮组中心 38 + 下移 58 + 轨道半高 17 = 113）。
+   D-192（用户反馈「放太大了，小一点」）：尺寸统一由 --brand-scale 控制（原字号 16/10 × 该系数），
+   当前 1.4 → 约 22.4 / 14px；以后想再大/小只改这一个系数即可。
+   D-195（用户要求）：取消 D-193 的反色铭牌底色，恢复纯文字（文字投影保证地图上可读）。 */
+.brand-logo {
+  /* 品牌 logo 相对原始字号（16px / 10px）的放大系数：D-191 曾是 2，D-192 收到 1.4 */
+  --brand-scale: 1.4;
+  position: absolute;
+  /* D-194（用户改主意）：与顶栏标语同一行、垂直居中对齐。
+     标语行：top 26px 起，font-size 16×fs、line-height 1.6 → 行高 25.6×fs，中心 = 26 + 12.8×fs。 */
+  top: calc(26px + 12.8px * var(--fs-scale));
+  left: 64px;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: calc(3px * var(--brand-scale));
+  /* D-190：宽度取两行里更宽的一行，第二行再用 space-between 均分到同宽 */
+  width: max-content;
+  pointer-events: none;
+  user-select: none;
+  font-family: var(--font-ui);
+  /* D-195（用户要求取消底色）：恢复纯文字 + 轻投影，保证叠在地图上可读 */
+  color: var(--text-1);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
+}
+
+.brand-logo-name {
+  font-size: calc(16px * var(--brand-scale) * var(--fs-scale));
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0.2em;
+  /* 抵消最后一个字后面多出的字距，让「墨迹」右边缘就是盒子右边缘 */
+  margin-right: -0.2em;
+  white-space: nowrap;
+}
+
+.brand-logo-sub {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  font-size: calc(10px * var(--brand-scale) * var(--fs-scale));
+  font-weight: 500;
+  line-height: 1;
+  /* D-190：不再手调固定字距，由 flex 均分 + 两行同宽自动决定 */
+  letter-spacing: 0;
+  /* D-196（用户要求）：上下两行颜色一致 */
+  color: inherit;
+  white-space: nowrap;
+}
+
+.brand-logo-sub > span {
+  display: inline-block;
+}
+
+/* 窄屏（<1420px）：大按钮组回到顶栏内容行（下移 6px），logo 底边也跟随到按钮组下缘；
+   左边距与窄屏按钮组右边距对称（topbar 18 + hud margin-right 12 = 30）。 */
+@media (max-width: 1419px) {
+  .brand-logo {
+    /* 窄屏没有标语，改为与窄屏 HUD 行垂直居中对齐（内容中心 38 + HUD 下移 6 = 44 = shift + 34） */
+    left: 30px;
+    top: calc(var(--topbar-shift) + 34px);
+    gap: calc(3px * var(--brand-scale) * 0.8);
+  }
+}
+
+/* 窄屏：先隐藏释义，再窄整块隐藏（右侧 HUD 需要空间） */
+@media (max-width: 1100px) {
+  .brand-logo-sub {
+    display: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .brand-logo {
+    display: none;
+  }
+}
+
+/* 顶栏 6 个按钮连成一个整体分段控件（2026-11-04，D-121；D-122 放大/下移；D-123 按用户红框定尺寸位置）：
+   一条浅灰轨道 + 选中项实心滑块；浅色 / 纯白主题下选中为「黑底白字」，
+   深色 / 纯黑主题下自动变「白底黑字」，4 档外观都清晰。
+   D-123：用户用红框标了目标区域——整体更大（轨道 54px 高、字 16px、每键左右 30px），
+   且整组往左下移：右边距 46px（右缘约在视口右 - 64px），下移 50px（悬在顶栏下缘/地图上）。
+   D-126：高度收低一档（轨道 46px / 按钮 40px），宽度固定 --hud-w（632px）用于和抽屉对齐。
+   D-127：再收低一档（轨道 40px / 按钮 34px）显得更修长；字间距 +1px；底色改为纯白/纯黑（见文件末尾主题规则）。
+   窄屏（<1420px）退回 D-122 的紧凑尺寸，避免和中间搜索框打架。 */
+.actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  /* 2026-11-05 D-141：用户要「整体再扁一点」——轨道 40 → 34px。
+     组内按钮 / 左侧搜索图标 / 「+ 添加足迹」同步压到 34，保持整排同高。 */
+  height: 34px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--bg-raised);
+}
+
+/* D-158（用户要求「选中块像分段控件一样滑动」）：顶栏 6 键的反色选中块。
+   位置/宽度由 App.tsx 实测当前选中键后写入 transform / width；
+   选中键本身的 scale(1.1, 1) 让滑块宽度按 1.1 倍计算。
+   首帧定位完成后再加 .ready 开过渡，避免从 0 宽长出来。 */
+.actions-thumb {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 36px;
+  width: 0;
+  border-radius: 999px;
+  background: var(--text-1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  transform: translate(0, -50%);
+}
+
+.actions-thumb.ready {
+  transition:
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 140ms ease;
+}
+
+/* 顶栏右侧 HUD（2026-11-04，D-130）：[搜索图标][+ 添加足迹][六键分段控件]
+   整体位置沿用 D-123 的「右侧偏下」；抽屉对齐仍以最右的分段控件右缘为准。
+   2026-11-05 D-145（用户要求「整个大按钮组整体往下再移动一点」）：
+   整排 HUD 下移量 50 → 58px（搜索图标 / + 添加足迹 / 6 键组一起动，保持同排对齐）；
+   抽屉挂点同步重算（中心 38 + 58 = 96，轨道 34 → 组底 113，抽屉 top = 123）。 */
+.hud {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* 左上角品牌删除后 topbar 只剩这一个子元素，用 margin-left:auto 保持原来的右侧位置（D-131 修正） */
+  margin-left: auto;
+  margin-right: 46px;
+  transform: translateY(58px);
+}
+
+.hud-tools {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+/* 2026-11-07 D-224：头像 + 名称的定位锚点 = 「+ 添加足迹」按钮（左缘 / 垂直对齐都按它算） */
+.hud-add-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.hud-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* 搜索图标键：和大按钮组同色（纯白 / 纯黑，见文件末尾主题规则）；
+   D-141：尺寸跟按钮组一起压扁（40 → 34）。 */
+.hud-icon {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--bg-panel);
+  color: var(--text-2);
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.hud .hud-icon:hover,
+.hud .hud-icon.on {
+  background: var(--bg-raised);
+  color: var(--text-1);
+}
+
+/* 点搜索图标后向左展开的搜索框（结果下拉复用 SearchBox 的 .search-results） */
+.hud-search-panel {
+  position: absolute;
+  right: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(380px, 60vw);
+  z-index: 40;
+}
+
+.hud-search-panel .searchbox {
+  max-width: none;
+}
+
+.hud-search-panel .searchbox input {
+  /* D-141：和 HUD 这一排同高（40 → 34） */
+  height: 34px;
+  border-radius: 999px;
+}
+
+/* 「+ 添加足迹」独立按钮：和大按钮组反色（浅色外观黑底白字 / 深色外观白底黑字）；
+   D-141：高度跟按钮组一起压扁（40 → 34）。 */
+.hud-add {
+  height: 34px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--text-1);
+  color: var(--bg-panel);
+  font-size: calc(14px * var(--fs-scale));
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  transition:
+    filter 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.hud-add:hover {
+  filter: brightness(1.08);
+}
+
+/* 打点中：加一圈提示环（默认已是反色实底，不能再靠反色区分） */
+.hud-add.on {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* 顶栏 6 个按钮（2026-11-04，D-118 / D-121）：
+   整体是一条轨道，未选中 = 透明底灰字，选中 = 反色实心滑块。
+   用 --text-1 / --bg-panel 反色而不是写死黑色：浅色 / 纯白主题下选中就是「黑底白字」，
+   深色 / 纯黑主题下自动变成「白底黑字」，4 档外观都看得清。 */
+.topbar .actions .ghost {
+  position: relative;
+  z-index: 1;
+  /* D-141：按钮 28 → 26（轨道 34，上下各留 1px 内边距） */
+  height: 26px;
+  /* 左右内边距 16px：固定宽 632px 均分后每个键约 102px，放得下最长标签，
+     配合下面的 white-space: nowrap，文字不会再折成两行。
+     （D-143：字号跟随三档后，大档下「My旅迹」等长标签余量变小，内边距 20 → 16 留余量；
+     按钮宽度由 flex 均分决定，内边距不影响视觉间距。） */
+  padding: 0 16px;
+  white-space: nowrap;
+  /* 2026-11-04 D-127 / D-128：字间距 1px；字号再小一档（16 → 14），D-128。
+     2026-11-05 D-143：按用户要求顶栏 6 键字号也跟随「字号三档」（calc 乘 --fs-scale）。
+     宽度受固定 632px 轨道约束 → 英文模式内边距同步收紧到 4px（见文件末尾 D-143 规则），
+     保证 小 / 中 / 大 三档下标签都放得进均分槽宽、不会撑出轨道。 */
+  letter-spacing: 1px;
+  font-size: calc(14px * var(--fs-scale));
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-2);
+  /* 2026-11-04 D-134：大按钮文字也加粗 */
+  font-weight: 700;
+  backdrop-filter: none;
+  transition:
+    background 140ms ease,
+    color 140ms ease,
+    height 140ms ease,
+    transform 140ms ease;
+}
+
+/* D-159：顶栏 6 键 hover 不再画白色背景——选中键有 scale(1.1,1) 会压到相邻键，
+   相邻键 hover 的白底会盖住滑动滑块边缘（用户截图里的小白边）。
+   只保留文字颜色变化，和分段控件的 hover 语义一致。 */
+.topbar .actions .ghost:hover {
+  background: transparent;
+  color: var(--text-1);
+}
+
+/* 选中项整体放大：轨道 34、选中高 36（比轨道上下各突出 1px，比其它键 26 明显高），
+   再用 scale(1.1, 1) 只把左右拉宽一圈、字号 15（D-132 修正；D-141 随轨道一起压扁 42 → 36） */
+.topbar .actions .ghost.on,
+.topbar .actions .ghost.on:hover {
+  position: relative;
+  z-index: 1;
+  height: 36px;
+  /* D-143：选中键字号也跟随字号三档（15 × --fs-scale；16.5px 在 36px 高度内仍宽松） */
+  font-size: calc(15px * var(--fs-scale));
+  transform: scale(1.1, 1);
+  /* D-158：反色背景改由 .actions-thumb 负责滑动，选中键只保留反色文字 */
+  background: transparent;
+  color: var(--bg-panel);
+}
+
+/* 窄屏（<1420px，搜索框不再绝对居中的档位）：按钮组退回 D-122 的紧凑尺寸与位置，
+   避免这个 54px 高的大组和中间搜索框重叠。 */
+@media (max-width: 1419px) {
+  .hud {
+    gap: 8px;
+    margin-right: 12px;
+    transform: translateY(6px);
+  }
+
+  .hud-icon {
+    /* D-141：窄屏同步压扁 32 → 30 */
+    width: 30px;
+    height: 30px;
+  }
+
+  .hud-add {
+    /* D-141：窄屏同步压扁 32 → 30 */
+    height: 30px;
+    padding: 0 14px;
+    font-size: calc(13px * var(--fs-scale));
+  }
+
+  .hud-search-panel .searchbox input {
+    height: 30px;
+  }
+
+  .actions {
+    width: auto;
+    /* D-141：窄屏轨道 38 → 32 */
+    height: 32px;
+  }
+
+  /* D-158：窄屏选中键高 34，滑块同样 34 */
+  .actions-thumb {
+    height: 34px;
+  }
+
+  .topbar .actions .ghost {
+    flex: 0 0 auto;
+    /* D-141：窄屏按钮 30 → 24 */
+    height: 24px;
+    /* D-143：和宽屏一致（20 → 16），给大字号留余量；窄屏按钮是 auto 宽度，不受轨道约束 */
+    padding: 0 16px;
+    /* D-143：顶栏键字号跟随三档 */
+    font-size: calc(14px * var(--fs-scale));
+  }
+
+  .topbar .actions .ghost.on {
+    /* D-141：窄屏选中 40 → 34 */
+    height: 34px;
+  }
+}
+
+.primary,
+.ghost {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  transition: 150ms ease;
+}
+
+.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.primary:hover {
+  filter: brightness(1.08);
+}
+
+.primary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.ghost {
+  border: 1px solid var(--line);
+  color: var(--text-1);
+  background: rgba(18, 21, 26, 0.72);
+  backdrop-filter: var(--blur);
+}
+
+.ghost:hover {
+  border-color: #3a4150;
+}
+
+/* D-166 第 9 步：主/次按钮补键盘焦点环与按下反馈（与图标键同一套） */
+.primary:focus-visible,
+.ghost:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.primary:active:not(:disabled),
+.ghost:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.ghost.full {
+  width: 100%;
+  height: 34px;
+}
+
+/* ── 面板 ── */
+.panel {
+  position: absolute;
+  top: 64px;
+  right: 14px;
+  bottom: 14px;
+  width: var(--panel-w);
+  max-width: calc(100vw - 28px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(18, 21, 26, 0.95);
+  /* 不用 backdrop-filter：地图动画时每帧都要重算这块区域的模糊，非常吃 GPU。
+     0.95 的不透明度下，模糊的视觉效果几乎为零，不值得这个代价。 */
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  z-index: 30;
+  overflow: hidden;
+  animation: slidein 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes slidein {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+
+.panel-head .title {
+  font-size: calc(18px * var(--fs-scale));
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 关闭 / 图标小按钮（2026-11-05 D-166「按钮体系统一」）：
+   所有面板右上角的关闭键统一 28×28、圆角 8、图标为 SVG（不再用 `×` 文字，
+   避免 11 种界面字体下回退 / 偏移）；hover 底色、按下缩、键盘焦点环三态齐全。 */
+.icon {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--text-2);
+  font-size: calc(18px * var(--fs-scale));
+  line-height: 1;
+  transition:
+    background 150ms ease,
+    color 150ms ease,
+    transform 120ms ease;
+}
+
+.icon:hover {
+  background: var(--bg-raised);
+  color: var(--text-1);
+}
+
+.icon:active {
+  transform: scale(0.92);
+}
+
+.icon:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.subhead {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+
+/* 地点侧栏「照片每行 N 张」快捷切换（2026-11-04，D-116）：
+   subhead 默认是两行文字，这里在去过地点时改成「左文字 + 右控件」一行（窄屏自动换行）。 */
+.subhead.subhead-split {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+
+.subhead-text {
+  min-width: 0;
+}
+
+.visit-cols {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.visit-cols-label {
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.region {
+  color: var(--text-2);
+  font-size: calc(13px * var(--fs-scale));
+}
+
+.meta {
+  color: var(--text-3);
+  font-size: calc(12px * var(--fs-scale));
+  margin-top: 2px;
+}
+
+/* ── 搜索 ── */
+.search {
+  padding: 14px 16px 8px;
+  flex: none;
+}
+
+.search input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  outline: none;
+}
+
+.search input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.results {
+  list-style: none;
+  margin: 0;
+  padding: 4px 8px;
+  overflow: auto;
+  flex: 1;
+}
+
+.results li {
+  padding: 10px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.results li.active,
+.results li:hover {
+  background: var(--bg-raised);
+}
+
+.r-name {
+  font-size: calc(14px * var(--fs-scale));
+}
+
+.r-addr {
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-3);
+  margin-top: 1px;
+}
+
+.r-tag {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: calc(10px * var(--fs-scale));
+  color: var(--text-3);
+  border: 1px solid var(--line);
+  vertical-align: 2px;
+}
+
+/* ── 表单 ── */
+.form {
+  padding: 14px 16px;
+  overflow: auto;
+  flex: 1;
+}
+
+/* ── 地点编辑：紧凑表单（2026-11-04，D-103）────────────────────────
+   旧版编辑态整个面板只剩表单、看不到照片；现在表单是一条压在头部的紧凑卡片，
+   下方到访与相册仍然可见可滚动。 */
+.place-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: none;
+  padding: 10px 14px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-raised);
+}
+
+.place-edit .pe-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.place-edit .pe-field > span {
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+.place-edit .pe-field input {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+  color: var(--text-1);
+  font-size: calc(13px * var(--fs-scale));
+  outline: none;
+}
+
+.place-edit .pe-field input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.place-edit .pe-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.place-edit .pe-kind {
+  flex: none;
+}
+
+.place-edit .pe-toggles {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.place-edit .pe-toggles .chip {
+  height: 30px;
+  padding: 0 10px;
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.place-edit .pe-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+.place-edit .pe-loc {
+  overflow: hidden;
+  color: var(--text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-edit .pe-coord {
+  flex: none;
+  color: var(--text-3);
+  font-size: calc(11px * var(--fs-scale));
+}
+
+.place-edit .pe-hint {
+  margin-left: auto;
+  flex: none;
+  white-space: nowrap;
+}
+
+.place-edit .pe-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.place-edit .pe-actions .ghost,
+.place-edit .pe-actions .primary {
+  height: 30px;
+  padding: 0 14px;
+  font-size: calc(12.5px * var(--fs-scale));
+}
+
+.place-edit .hint {
+  margin: 0;
+}
+
+/* ── 到访编辑 / 新增表单：紧凑 3 行（2026-11-04，D-104 / D-105 / D-108）──
+   日期+标题 / 评分+同行人 / 笔记，输入 28px；编辑时表单在到访卡片底部整宽展开（抽屉感），
+   上方照片保持可见。 */
+.visit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  padding: 2px 0 2px;
+}
+
+.visit-form .vf-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.visit-form .field {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.visit-form .vf-date {
+  flex: 0 0 118px;
+}
+
+.visit-form .field > span {
+  margin-bottom: 3px;
+  font-size: calc(10.5px * var(--fs-scale));
+}
+
+.visit-form .field input {
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.visit-form .field textarea {
+  height: 44px;
+  min-height: 44px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.visit-form .vf-rating {
+  flex: 0 0 auto;
+}
+
+.visit-form .stars {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.visit-form .stars button {
+  font-size: calc(14px * var(--fs-scale));
+}
+
+.visit-form .hint {
+  margin: 0;
+}
+
+.vf-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  width: 100%;
+  padding: 0 0 4px;
+}
+
+.vf-actions .ghost,
+.vf-actions .primary {
+  height: 28px;
+  padding: 0 12px;
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.field {
+  display: block;
+  margin-bottom: 14px;
+}
+
+.field > span,
+.field-static > span {
+  display: block;
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-3);
+  margin-bottom: 6px;
+}
+
+.field input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  outline: none;
+}
+
+.field input:focus {
+  border-color: var(--accent);
+}
+
+.field-static {
+  margin-bottom: 14px;
+}
+
+.field-static .value {
+  font-size: calc(13px * var(--fs-scale));
+  color: var(--text-1);
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.row input[type="date"] {
+  flex: 1;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+}
+
+.chip {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  background: transparent;
+}
+
+.chip.on {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.chip:active {
+  transform: scale(0.98);
+}
+
+.hint {
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-3);
+  line-height: 1.7;
+  margin: 6px 0 0;
+}
+
+.muted {
+  color: var(--text-3);
+  font-size: calc(13px * var(--fs-scale));
+  line-height: 1.8;
+}
+
+.pad {
+  padding: 14px 18px;
+}
+
+.panel-foot {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  flex: none;
+}
+
+.panel-foot > * {
+  flex: 1;
+}
+
+.panel-foot.column {
+  flex-direction: column;
+}
+
+.panel-foot.column > * {
+  flex: none;
+}
+
+/* ── 到访 ── */
+.visits {
+  flex: 1;
+  overflow: auto;
+  padding: 10px 12px;
+}
+
+.visit {
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+
+.visit:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.visit.active {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.028);
+}
+
+/* 编辑中的到访卡片：保持与其它到访框同宽，仅做轻高亮；编辑表单在它下方以抽屉形式展开（2026-11-04，D-108） */
+.visit.editing {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .visit.editing {
+  background: rgba(20, 30, 50, 0.03);
+}
+
+/* 到访编辑抽屉：点「编辑」时在该条到访卡片下方像抽屉一样展开，宽度与到访卡片一致（2026-11-04，D-108） */
+@keyframes visit-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.visit-edit-drawer {
+  margin: 0 0 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-raised);
+  animation: visit-drawer-in 160ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .visit-edit-drawer {
+    animation: none;
+  }
+
+  .actions-thumb {
+    transition: none;
+  }
+}
+
+.visit-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.visit-head .date {
+  font-variant-numeric: tabular-nums;
+  font-size: calc(13px * var(--fs-scale));
+  color: var(--text-2);
+}
+
+.visit-head .vtitle {
+  font-size: calc(13px * var(--fs-scale));
+}
+
+.visit-head .n {
+  margin-left: auto;
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+.grid {
+  display: grid;
+  /* 每行几张由设置 / 侧栏快捷切换决定（2026-11-04，D-116）：--visit-cols 默认 3 */
+  grid-template-columns: repeat(var(--visit-cols, 3), minmax(0, 1fr));
+  gap: 4px;
+}
+
+.tile {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #0e1116;
+  padding: 0;
+}
+
+.tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 到访照片网格末尾的空白「+」格：给这次到访补素材（2026-11-04，D-110 / D-111）
+   与照片共用 .tile 尺寸（1:1、同宽），只换虚线边框和透明底，保证大小完全一致。 */
+.tile.tile-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.tile.tile-add:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.tile-add-plus {
+  font-size: calc(22px * var(--fs-scale));
+  line-height: 1;
+}
+
+.tile-add-label {
+  font-size: calc(10.5px * var(--fs-scale));
+  white-space: nowrap;
+}
+
+.tile.video {
+  display: grid;
+  place-items: center;
+  background: #1a2029;
+}
+
+.tile .play {
+  color: var(--text-2);
+  font-size: calc(18px * var(--fs-scale));
+}
+
+.note {
+  margin-top: 8px;
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-2);
+  white-space: pre-wrap;
+}
+
+/* ── 空状态 / 提示 ── */
+/* 空地图引导（2026-11-07 P2 验收反馈）：只有「添加……」按钮，没有小字、没有底色方框。
+   注意：曾用类名 .empty，和顶栏「家」按钮未设家时的 .home-btn.empty 撞名、
+   也让主题里的 .empty 规则掺进来，已改名 .map-empty 并把主题底色规则只留给 .fatal。 */
+.map-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.map-empty button {
+  pointer-events: auto;
+}
+
+.loading,
+.fatal {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  gap: 8px;
+  background: rgba(11, 13, 16, 0.92);
+  z-index: 50;
+  padding: 40px;
+}
+
+.fatal h2 {
+  margin: 0 0 6px;
+  font-size: calc(18px * var(--fs-scale));
+}
+
+.fatal p {
+  color: var(--text-2);
+  margin: 0;
+  max-width: 460px;
+}
+
+.map-error {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(18, 21, 26, 0.94);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px 24px;
+  max-width: 460px;
+  z-index: 40;
+  text-align: center;
+}
+
+.map-error h3 {
+  margin: 0 0 8px;
+  color: var(--bad);
+  font-size: calc(15px * var(--fs-scale));
+}
+
+.map-error p {
+  margin: 0 0 6px;
+  color: var(--text-2);
+  font-size: calc(13px * var(--fs-scale));
+}
+
+.busy,
+.toast {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: calc(13px * var(--fs-scale));
+  z-index: 60;
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--line);
+  background: rgba(18, 21, 26, 0.92);
+}
+
+.busy {
+  bottom: 74px;
+  color: var(--text-2);
+}
+
+.toast {
+  bottom: 28px;
+  color: var(--text-1);
+}
+
+/* ── 灯箱 ── */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.94);
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.lb-stage {
+  max-width: 92vw;
+  max-height: 82vh;
+  display: grid;
+  place-items: center;
+}
+
+.lb-stage img,
+.lb-stage video {
+  max-width: 92vw;
+  max-height: 82vh;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+/* 图片缩放：transform 由 JS 控制，这里只保证手势和渲染属性 */
+.lb-stage img {
+  transform-origin: center center;
+  will-change: transform;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.lb-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 灯箱里的小按钮（D-166 第 7 步）：并入「小胶囊」24 高规格 */
+.lb-reset {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  font-size: calc(11px * var(--fs-scale));
+  white-space: nowrap;
+}
+
+.lb-reset:hover {
+  color: var(--text-1);
+  border-color: #3a4150;
+}
+
+.lb-hint {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 56px;
+  font-size: calc(11px * var(--fs-scale));
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+/* ── 灯箱底部胶片带（2026-11-06 D-198）──
+   当前浏览序列的缩略图（照片墙 = 当前筛选里已加载的照片 / 视频；侧栏 = 该次到访的媒体）。
+   横向滚动、当前项高亮并自动滚到中间；视频缩略图带播放角标。
+   灯箱遮罩固定近黑（4 档外观都一样），所以这里的颜色不跟主题变量走。 */
+.lb-strip {
+  position: absolute;
+  left: 50%;
+  bottom: 58px;
+  transform: translateX(-50%);
+  z-index: 2;
+  width: min(92vw, 980px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 0 6px;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+
+.lb-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.lb-strip-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  margin: 0 auto;
+  padding: 0 6px;
+}
+
+.lb-thumb {
+  position: relative;
+  flex: none;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  opacity: 0.62;
+  cursor: pointer;
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.lb-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.lb-thumb:hover {
+  opacity: 0.9;
+}
+
+.lb-thumb.on {
+  opacity: 1;
+  border-color: rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 8px 20px rgba(0, 0, 0, 0.45);
+  transform: scale(1.08);
+}
+
+.lb-thumb:active {
+  transform: scale(1.02);
+}
+
+.lb-thumb:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  outline-offset: 2px;
+}
+
+.lb-thumb-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.lb-thumb-play svg {
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.65));
+}
+
+/* 有胶片带时：主图让出下方空间（不压到缩略图），操作提示挪到左上角 */
+.lightbox.has-strip .lb-stage,
+.lightbox.has-strip .lb-stage img,
+.lightbox.has-strip .lb-stage video {
+  max-height: min(82vh, calc(100vh - 280px));
+}
+
+.lightbox.has-strip .lb-hint {
+  top: 18px;
+  bottom: auto;
+  left: 22px;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-strip {
+    scroll-behavior: auto;
+  }
+
+  .lb-thumb {
+    transition: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .lb-strip {
+    bottom: 52px;
+    width: 94vw;
+  }
+
+  .lb-thumb {
+    width: 46px;
+    height: 46px;
+  }
+}
+
+/* 灯箱按钮（2026-11-05 D-166「按钮体系统一」第 2 步）：
+   关闭键走 styles.css 的 .icon（28×28 + 矢量 × + 三态）；左右翻页从 `‹ ›`
+   文字字形换成 SVG 箭头（文字字形会随 11 种界面字体变形 / 回退）。
+   黑色遮罩上给按钮一点半透明底，hover 仍沿用统一底色。 */
+.lb-close {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.lb-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 76px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 12px;
+  color: var(--text-2);
+  background: rgba(255, 255, 255, 0.04);
+  transition:
+    background 150ms ease,
+    color 150ms ease,
+    transform 120ms ease;
+}
+
+.lb-nav.prev {
+  left: 8px;
+}
+
+.lb-nav.next {
+  right: 8px;
+}
+
+.lb-nav:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-1);
+}
+
+.lb-nav:active {
+  transform: translateY(-50%) scale(0.96);
+}
+
+.lb-nav:focus-visible,
+.lb-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.lb-nav svg {
+  display: block;
+}
+
+.lb-bar {
+  position: absolute;
+  bottom: 22px;
+  display: flex;
+  gap: 18px;
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+.lb-bar a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+/* ── 调试面板（?debug=1） ── */
+.debug-panel {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 90;
+  margin: 0;
+  padding: 10px 12px;
+  max-width: 420px;
+  max-height: 240px;
+  overflow: auto;
+  background: rgba(11, 13, 16, 0.92);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: calc(11px * var(--fs-scale));
+  line-height: 1.65;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  pointer-events: none;
+}
+
+/* ── 错误边界 ── */
+.crash {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-map);
+  overflow: auto;
+  padding: 40px 20px;
+}
+
+.crash-box {
+  max-width: 820px;
+  margin: 0 auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.crash-box h2 {
+  margin: 0 0 6px;
+  font-size: calc(18px * var(--fs-scale));
+  color: var(--bad);
+}
+
+.crash-hint {
+  margin: 0 0 18px;
+  color: var(--text-2);
+  font-size: calc(13px * var(--fs-scale));
+}
+
+.crash-label {
+  font-size: calc(11px * var(--fs-scale));
+  color: var(--text-3);
+  margin: 14px 0 6px;
+  letter-spacing: 0.04em;
+}
+
+.crash-pre {
+  margin: 0;
+  padding: 12px;
+  background: var(--bg-raised);
+  border-radius: 8px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: calc(12px * var(--fs-scale));
+  line-height: 1.6;
+  color: var(--text-1);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.crash-actions {
+  margin-top: 20px;
+}
+
+/* ── 侧栏：编辑 / 删除 ── */
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.text-btn {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: calc(13px * var(--fs-scale));
+  color: var(--text-2);
+  transition: 150ms ease;
+}
+
+.text-btn:hover {
+  background: var(--bg-raised);
+  color: var(--text-1);
+}
+
+.text-btn.danger {
+  color: var(--bad);
+}
+
+.text-btn.danger:hover {
+  background: rgba(224, 108, 117, 0.1);
+  color: var(--bad);
+}
+
+.text-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* 2026-11-07（D-214）：素材库「当前路径」旁边的「打开本地文件夹」小胶囊按钮。
+   路径行里原来路径文字用 .mono（等宽）、按钮用界面字体，并排看起来字体不一致（用户反馈「字体不对」）；
+   这里把按钮明确用界面字体 + 小胶囊外观，路径文字也改成界面字体，整行统一。 */
+.lib-open-btn {
+  flex: none;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-family: var(--font-ui);
+  font-size: calc(12px * var(--fs-scale));
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.lib-open-btn:hover {
+  background: var(--bg-raised);
+  color: var(--text-1);
+}
+
+.lib-open-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.lib-open-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* 素材库路径行：路径文字不要等宽字体（和按钮统一成界面字体，避免并排时字体不一致） */
+.lib-path-text {
+  font-family: var(--font-ui);
+  font-size: calc(13px * var(--fs-scale));
+  color: var(--text-1);
+  overflow-wrap: anywhere;
+}
+
+/* 工具行里的小号文字键（如「全部展开/收起」，D-166 第 4 步与图标键同高 26） */
+.text-btn.sm {
+  height: 26px;
+  padding: 0 9px;
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.text-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.text-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.confirm-del {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(224, 108, 117, 0.35);
+  background: rgba(224, 108, 117, 0.08);
+  font-size: calc(13px * var(--fs-scale));
+}
+
+.confirm-del .confirm-text {
+  color: var(--text-1);
+  line-height: 1.5;
+}
+
+.confirm-del .confirm-text small {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-3);
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.confirm-del .row {
+  margin-top: 10px;
+}
+
+.confirm-del .row > * {
+  flex: 1;
+}
+
+.danger-btn {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(224, 108, 117, 0.45);
+  background: rgba(224, 108, 117, 0.12);
+  color: var(--bad);
+  font-weight: 600;
+  transition: 150ms ease;
+}
+
+.danger-btn:hover {
+  background: rgba(224, 108, 117, 0.2);
+}
+
+.danger-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.danger-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.danger-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.hint.err {
+  color: var(--bad);
+}
+
+/* 设置 → 账号 / 用户管理里的成功提示（2026-11-07 D-221：两个页面共用，放全局避免跨组件依赖） */
+.hint.acc-ok {
+  color: var(--text-1);
+}
+
+/* 天地图 Key 申请教程 PDF 链接（2026-11-07，D-222）：第一次配置 Key 与设置页共用 */
+.tdt-guide-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.tdt-guide-link:hover {
+  text-decoration-thickness: 2px;
+}
+
+.tdt-guide-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* ── 侧栏：封面 / 到访编辑 / 媒体操作 ── */
+.head-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* 从 My旅迹列表点进来的详情页：标题栏「← 返回」（2026-11-04 D-94） */
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 26px;
+  padding: 0 9px 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: calc(12px * var(--fs-scale));
+  white-space: nowrap;
+  flex: none;
+  transition:
+    color 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease,
+    transform 120ms ease;
+}
+
+.back-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.back-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.back-btn:active {
+  transform: scale(0.96);
+}
+
+.back-btn svg {
+  display: block;
+}
+
+.head-cover {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex: none;
+  border: 1px solid var(--line);
+}
+
+.visit-actions {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.visit-actions .text-btn {
+  height: 24px;
+  padding: 0 6px;
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.rate {
+  color: var(--accent);
+  font-size: calc(11px * var(--fs-scale));
+  letter-spacing: 1px;
+}
+
+.companions {
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-3);
+  margin: -2px 0 8px;
+}
+
+.field textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  outline: none;
+  resize: vertical;
+  line-height: 1.6;
+  font: inherit;
+  color: inherit;
+}
+
+.field textarea:focus {
+  border-color: var(--accent);
+}
+
+.stars {
+  display: flex;
+  gap: 2px;
+}
+
+.stars button {
+  font-size: calc(17px * var(--fs-scale));
+  line-height: 1;
+  color: var(--text-3);
+}
+
+.stars button.on {
+  color: var(--accent);
+}
+
+.tile-wrap {
+  position: relative;
+}
+
+.tile-wrap .tile {
+  width: 100%;
+}
+
+.tile-actions {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: 150ms ease;
+}
+
+.tile-wrap:hover .tile-actions,
+.tile-actions:focus-within {
+  opacity: 1;
+}
+
+.tile-actions button {
+  width: 20px;
+  height: 20px;
+  border-radius: 8px;
+  /* 覆盖在照片上：始终用深底 + 白图标，浅色主题下也不会变成「黑底黑字」 */
+  background: rgba(0, 0, 0, 0.55);
+  color: #ffffff;
+  font-size: calc(12px * var(--fs-scale));
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  transition:
+    background 140ms ease,
+    transform 120ms ease;
+}
+
+.tile-actions button svg {
+  display: block;
+  overflow: visible;
+}
+
+.tile-actions button:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.tile-actions button:active {
+  transform: scale(0.9);
+}
+
+.tile-actions button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.dur {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  font-size: calc(10px * var(--fs-scale));
+  padding: 1px 4px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.cover-flag {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  font-size: calc(10px * var(--fs-scale));
+  padding: 1px 4px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.play-badge {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  font-size: calc(10px * var(--fs-scale));
+  color: #fff;
+  text-shadow: 0 1px 2px #000;
+}
+
+.tile.cover {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.chooser {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-2);
+}
+
+.chooser .chip {
+  height: 28px;
+  padding: 0 10px;
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.visit .confirm-del {
+  margin-top: 8px;
+}
+
+/* ── 顶栏搜索（F-BRW-02） ── */
+.topbar-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 0 24px;
+  min-width: 0;
+}
+
+/* 2026-11-04 用户反馈：搜索胶囊整体要更居中。
+   宽屏时把胶囊直接放到视口正中（绝对定位）；宽度随视口收缩（min(560px, 100vw - 1120px)），
+   保证右侧那排按钮（约 512px + 右侧留白）不会被盖住；更窄的窗口退回原来的中间区域居中。 */
+@media (min-width: 1420px) {
+  .topbar-center {
+    position: absolute;
+    left: 50%;
+    /* 百分比 top 按顶栏 padding box（含量下移量）算，补半格才能和左右按钮同一条中线 */
+    top: calc(50% + var(--topbar-shift) / 2);
+    transform: translate(-50%, -50%);
+    width: min(560px, calc(100vw - 1120px));
+    max-width: 560px;
+    padding: 0;
+    flex: none;
+  }
+}
+
+/* 2026-11-04（D-130）：旧的「+ 添加足迹 + 搜索框」长胶囊已从顶栏删除，
+   换成 HUD 里的搜索图标 + 独立反色「+ 添加足迹」按钮（样式见 .hud-* 定义）。 */
+
+.searchbox {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  align-items: center;
+}
+
+.searchbox input {
+  width: 100%;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(18, 21, 26, 0.82);
+  color: var(--text-1);
+  outline: none;
+  backdrop-filter: var(--blur);
+}
+
+.searchbox input:focus {
+  border-color: var(--accent);
+}
+
+.search-results {
+  position: absolute;
+  top: 44px;
+  left: 0;
+  right: 0;
+  background: rgba(18, 21, 26, 0.98);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+  max-height: 60vh;
+  overflow-y: auto;
+  z-index: 40;
+}
+
+.sr-group {
+  padding: 8px 12px 4px;
+  font-size: calc(11px * var(--fs-scale));
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+}
+
+.sr-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+}
+
+.sr-item:hover {
+  background: var(--bg-raised);
+}
+
+.sr-name {
+  display: block;
+  font-size: calc(13px * var(--fs-scale));
+  color: var(--text-1);
+}
+
+.sr-meta {
+  display: block;
+  font-size: calc(11px * var(--fs-scale));
+  color: var(--text-3);
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sr-poi {
+  position: relative;
+}
+
+.sr-add {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: calc(12px * var(--fs-scale));
+  font-weight: 600;
+}
+
+.sr-empty {
+  padding: 14px 12px;
+  font-size: calc(13px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+.r-tag {
+  margin-left: 6px;
+  font-size: calc(10px * var(--fs-scale));
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text-3);
+  vertical-align: 1px;
+}
+
+/* ── 时间轴（F-BRW-03） ── */
+.timeline {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 14px;
+  /* 680：时间轴头部元素变多（区间 / 已筛选 chip / 粒度 / 步进 / 跳空白 / 播放 / 全部 / 筛选），
+     560 会在选了筛选项后被挤成两行 */
+  width: min(680px, calc(100vw - 40px));
+  padding: 8px 14px 10px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(18, 21, 26, 0.9);
+  backdrop-filter: var(--blur);
+  z-index: 22;
+  opacity: 0.45;
+  transition: 160ms ease;
+}
+
+.timeline:hover,
+.timeline.active {
+  opacity: 1;
+}
+
+.tl-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  row-gap: 6px;
+  margin-bottom: 6px;
+}
+
+.tl-range {
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tl-play,
+.tl-all {
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  font-size: calc(11px * var(--fs-scale));
+}
+
+/* 跳空白：胶囊开关（文字 + 滑动圆点） */
+.tl-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px 0 5px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--text-2);
+  font-size: calc(11px * var(--fs-scale));
+  white-space: nowrap;
+}
+
+.tl-switch:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.tl-switch-track {
+  position: relative;
+  width: 20px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--line);
+  transition: background 150ms ease;
+}
+
+.tl-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-2);
+  transition: transform 150ms ease, background 150ms ease;
+}
+
+.tl-switch.on {
+  border-color: var(--accent);
+  color: var(--text-1);
+}
+
+.tl-switch.on .tl-switch-track {
+  background: var(--accent);
+}
+
+.tl-switch.on .tl-switch-knob {
+  transform: translateX(8px);
+  background: var(--accent-ink);
+}
+
+.tl-switch:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.tl-play {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: calc(11px * var(--fs-scale));
+  font-weight: 700;
+}
+
+.tl-play:hover {
+  filter: brightness(1.08);
+  color: var(--accent-ink);
+}
+
+.tl-step {
+  position: relative;
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--text-2);
+}
+
+/* 步进用「chevron 尖括号」，和播放的实心三角区分开 */
+.tl-step::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-top: 1.5px solid currentColor;
+  border-right: 1.5px solid currentColor;
+}
+
+.tl-step.prev::before {
+  transform: translate(-30%, -50%) rotate(-135deg);
+}
+
+.tl-step.next::before {
+  transform: translate(-70%, -50%) rotate(45deg);
+}
+
+.tl-step:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tl-step:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* 到时间轴两端：按钮变淡，但仍可点击（点一下只会打开去过清单并提示） */
+.tl-step.at-bound {
+  opacity: 0.45;
+}
+
+.tl-step.at-bound:hover {
+  opacity: 1;
+}
+
+.tl-all:hover {
+  color: var(--text-1);
+  border-color: #3a4150;
+}
+
+.tl-gran {
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--text-2);
+  font-size: calc(11px * var(--fs-scale));
+}
+
+.tl-gran:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* D-166 第 9 步：时间轴小控件统一键盘焦点环 */
+.tl-play:focus-visible,
+.tl-all:focus-visible,
+.tl-switch:focus-visible,
+.tl-step:focus-visible,
+.tl-gran:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.tl-all:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.tl-track {
+  position: relative;
+  height: 26px;
+}
+
+.tl-rail {
+  position: absolute;
+  top: 12px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--line);
+  border-radius: 1px;
+}
+
+.tl-fill {
+  position: absolute;
+  top: 11px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.8;
+}
+
+.tl-handle {
+  position: absolute;
+  top: 4px;
+  width: 14px;
+  height: 18px;
+  margin-left: -7px;
+  border-radius: 6px;
+  background: var(--text-1);
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+
+.tl-handle:hover {
+  background: var(--accent);
+}
+
+.tl-years {
+  display: flex;
+  justify-content: space-between;
+  font-size: calc(10px * var(--fs-scale));
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 设置（F-SYS-02） ── */
+.settings-title {
+  font-size: calc(12px * var(--fs-scale));
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  margin: 4px 0 10px;
+}
+
+.settings-title:not(:first-child) {
+  margin-top: 24px;
+}
+
+/* ── 浅色主题（F-SYS-02） ── */
+html:is([data-theme='light'], [data-theme='white']) {
+  --bg-map: #eef1f5;
+  --bg-panel: #ffffff;
+  --bg-raised: #f2f4f8;
+  --line: #d7dde6;
+  --text-1: #1f242b;
+  --text-2: #56606e;
+  --text-3: #8791a0;
+  --accent: #161b22;
+  --accent-soft: rgba(22, 27, 34, 0.14);
+  --accent-rgb: 22, 27, 34;
+  --accent-ink: #ffffff;
+  --wish: #2f6f9f;
+  --bad: #c6454d;
+}
+
+html:is([data-theme='light'], [data-theme='white']) body {
+  background: var(--bg-map);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .topbar {
+  background: linear-gradient(to bottom, rgba(238, 241, 245, 0.92), rgba(238, 241, 245, 0));
+}
+
+html:is([data-theme='light'], [data-theme='white']) .brand-logo {
+  text-shadow: 0 1px 5px rgba(255, 255, 255, 0.7);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .panel,
+html:is([data-theme='light'], [data-theme='white']) .search-results {
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 40px rgba(20, 30, 50, 0.14);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .ghost,
+html:is([data-theme='light'], [data-theme='white']) .searchbox input,
+html:is([data-theme='light'], [data-theme='white']) .timeline {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+/* 浅色主题：输入框/ghost 用近白底 */
+
+html:is([data-theme='light'], [data-theme='white']) .dropzone {
+  border-color: #c3cbd7;
+}
+
+html:is([data-theme='light'], [data-theme='white']) .map-tip,
+html:is([data-theme='light'], [data-theme='white']) .toast,
+html:is([data-theme='light'], [data-theme='white']) .busy {
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--text-1);
+  box-shadow: 0 8px 24px rgba(20, 30, 50, 0.16);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .tile {
+  background: #e8ecf2;
+}
+
+html:is([data-theme='light'], [data-theme='white']) .tl-handle {
+  background: #ffffff;
+  border-color: #b9c2ce;
+}
+
+html:is([data-theme='light'], [data-theme='white']) .fatal {
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text-1);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .map .tdt-control-scale-line {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: rgba(0, 0, 0, 0.35);
+  color: #222;
+}
+
+/* ── 纯白档（外观轴最左，2026-11-04：浅色 / 深色合并为 4 档轴） ──
+   在浅色基础上把页面背景与半透明面板推向纯白，文字更黑、分隔线更淡。 */
+html[data-theme='white'] {
+  --bg-map: #ffffff;
+  --bg-panel: #ffffff;
+  --bg-raised: #f5f6f8;
+  --line: #e3e7ec;
+  --text-1: #0f141b;
+  --text-2: #4c5665;
+  --text-3: #8a94a3;
+  --accent: #161b22;
+  --accent-soft: rgba(22, 27, 34, 0.12);
+  --wish: #2f6f9f;
+  --bad: #c6454d;
+}
+
+html[data-theme='white'] .topbar {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0));
+}
+
+html[data-theme='white'] .panel,
+html[data-theme='white'] .search-results {
+  background: #ffffff;
+  box-shadow: 0 12px 40px rgba(20, 30, 50, 0.12);
+}
+
+html[data-theme='white'] .ghost,
+html[data-theme='white'] .searchbox input,
+html[data-theme='white'] .timeline {
+  background: #ffffff;
+}
+
+html[data-theme='white'] .tile {
+  background: #f3f5f8;
+}
+
+html[data-theme='white'] .tl-handle {
+  background: #ffffff;
+  border-color: #c6ceda;
+}
+
+html[data-theme='white'] .fatal {
+  background: rgba(255, 255, 255, 0.96);
+}
+
+/* ── 纯黑档（外观轴最右）：在深色基础上把背景与半透明面板推向纯黑 ── */
+html[data-theme='black'] {
+  --bg-map: #000000;
+  --bg-panel: #060607;
+  --bg-raised: #0d0e10;
+  --line: #1e2127;
+  --text-1: #f4f5f7;
+  --text-2: #9aa3b0;
+  --text-3: #5c6675;
+}
+
+html[data-theme='black'] .topbar {
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.94), rgba(0, 0, 0, 0));
+}
+
+html[data-theme='black'] .panel,
+html[data-theme='black'] .search-results {
+  background: rgba(2, 2, 3, 0.98);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.6);
+}
+
+html[data-theme='black'] .ghost,
+html[data-theme='black'] .searchbox input,
+html[data-theme='black'] .timeline {
+  background: rgba(4, 5, 7, 0.92);
+}
+
+html[data-theme='black'] .tile {
+  background: #0a0b0d;
+}
+
+html[data-theme='black'] .tl-handle {
+  background: #050607;
+  border-color: #2a2f37;
+}
+
+html[data-theme='black'] .map-tip,
+html[data-theme='black'] .toast,
+html[data-theme='black'] .busy {
+  background: rgba(3, 3, 4, 0.97);
+}
+
+html[data-theme='black'] .fatal {
+  background: rgba(0, 0, 0, 0.94);
+}
+
+/* ── 浅色档再加深一档（2026-11-04 用户反馈「浅色和纯白没区别」）──
+   把页面背景、面板、按钮、时间轴从近白压到明显的浅灰，文字保持足够对比度；
+   纯白档仍是纯白（见上方 [data-theme='white']），白/浅两档一眼能分辨。 */
+html[data-theme='light'] {
+  --bg-map: #d6dce4;
+  --bg-panel: #eef1f5;
+  --bg-raised: #e1e6ec;
+  --line: #c1cad4;
+  --text-1: #1a2028;
+  --text-2: #48525f;
+  --text-3: #707c89;
+}
+
+html[data-theme='light'] .topbar {
+  background: linear-gradient(to bottom, rgba(214, 220, 228, 0.94), rgba(214, 220, 228, 0));
+}
+
+html[data-theme='light'] .panel,
+html[data-theme='light'] .search-results {
+  background: rgba(238, 241, 245, 0.98);
+  box-shadow: 0 12px 40px rgba(20, 30, 50, 0.18);
+}
+
+html[data-theme='light'] .ghost,
+html[data-theme='light'] .searchbox input,
+html[data-theme='light'] .timeline {
+  background: rgba(235, 239, 244, 0.94);
+}
+
+html[data-theme='light'] .tile {
+  background: #dfe5ec;
+}
+
+html[data-theme='light'] .tl-handle {
+  background: #f2f5f8;
+  border-color: #aeb9c6;
+}
+
+html[data-theme='light'] .fatal {
+  background: rgba(236, 240, 244, 0.96);
+}
+
+html[data-theme='light'] .map-tip,
+html[data-theme='light'] .toast,
+html[data-theme='light'] .busy {
+  background: rgba(238, 241, 245, 0.97);
+  color: var(--text-1);
+}
+
+html[data-theme='light'] .dropzone {
+  border-color: #b3bec9;
+}
+
+/* 混合簇（去过 + 想去，D-151）：不再是双色靶盘，而是 3 个单点图标里
+   多数色 2 个 + 少数色 1 个（具体 img.src 由 MapView 按 visitedCount / wishCount 决定）。 */
+
+/* ── 想去清单（F-PLC-07） ── */
+.count-inline {
+  margin-left: 6px;
+  font-size: calc(12px * var(--fs-scale));
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.wish-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.wish-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--line);
+}
+
+.wish-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.wish-name {
+  font-size: calc(14px * var(--fs-scale));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wish-meta {
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+.wish-actions {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+
+.wish-actions .text-btn {
+  font-size: calc(12px * var(--fs-scale));
+  height: 24px;
+  padding: 0 6px;
+}
+
+html:is([data-theme='light'], [data-theme='white']) .wish-row:hover {
+  background: rgba(20, 30, 50, 0.04);
+}
+
+.kind-wish {
+  display: inline-block;
+  padding: 0 6px;
+  margin-right: 2px;
+  border-radius: 6px;
+  font-size: calc(11px * var(--fs-scale));
+  color: var(--wish);
+  border: 1px solid rgba(106, 169, 216, 0.45);
+  background: rgba(106, 169, 216, 0.12);
+}
+
+.primary.full {
+  width: 100%;
+  height: 34px;
+}
+
+/* ── 去过清单：按省/市分组（F-PLC-10） ── */
+.range-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 14px 0;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: calc(12px * var(--fs-scale));
+  cursor: pointer;
+}
+
+.range-chip:hover {
+  filter: brightness(1.06);
+}
+
+.range-x {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+
+.grp {
+  margin-top: 4px;
+}
+
+.grp-prov {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 6px 2px 0;
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid var(--line);
+  font-size: calc(13px * var(--fs-scale));
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.grp-meta {
+  font-size: calc(11px * var(--fs-scale));
+  font-weight: 400;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.grp-city-wrap {
+  margin-left: 10px;
+  border-left: 1px solid var(--line);
+  padding-left: 2px;
+}
+
+.grp-city {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px 4px;
+  font-size: calc(12.5px * var(--fs-scale));
+  color: var(--text-2);
+}
+
+.grp-prov,
+.grp-city {
+  cursor: pointer;
+  user-select: none;
+}
+
+.grp-prov:hover,
+.grp-city:hover {
+  color: var(--text-1);
+}
+
+/* 折叠标记用 CSS 画三角形：不依赖字体，任何机器都能显示 */
+.grp-caret {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  margin-right: 7px;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  color: var(--text-2);
+  vertical-align: 2px;
+  transition: transform 150ms ease;
+}
+
+.grp-caret.open {
+  transform: rotate(90deg);
+  transform-origin: 25% 50%;
+}
+
+.grp-prov:hover .grp-caret,
+.grp-city:hover .grp-caret {
+  color: var(--accent);
+}
+
+/* ── 聚合点展开列表（F-BRW-07 / D-33） ── */
+.cluster-panel {
+  width: var(--panel-w);
+}
+
+.cluster-row {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+}
+
+.cluster-row:last-child {
+  border-bottom: 0;
+}
+
+.cluster-hint {
+  padding: 0 16px 12px;
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-3);
+  line-height: 1.6;
+}
+
+html:is([data-theme='light'], [data-theme='white']) .cluster-row {
+  border-bottom-color: rgba(20, 30, 50, 0.06);
+}
+
+/* ── 地图点选（F-PLC-09，2026-11-04 并入「+ 添加足迹」） ── */
+.map-wrap.pin-mode #map {
+  /* 光标统一为琥珀飞镖（public/cursor-dart.png，热点 = 飞镖尖端 16,31）；
+     图片加载失败时退回十字光标。 */
+  cursor: url('/cursor-dart.png') 16 31, crosshair !important;
+}
+
+/* 顶栏「家」按钮：图标 + 文字。
+   2026-11-05 D-144（用户截图反馈「家按钮里面的字好像没有居中」）：
+   原来只写了 inline-flex + align-items，**没有 justify-content**，默认 flex-start →
+   图标和「家」从左侧排（其它纯文字键靠 text-align:center 居中，所以只有这个键偏左，
+   实测偏左约 26 设备像素）。补 justify-content: center 后图标 + 文字作为一组居中；
+   垂直方向 align-items:center 本来就居中（实测差 ~1px）。 */
+.home-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  /* 注意：顶栏按钮组里 .topbar .actions .ghost 的 padding 0 16px 会覆盖这里的 10px
+     （均分宽度下 padding 只影响 min-content，不影响视觉居中） */
+  padding: 0 10px;
+}
+
+.home-btn img {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+/* 还没设置家时按钮变淡；点它只提示「去地点编辑里设为家」 */
+.home-btn.empty {
+  opacity: 0.55;
+}
+
+.home-btn.empty:hover {
+  opacity: 0.8;
+}
+
+.map-wrap.pin-mode .pin.draft {
+  cursor: grab;
+}
+
+/* ── 上传队列（F-MED-10） ── */
+.upload-queue {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.uq-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+
+.uq-count {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.uq-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.uq-actions .text-btn {
+  height: 22px;
+  padding: 0 6px;
+  font-size: calc(11.5px * var(--fs-scale));
+}
+
+.uq-close {
+  width: 22px;
+  height: 22px;
+  font-size: calc(16px * var(--fs-scale));
+  border-radius: 8px;
+  flex: none;
+}
+
+.uq-close:hover {
+  background: var(--bg-raised);
+  color: var(--text-1);
+}
+
+.uq-list {
+  max-height: 180px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.uq-item {
+  font-size: calc(11.5px * var(--fs-scale));
+}
+
+.uq-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.uq-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-1);
+}
+
+.uq-status {
+  color: var(--text-3);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.uq-item.uploading .uq-status {
+  color: var(--accent);
+}
+
+.uq-item.error .uq-status {
+  color: var(--bad);
+}
+
+.uq-item.done .uq-status {
+  color: #4cc38a;
+}
+
+.uq-line .text-btn {
+  height: 20px;
+  padding: 0 6px;
+  font-size: calc(11px * var(--fs-scale));
+}
+
+.uq-bar {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.uq-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 120ms linear;
+}
+
+.uq-item.error .uq-fill {
+  background: var(--bad);
+}
+
+.uq-item.done .uq-fill,
+.uq-item.skipped .uq-fill {
+  background: #4cc38a;
+}
+
+.uq-err {
+  margin-top: 3px;
+  color: var(--bad);
+  font-size: calc(11px * var(--fs-scale));
+  line-height: 1.4;
+}
+
+html:is([data-theme='light'], [data-theme='white']) .upload-queue {
+  background: rgba(20, 30, 50, 0.03);
+}
+
+/* ── 合并重复地点（F-PLC-08） ── */
+.merge-panel {
+  width: var(--panel-w);
+}
+
+.merge-hint-inline {
+  color: var(--text-3);
+}
+
+.merge-row {
+  cursor: pointer;
+}
+
+.merge-row.chosen {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.merge-check {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.merge-target {
+  padding: 8px 16px;
+  font-size: calc(12.5px * var(--fs-scale));
+  color: var(--text-2);
+  border-top: 1px solid var(--line);
+  flex: none;
+}
+
+.merge-target b {
+  color: var(--accent);
+}
+
+.merge-warn {
+  margin: 8px 16px;
+}
+
+.merge-err {
+  padding: 0 16px;
+}
+
+.merge-hint {
+  padding: 0 16px 12px;
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-3);
+  line-height: 1.6;
+}
+
+.lb-msg {
+  color: var(--accent);
+  font-size: calc(11px * var(--fs-scale));
+}
+
+/* ── 回收站（F-SYS-07） ── */
+.trash-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.trash-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--bad);
+  color: #fff;
+  font-size: calc(11px * var(--fs-scale));
+  line-height: 18px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.trash-hint {
+  padding: 10px 16px 0;
+  flex: none;
+}
+
+/* 回收站类型 tab：统一分段控件（Segmented，D-98），这里只负责外层间距 */
+.trash-tabs {
+  padding: 10px 14px 0;
+  flex: none;
+}
+
+.trash-note {
+  padding: 4px 16px 8px;
+  flex: none;
+}
+
+.trash-summary {
+  padding: 12px 16px 0;
+  flex: none;
+}
+
+.trash-summary-main {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.trash-size {
+  font-size: calc(20px * var(--fs-scale));
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.trash-sub {
+  margin-top: 5px;
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.trash-thumb {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex: none;
+  background: var(--bg-raised);
+}
+
+.trash-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+
+.trash-selectall {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.trash-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.trash-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--line);
+}
+
+.trash-row.on {
+  background: var(--accent-soft);
+  border-color: rgba(var(--accent-rgb), 0.35);
+}
+
+.trash-check {
+  margin-top: 3px;
+  flex: none;
+  accent-color: var(--accent);
+}
+
+.trash-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.trash-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: calc(14px * var(--fs-scale));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trash-type {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  font-size: calc(11px * var(--fs-scale));
+  line-height: 18px;
+  color: var(--text-3);
+}
+
+.trash-type.place {
+  color: var(--accent);
+  border-color: rgba(var(--accent-rgb), 0.4);
+  background: var(--accent-soft);
+}
+
+.trash-type.visit {
+  color: var(--text-2);
+}
+
+.trash-type.media {
+  color: var(--wish);
+  border-color: rgba(106, 169, 216, 0.45);
+  background: rgba(106, 169, 216, 0.12);
+}
+
+.trash-meta {
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-3);
+  margin-top: 3px;
+  line-height: 1.5;
+}
+
+.trash-meta.deleted-at {
+  color: var(--text-3);
+  opacity: 0.75;
+}
+
+.trash-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: none;
+}
+
+.trash-actions .text-btn {
+  font-size: calc(12px * var(--fs-scale));
+  height: 24px;
+  padding: 0 6px;
+}
+
+.trash-confirm {
+  margin: 10px 14px 0;
+  flex: none;
+}
+
+.trash-file-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: calc(12.5px * var(--fs-scale));
+  line-height: 1.5;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.trash-file-opt input {
+  margin-top: 2px;
+  flex: none;
+  accent-color: var(--bad);
+}
+
+.trash-file-opt small {
+  display: block;
+  margin-top: 2px;
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .trash-row:hover {
+  background: rgba(20, 30, 50, 0.04);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .trash-row.on {
+  background: var(--accent-soft);
+}
+
+/* ── 窄屏 ── */
+@media (max-width: 760px) {
+  .panel {
+    top: auto;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    width: auto;
+    height: 62vh;
+    animation: slideup 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @keyframes slideup {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/* ── 省份点亮（F-STA-01 / D-60）──
+   自绘 SVG 层跟随地图投影；pointer-events:none，不挡地图拖动。
+   省界多边形只用于画图，归属仍看 place.province_code。
+   性能：顶点只在进入统计模式 / zoomend 投影一次，拖动时只改 .province-g 的 transform。 */
+.province-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 650;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* 变换层：拖动/缩放只改这个 <g> 的 CSS transform（内部 34 条 path 不再重算）；
+   transform-origin 必须 0 0，和 MapView 里 translate/scale 的换算一致 */
+.province-g {
+  transform-box: view-box;
+  transform-origin: 0 0;
+}
+
+.province-svg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.province-path {
+  stroke-width: 0.8;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  shape-rendering: geometricPrecision;
+  transition: fill 180ms ease, stroke 120ms ease;
+}
+
+.province-path.hover {
+  stroke: var(--province) !important;
+  stroke-width: 1.9;
+  filter: brightness(1.3);
+}
+
+/* 低缩放（z<7）：天地图底图省界本身是概化平滑的，这里用概化版省界 + 不画描边（只留半透明填充），
+   并对填充边缘做羽化（SVG filter province-soft），避免硬边缘和底图省界线并排出现“对不齐”；
+   放大到 z>=7 再显示精确描边。 */
+.province-layer.lod-low .province-path {
+  stroke: none !important;
+  fill-opacity: 0.85;
+}
+
+.province-g.soft {
+  filter: url(#province-soft);
+}
+
+.province-warn {
+  position: absolute;
+  left: 50%;
+  top: 76px;
+  transform: translateX(-50%);
+  z-index: 710;
+  max-width: 420px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(224, 108, 117, 0.45);
+  background: rgba(18, 21, 26, 0.92);
+  backdrop-filter: var(--blur);
+  color: var(--text-2);
+  font-size: calc(12px * var(--fs-scale));
+  line-height: 1.7;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* 秘密基地飞镖（F-PLC-11：形状不变，只换颜色）。
+   顶栏「统计」的选中态已统一走 .ghost.on 的反色实底（2026-11-04，D-118），不再单独用琥珀底。
+   2026-11-05 D-164：秘密基地也能在设置里选配色，发光颜色由 MapView 按当前色写到
+   img 的内联 `--pin-glow / --pin-glow-strong` 变量上（这里保留默认色「品红」作兜底）。 */
+.pin.secret img {
+  filter: drop-shadow(0 3px 9px var(--pin-glow, rgba(232, 121, 249, 0.55)));
+}
+
+.pin.secret.selected img {
+  filter: drop-shadow(0 1px 14px var(--pin-glow-strong, rgba(232, 121, 249, 0.75)));
+}
+
+/* ── 备份提醒红点（F-SYS-05 / M4）──
+   due 时挂在顶栏「设置」按钮右上角；颜色用 var(--bad)，深浅主题都清晰。 */
+.settings-btn {
+  position: relative;
+}
+
+.backup-dot {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--bad);
+  box-shadow: 0 0 0 2px var(--bg-panel);
+  pointer-events: none;
+}
+
+html:is([data-theme='light'], [data-theme='white']) .backup-dot {
+  box-shadow: 0 0 0 2px #fff;
+}
+
+/* ── 家的标点（M5.1；D-161 起图标是小房子，颜色 7 选 1）──
+   独立点位：不参与聚合、不在清单/统计里。
+   家图标有 7 种颜色，不再用固定绿色发光；没选中的沿用全局 .pin img 深色投影，
+   选中时只加深一点中性投影，避免珊瑚红 / 天蓝房子配绿色光晕。 */
+.pin.home.selected img {
+  filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.6));
+}
+
+/* ── D-124（2026-11-04，用户反馈）────────────────────────────────────
+   1) 右侧抽屉底色「有点灰」：按外观族给纯白 / 纯黑——
+      浅色 / 纯白外观 → #ffffff；深色 / 纯黑外观 → #000000。
+      只改抽屉（.panel）的底色，不改页面 / 地图 / 其它控件。
+   2) 右侧抽屉打开时，顶栏大号按钮组左移让开（见下方 @media），避免被抽屉盖住。 */
+html:is([data-theme='light'], [data-theme='white']) .panel {
+  background: #ffffff;
+}
+
+html:is([data-theme='dark'], [data-theme='black']) .panel {
+  background: #000000;
+}
+
+/* 统计面板（.st-panel）是独立类名，不继承 .panel；同样给纯白 / 纯黑（D-124 / D-126） */
+html:is([data-theme='light'], [data-theme='white']) .app .st-panel {
+  background: #ffffff;
+}
+
+html:is([data-theme='dark'], [data-theme='black']) .app .st-panel {
+  background: #000000;
+}
+
+/* 2026-11-04 D-127：大按钮组轨道底色也按外观给纯白 / 纯黑（用户反馈「比统计抽屉灰」），
+   未选中键仍是灰字、选中键是反色实心滑块，靠 inset 细描边区分轨道边界。 */
+html:is([data-theme='light'], [data-theme='white']) .actions {
+  background: #ffffff;
+}
+
+html:is([data-theme='dark'], [data-theme='black']) .actions {
+  background: #000000;
+}
+
+/* 2026-11-04 D-130：HUD 里的搜索图标键也跟随纯白 / 纯黑；展开的搜索框同样处理 */
+html:is([data-theme='light'], [data-theme='white']) .hud-icon,
+html:is([data-theme='light'], [data-theme='white']) .hud-search-panel .searchbox input {
+  background: #ffffff;
+}
+
+html:is([data-theme='dark'], [data-theme='black']) .hud-icon,
+html:is([data-theme='dark'], [data-theme='black']) .hud-search-panel .searchbox input {
+  background: #000000;
+}
+
+@media (min-width: 1420px) {
+  /* 2026-11-04 D-126：大按钮组固定宽 --hud-w（632px），按钮均分；高度收低到 40/34（D-127）。
+     My旅迹 / 统计两个抽屉也用同一宽度，和按钮组左右完全对齐。 */
+  .actions {
+    width: var(--hud-w);
+  }
+
+  .topbar .actions .ghost {
+    flex: 1 1 0;
+    text-align: center;
+  }
+
+  /* 2026-11-04 D-129：所有右侧抽屉（地点详情 / 添加足迹 / 聚合簇 / 合并候选 / My旅迹 / 统计）
+     统一宽度 = 按钮组宽度，和按钮组左右完全对齐。
+     用直接子选择器 `.app >`，避免影响 My旅迹内部嵌着的那个静态子面板。 */
+  .app > .panel,
+  .app > .st-panel {
+    width: var(--hud-w);
+  }
+
+  /* 2026-11-04 D-125 / D-126 / D-127 / D-128；2026-11-05 D-141 压扁 / D-145 整排下移后重算：
+     HUD 行中心 = topbar 内容中心 38 + translateY 58 = 96；轨道高 34 → 组顶 79、组底 113；
+     抽屉 top = 113 + 10 = 123，right 对齐 64px（与组右缘一致）。
+     D-128：抽屉底边抬高到时间轴上方（bottom 14 → 108），避免盖住底部时间轴。 */
+  .app.app-panel-open .panel,
+  .app.app-panel-open .st-panel {
+    top: 123px;
+    right: 64px;
+    bottom: 108px;
+  }
+}
+
+/* ── 2026-11-04 D-131（用户指定）────────────────────────────────────
+   1) 删除左上角「旅行地图」，改在大按钮组上方显示标语；
+   2) 去掉「边框线条」：搜索框 / 搜索结果 / 抽屉 / 统计面板 / 时间轴 / 选中的到访卡都不画线；
+   3) 选中键上下各突出一点（见上方 .ghost.on 高度调整）。 */
+/* 2026-11-07 D-224（用户指定，同日修订）：「头像 + 名称」放在「+ 添加足迹」上方；
+   左缘与「+ 添加足迹」按钮左对齐、垂直中心与主题标语同一水平线（标语中心 ≈ 40px）；
+   没传过头像时用「去过」标记（透明底）；点头像 / 名称都打开 设置 → 账号。
+   尺寸：头像 38px、名称 15px、两者间距 12px（用户要求放大 + 加大间距）。 */
+.hud-user {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 20px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+}
+
+.hud-avatar-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.hud-avatar {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent; /* 透明底 */
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.hud-avatar-photo {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  object-fit: cover;
+  display: block;
+  border: 1px solid var(--line);
+}
+
+.hud-avatar-marker {
+  height: 34px;
+  width: auto;
+  display: block;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  transition: transform 160ms ease;
+}
+
+.hud-avatar:hover .hud-avatar-marker {
+  transform: translateY(-2px) scale(1.04);
+}
+
+.hud-avatar:hover .hud-avatar-photo {
+  filter: brightness(1.06);
+}
+
+.hud-avatar:focus-visible,
+.hud-username:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
+/* 悬停小弹窗：更换头像（点击后跳转 设置 → 账号 里的换头像板块）
+   放在头像左侧，避免顶栏上边缘裁切 */
+.hud-avatar-tip {
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%) translateX(2px);
+  padding: 4px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+  color: var(--text-1);
+  font-size: calc(11px * var(--fs-scale));
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+  z-index: 40;
+}
+
+.hud-avatar-wrap:hover .hud-avatar-tip,
+.hud-avatar-wrap:focus-within .hud-avatar-tip {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+.hud-username {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: calc(15px * var(--fs-scale));
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
+}
+
+.hud-username:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.hud-slogan {
+  position: absolute;
+  top: 26px;
+  right: 64px;
+  display: flex;
+  align-items: baseline;
+  gap: 2em;
+  font-size: calc(16px * var(--fs-scale));
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-1);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  user-select: none;
+  /* 2026-11-05 D-148（用户反馈「不识别我的空格」）：HTML 默认会把连续空格折叠成一个，
+这里用 pre 保留自定义标语里的原始空格（含多个连续空格 / 首尾空格），且不换行
+（标语是顶栏单行文字，允许换行会压到下方按钮组）。默认两段文案不受影响。 */
+  white-space: pre;
+}
+
+html:is([data-theme='light'], [data-theme='white']) .hud-slogan,
+html:is([data-theme='light'], [data-theme='white']) .hud-username {
+  text-shadow: 0 1px 5px rgba(255, 255, 255, 0.7);
+}
+
+/* 无边框：靠底色 / 阴影区分层次（用户：涉及边框线条可以都不要） */
+.searchbox input,
+.search-results,
+.timeline,
+.app > .panel,
+.app > .st-panel,
+.visit.active {
+  border: 0;
+}
+
+/* 搜索框没有边框后，用一圈柔和光晕提示聚焦 */
+.hud-search-panel .searchbox input:focus {
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+@media (max-width: 1419px) {
+  .hud-slogan {
+    display: none;
+  }
+
+  /* 2026-11-07 D-224：窄屏（与标语同档）隐藏头像 + 名称，避免顶到浏览器边缘；
+     宽屏下头像是绝对定位在「+ 添加足迹」上方、与主题标语同一水平线 */
+  .hud-user {
+    display: none;
+  }
+}
+
+/* ── 2026-11-04 D-139（用户截图反馈「有错位」）──────────────────────────
+   英文模式顶栏按钮组不再溢出轨道。
+   原因：顶栏 6 键固定在宽屏下用 --hud-w（632px）均分，但英文标签比中文长得多，
+   每个键的 min-content（文字 + 左右内边距 40px）之和超过轨道内宽；flex 项默认
+   `min-width: auto` 不能压缩，于是行宽溢出、最后一个键（Settings）的悬停 / 选中
+   底色伸出白色轨道右端（截图里比标语右缘、右侧抽屉右缘都靠右），并且各键宽度不等、
+   文字间距不均。
+   修法：只在英文模式把按钮排紧一档——字号 14→13、去掉 1px 字间距、左右内边距 20→10，
+   6 键重新回到 632px 内均分（内容 < 101.8px 槽宽，不再触发 min-content 溢出）。
+   中文模式样式完全不变；窄屏（<1420px）同样生效（选择器特异性高于媒体查询里的规则）。
+   选中键仍保留「放大一圈」的观感（高度 42 + scale(1.1,1)），字号单独保 15 以免被压小。 */
+/* 2026-11-05 D-143（用户要求「大按钮组的字号也要变」）：
+   顶栏 6 键字号改为 calc(Npx * var(--fs-scale))，小 / 中 / 大三档都会变。
+   但英文标签更长、轨道宽度固定 632px 且按钮均分（每格 101.8px），所以英文模式：
+   - 字号跟随缩放：13 → 13 × scale（大档 ≈14.3px）；
+   - 左右内边距 10 → 4px（文字仍居中，视觉无差），给大字号留出余量：
+     实测「Photo wall」在 13px 时约 80.6px 宽 → 14.3px ≈ 88.7px + 8px 内边距 ≈ 96.7px，
+     仍小于 101.8px 槽宽，不会撑出轨道（D-139 的排紧结论在 1.1 倍下仍成立）。
+   中文标签更短，20px 内边距下的余量本来就够。 */
+html[lang='en'] .topbar .actions .ghost {
+  min-width: 0;
+  padding: 0 4px;
+  font-size: calc(13px * var(--fs-scale));
+  letter-spacing: 0;
+}
+
+html[lang='en'] .topbar .actions .ghost.on,
+html[lang='en'] .topbar .actions .ghost.on:hover {
+  font-size: calc(15px * var(--fs-scale));
+}
+
+/* ── 2026-11-05 D-150：地图标记三态动效（像桌面宠物：呼吸 / 悬停 / 点击）────
+   用户要求：地图上存在的点无交互时轻微呼吸，悬停有反应，点击有反应。
+   实现原则：
+   1) 呼吸相位由地点 id / 聚合 key 哈希派生（确定性），节点因数据变化 / 切语言被重建后
+      仍停在同一相位，不会「跳一下」；选中态已改为原地更新尺寸/class，不再重建节点；
+   2) 动画只作用在内层（.pin-body 呼吸、.pin-media 点击、.cluster-body 脉冲、img 悬停），
+      外层 .pin 的 transform 由 MapView.positionAll() 独占；
+   3) 只动画 transform / opacity，不长期动画 filter / box-shadow（26 个标记同时循环也轻）；
+   4) 缩放中（.pin-layer.zooming）和页面切后台（.pin-layer.is-hidden）暂停；
+   5) prefers-reduced-motion 时全部关闭。
+   参数想再明显/更含蓄：调下面 keyframes 的 scale / rotate / 高度即可。 */
+
+.pin-body,
+.pin-media {
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 100%;
+}
+
+/* 尖端在底部中心：所有变换都绕杖尖进行，呼吸时坐标点不会漂 */
+.pin img {
+  transform-origin: 50% 100%;
+}
+
+/* 常驻呼吸：从底部轻微起伏 + 微摆（单点 4 态通用） */
+.pin:not(.draft) .pin-body {
+  animation: pin-breathe var(--breath-dur, 4.4s) ease-in-out var(--breath-delay, 0s) infinite;
+}
+
+/* 选中的标记呼吸更明显一点（尺寸由 JS 放大到 38px；这里只放大动作幅度） */
+.pin.selected:not(.draft) .pin-body {
+  animation-name: pin-breathe-strong;
+}
+
+/* 悬停：内层 img 轻跳一下（与呼吸分层，互不覆盖） */
+.pin:not(.draft):hover img {
+  animation: pin-hop 340ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 点击压扁回弹：动原节点的 .pin-media。
+   D-150 修正：选中态改为原地更新尺寸/class、不再重建节点，
+   所以这里能完整播完，也不会再出现「点击后底下多一层图标」的重叠残影。 */
+.pin.is-clicked .pin-media {
+  animation: pin-pop 460ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 草稿飞镖：不做常驻呼吸（正在被拖动/定位），拖完松手回弹一次 */
+.pin.draft.is-settling .pin-body {
+  animation: pin-settle 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 点击涟漪：3D 地面波纹——椭圆（透视压缩）+ 双环错峰扩散。
+   容器本身是椭圆尺寸（宽 > 高），::before/::after 各播一圈、第二圈延迟 110ms，
+   视觉上像从杖尖落点的地面上向外漾开，而不是平面上放大的圆。 */
+.pin-ripple {
+  position: absolute;
+  pointer-events: none;
+}
+
+.pin-ripple::before,
+.pin-ripple::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--ripple, var(--accent-map));
+  opacity: 0;
+  transform-origin: 50% 50%;
+  animation: pin-ripple 560ms ease-out forwards;
+}
+
+.pin-ripple::after {
+  animation-delay: 110ms;
+  border-width: 1.5px;
+}
+
+/* 暂停：缩放中 / 页面切后台 */
+.pin-layer.zooming .pin-body,
+.pin-layer.zooming .pin-media,
+.pin-layer.zooming .pin img,
+.pin-layer.zooming .cluster-body,
+.pin-layer.zooming .pin-ripple::before,
+.pin-layer.zooming .pin-ripple::after,
+.pin-layer.is-hidden .pin-body,
+.pin-layer.is-hidden .pin-media,
+.pin-layer.is-hidden .pin img,
+.pin-layer.is-hidden .cluster-body,
+.pin-layer.is-hidden .pin-ripple::before,
+.pin-layer.is-hidden .pin-ripple::after {
+  animation-play-state: paused;
+}
+
+/* D-162：缩放时标记层已 opacity/visibility 隐藏，动画直接停掉（比 paused 更省）；
+   拖动平移时只暂停、松手恢复，避免 26 个标记的呼吸和地图平移抢合成资源。 */
+.pin-layer.zooming .pin-body,
+.pin-layer.zooming .pin-media,
+.pin-layer.zooming .pin img,
+.pin-layer.zooming .cluster-body,
+.pin-layer.zooming .pin-ripple::before,
+.pin-layer.zooming .pin-ripple::after {
+  animation: none;
+}
+
+.pin-layer.interacting .pin-body,
+.pin-layer.interacting .pin-media,
+.pin-layer.interacting .pin img,
+.pin-layer.interacting .cluster-body {
+  animation-play-state: paused;
+}
+
+@keyframes pin-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-0.5px) scale(1.025, 1.02) rotate(0.7deg);
+  }
+}
+
+@keyframes pin-breathe-strong {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-1px) scale(1.045, 1.035) rotate(1.1deg);
+  }
+}
+
+@keyframes pin-hop {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  35% {
+    transform: translateY(-2px) scale(1.05);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pin-pop {
+  0% {
+    transform: scale(1, 1);
+  }
+  30% {
+    transform: scale(1.08, 0.92);
+  }
+  65% {
+    transform: scale(0.98, 1.04);
+  }
+  100% {
+    transform: scale(1, 1);
+  }
+}
+
+/* D-160：草稿飞镖松手/单击的回弹改为「向下压一下再弹回」。
+   原来从 scale(1.06,0.94) 开始恢复到 1，绕底部锚点展开时顶部会向上抬，
+   用户看起来像「点一下图标往上跳」；现在从原地向下压再回弹，不改变锚点。 */
+@keyframes pin-settle {
+  0% {
+    transform: translateY(0) scale(1, 1);
+  }
+  35% {
+    transform: translateY(2px) scale(1.04, 0.96);
+  }
+  70% {
+    transform: translateY(0) scale(0.99, 1.01);
+  }
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+}
+
+@keyframes cluster-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.02);
+    opacity: 0.96;
+  }
+}
+
+@keyframes pin-ripple {
+  0% {
+    transform: scale(0.35);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pin-body,
+  .pin-media,
+  .pin img,
+  .cluster-body {
+    animation: none !important;
+  }
+  .pin-ripple {
+    display: none;
+  }
+}
+
+/* ── D-166 第 9 步：按钮键盘焦点统一兜底 ─────────────────────────────
+   各按钮家族（图标键 / 文字键 / 胶囊 / 分段控件）大多已有自己的 :focus-visible；
+   这里给还没单独写焦点的按钮（媒体格、小胶囊、设置里的选项等）一个统一的强调色焦点环，
+   避免「Tab 能走到、但看不出焦点在哪」。各家族自定义的焦点样式优先级更高，不受影响。 */
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+

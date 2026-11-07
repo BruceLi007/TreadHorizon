@@ -1,0 +1,158 @@
+/* ── 统一分段控件（2026-11-04，D-98 / D-99）──────────────────────────
+   外观参考「轨道 + 圆角滑块」，滑块随选中项平移（左右选择有滑动效果）。
+   4 档明暗主题各自定义轨道 / 滑块 / 阴影颜色；滑块几何由 Segmented.tsx 测量后写入
+   transform / width，这里只负责过渡动画。
+   深色 / 纯黑档：轨道比面板更暗、滑块用明显更亮的石板灰 + 内高光，
+   否则深色下「滑块 vs 轨道」的色差几乎看不出来（D-99 用户反馈）。 */
+
+.seg {
+  /* 深色（默认档）：轨道向内压暗、滑块明显提亮，保证一眼能看出选中块 */
+  --seg-track: rgba(0, 0, 0, 0.2);
+  --seg-thumb: #4a5462;
+  --seg-thumb-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--seg-track);
+  flex: none;
+  min-width: 0;
+}
+
+.seg-fill {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+.seg-fill .seg-btn {
+  flex: 1 1 0;
+}
+
+/* 选项很多（照片墙年份）：轨道本身横向滚动，滑块跟着内容一起滚 */
+.seg-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.seg-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.seg-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  width: 0;
+  border-radius: 8px;
+  background: var(--seg-thumb);
+  box-shadow: var(--seg-thumb-shadow);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 首帧定位完成后再开启过渡：避免滑块从 0 宽度「长出来」 */
+.seg-thumb.ready {
+  opacity: 1;
+  transition:
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 140ms ease;
+}
+
+.seg-btn {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 8px;
+  color: var(--text-3);
+  font-size: calc(12.5px * var(--fs-scale));
+  line-height: 1;
+  white-space: nowrap;
+  transition: color 160ms ease;
+}
+
+.seg-btn:hover:not(:disabled) {
+  color: var(--text-1);
+}
+
+.seg-btn.on {
+  color: var(--text-1);
+}
+
+.seg-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.seg-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.seg-sm .seg-btn {
+  height: 24px;
+  padding: 0 9px;
+  font-size: calc(12px * var(--fs-scale));
+}
+
+/* 数量小胶囊（tab 数量 / 回收站条数 / 照片墙年份张数） */
+.seg-count {
+  min-width: 17px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-3);
+  font-size: calc(10px * var(--fs-scale));
+  font-variant-numeric: tabular-nums;
+}
+
+.seg-btn.on .seg-count {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.seg-disabled {
+  opacity: 0.7;
+}
+
+/* ── 主题适配 ── */
+html:is([data-theme='light'], [data-theme='white']) .seg {
+  --seg-track: rgba(20, 30, 50, 0.055);
+  --seg-thumb: #ffffff;
+  --seg-thumb-shadow: 0 1px 3px rgba(20, 30, 50, 0.16);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .seg-count {
+  background: rgba(20, 30, 50, 0.07);
+}
+
+html[data-theme='black'] .seg {
+  --seg-track: rgba(255, 255, 255, 0.055);
+  --seg-thumb: #4a5462;
+  --seg-thumb-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seg-thumb {
+    transition: none;
+  }
+}

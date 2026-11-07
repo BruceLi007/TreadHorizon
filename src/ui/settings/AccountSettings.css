@@ -1,0 +1,215 @@
+/* ── 设置 → 账号（2026-11-06 M6 P2-1，D-200）──
+   账号信息行复用 SettingsModal.css 的 .field-static；这里只补角色标签与存储用量。
+   2026-11-07（D-221）：邀请码管理已移到「用户管理」页，相关样式也移到 UserManagementSettings.css。 */
+
+/* 账号信息横排（2026-11-07 P2 验收反馈，用户要求「不要一列字段下来，横着排布」）：
+   6 个字段放进 3 列网格（2 行）；内容区约 740px 宽，每格 ~230px，日期 / 配额都放得下。
+   窄屏依次降到 2 列 / 1 列。 */
+.acc-info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 20px;
+  margin: 2px 0 14px;
+}
+
+.acc-info-grid .field-static {
+  margin: 0;
+  min-width: 0;
+}
+
+.acc-info-grid .field-static > span {
+  margin-bottom: 3px;
+}
+
+@media (max-width: 760px) {
+  .acc-info-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .acc-info-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.acc-role-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--text-3);
+  font-size: calc(10px * var(--fs-scale));
+  letter-spacing: 0.06em;
+  vertical-align: 1px;
+}
+
+/* ── 存储用量（M6 P2-3，D-204；2026-11-07 D-209 改为只统计、不限额）──
+   不再有「已用 / 配额」进度条；直接显示已用空间数字 + 数据量。 */
+.acc-usage-total {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 2px 0 6px;
+  color: var(--text-2);
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.acc-usage-total b {
+  font-size: calc(20px * var(--fs-scale));
+  font-weight: 600;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 头像（2026-11-07 D-224，用户要求：设置 → 账号里单独的换头像板块）── */
+.acc-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 4px 0 2px;
+}
+
+.acc-avatar-preview {
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+}
+
+/* 没上传过头像：透明底，直接显示「去过」标记 */
+.acc-avatar-preview.is-default {
+  background: transparent;
+  border-color: transparent;
+}
+
+.acc-avatar-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.acc-avatar-preview.is-default img {
+  width: auto;
+  height: 46px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.28));
+}
+
+.acc-avatar-preview:hover {
+  border-color: var(--accent);
+}
+
+.acc-avatar-preview:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.acc-avatar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.acc-avatar-hint {
+  margin: 0;
+  font-size: calc(11.5px * var(--fs-scale));
+  line-height: 1.6;
+  color: var(--text-3);
+}
+
+.acc-avatar-input {
+  display: none;
+}
+
+/* ── 显示名编辑（2026-11-07 D-224：功能直接放在「显示名」旁边）── */
+.acc-name-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.acc-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acc-name-edit-btn {
+  flex: none;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: calc(11px * var(--fs-scale));
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+
+.acc-name-edit-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.acc-name-edit-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.acc-name-edit {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+  min-width: 0;
+}
+
+.acc-name-input {
+  width: 100%;
+  max-width: 260px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-raised);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: calc(13px * var(--fs-scale));
+  outline: none;
+}
+
+.acc-name-input:focus {
+  border-color: var(--accent);
+}
+
+.acc-name-input:disabled {
+  opacity: 0.6;
+}
+
+.acc-name-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.acc-name-edit-actions .primary {
+  height: 30px;
+  padding: 0 12px;
+}

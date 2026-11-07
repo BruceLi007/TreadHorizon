@@ -1,0 +1,285 @@
+/* ── 随行人员筛选（F-BRW-06 / D-59）：时间轴右侧「筛选」键 + 向上弹出的 popover ── */
+
+/* 按钮挂在 .tl-head 末尾，靠右 */
+.cf-root {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+/* 与 .tl-all / .tl-switch 同款描边胶囊 */
+.cf-btn {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--text-2);
+  font-size: calc(11px * var(--fs-scale));
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.cf-btn:hover {
+  border-color: #3a4150;
+  color: var(--text-1);
+}
+
+.cf-btn.cf-on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-1);
+}
+
+.cf-btn[aria-expanded='true'] {
+  border-color: var(--accent);
+  color: var(--text-1);
+}
+
+.cf-btn:focus-visible,
+.cf-item:focus-visible,
+.cf-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* popover：贴着按钮向上弹，z-index 高于时间轴内容，时间轴容器没有 overflow，不会被裁 */
+.cf-pop {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(280px, calc(100vw - 40px));
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+  animation: cf-pop-in 140ms ease;
+}
+
+@keyframes cf-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.cf-pop-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cf-pop-title {
+  font-size: calc(12px * var(--fs-scale));
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+
+.cf-pop-count {
+  font-size: calc(11px * var(--fs-scale));
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.cf-search {
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--text-1);
+  font-size: calc(12px * var(--fs-scale));
+  outline: none;
+}
+
+.cf-search:focus {
+  border-color: var(--accent);
+}
+
+.cf-search::placeholder {
+  color: var(--text-3);
+}
+
+.cf-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.cf-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  text-align: left;
+  color: var(--text-1);
+}
+
+.cf-item:hover {
+  background: var(--bg-raised);
+}
+
+.cf-item.cf-on {
+  background: var(--accent-soft);
+}
+
+.cf-item-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cf-item-name {
+  font-size: calc(13px * var(--fs-scale));
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cf-item-meta {
+  margin-top: 1px;
+  font-size: calc(11px * var(--fs-scale));
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.cf-check {
+  flex: none;
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--accent);
+}
+
+.cf-all .cf-item-name {
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.cf-sep {
+  height: 1px;
+  margin: 2px 4px;
+  background: var(--line);
+}
+
+.cf-hint {
+  padding: 8px;
+  font-size: calc(11.5px * var(--fs-scale));
+  line-height: 1.55;
+  color: var(--text-3);
+}
+
+.cf-retry {
+  margin-left: 8px;
+  padding: 0;
+  color: var(--accent);
+  font-size: calc(11.5px * var(--fs-scale));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ── 时间轴里的「已筛选：名字」chip（Timeline.tsx 渲染，样式归筛选组件管理） ── */
+.cf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  /* 够放「已筛选：张三、李四 +N ×」，再长就省略，保证宽屏下时间轴头部不换行 */
+  max-width: 170px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-1);
+  font-size: calc(11px * var(--fs-scale));
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.cf-chip:hover {
+  border-color: var(--accent);
+  filter: brightness(1.1);
+}
+
+.cf-chip:focus-visible,
+.cf-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.cf-chip-label {
+  flex: none;
+  color: var(--text-2);
+}
+
+.cf-chip-names {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cf-chip-more {
+  flex: none;
+  color: var(--text-2);
+}
+
+.cf-chip-x {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-3);
+}
+
+.cf-chip:hover .cf-chip-x {
+  color: var(--text-1);
+}
+
+/* popover 打开 / 时间轴内有焦点时，让默认半透明（.timeline opacity .45）的时间轴恢复不透明；
+   打开时顺便抬一下时间轴的层级，保证 popover 不被右侧面板盖住。
+   选择器特意加权重，压过 styles.css 后面才加载的 .timeline:hover / .timeline.active */
+.timeline:has(.cf-root .cf-pop) {
+  opacity: 1;
+  z-index: 31;
+}
+
+div.timeline:focus-within {
+  opacity: 1;
+}
+
+/* 浅色主题：popover 用白底、阴影收轻 */
+html:is([data-theme='light'], [data-theme='white']) .cf-pop {
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 32px rgba(20, 30, 50, 0.16);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .cf-btn:hover {
+  border-color: #b9c2ce;
+}
+
+html:is([data-theme='light'], [data-theme='white']) .cf-search::placeholder {
+  color: var(--text-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-pop {
+    animation: none;
+  }
+}

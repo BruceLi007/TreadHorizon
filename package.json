@@ -1,0 +1,58 @@
+{
+  "name": "tread-horizon",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Tread Horizon · 个人旅行足迹地图 —— 步履踏向山海天地，在天地图上记录去过的地方和照片",
+  "license": "MIT",
+  "author": "李其阳 (GitHub: @BruceLi007)",
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c cyan,magenta \"node --watch server/index.mjs --dev\" \"vite\"",
+    "build": "vite build",
+    "build:markers": "node scripts/build-marker-colors.mjs",
+    "start": "npm run build && node server/index.mjs",
+    "serve": "node server/index.mjs",
+    "check": "node scripts/check-tk.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "smoke:m1": "node scripts/smoke-m1.mjs",
+    "smoke:scan": "node scripts/smoke-m2.mjs",
+    "smoke:m2b": "node scripts/smoke-m2b.mjs",
+    "smoke:m3": "node scripts/smoke-m3.mjs",
+    "smoke:stats": "node scripts/smoke-m3-stats.mjs",
+    "smoke:photos": "node scripts/smoke-m3-photos.mjs",
+    "smoke:companions": "node scripts/smoke-m3-companions.mjs",
+    "smoke:secret": "node scripts/smoke-m3-secret.mjs",
+    "test:parse": "node scripts/test-parse.mjs",
+    "purge:media": "node scripts/purge-deleted-media.mjs",
+    "reorg:media": "node scripts/reorganize-media.mjs",
+    "smoke:m4": "node scripts/smoke-m4-backup.mjs",
+    "smoke:settings": "node scripts/smoke-settings.mjs",
+    "smoke:auth": "node scripts/smoke-auth.mjs",
+    "smoke:multiuser": "node scripts/smoke-multiuser.mjs",
+    "smoke:admin": "node scripts/smoke-admin.mjs",
+    "init:admin": "node scripts/init-admin.mjs",
+    "migrate:multiuser": "node scripts/migrate-multiuser.mjs",
+    "i18n:check": "node scripts/i18n-check.mjs"
+  },
+  "engines": {
+    "node": ">=22.5"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
+  },
+  "dependencies": {
+    "@fastify/multipart": "^10.1.6",
+    "@fastify/static": "^10.1.8",
+    "concurrently": "^10.0.6",
+    "fastify": "^5.12.7",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "sharp": "^0.35.5",
+    "yauzl": "^3.4.0",
+    "yazl": "^3.3.1"
+  }
+}

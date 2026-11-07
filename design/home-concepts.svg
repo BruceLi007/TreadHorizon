@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="830" viewBox="0 0 1200 830">
+<defs>
+  <g id="h1">
+    <rect x="66" y="20" width="8" height="18" rx="2" fill="#d1fae5"/>
+    <path d="M14 51 50 16 86 51Z" fill="#d1fae5"/>
+    <path d="M27 49h46v33L50 100 27 82Z" fill="#34d399"/>
+    <rect x="42" y="61" width="16" height="23" rx="4" fill="#ffffff"/>
+  </g>
+  <g id="h2">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#34d399"/>
+    <rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g>
+  <g id="h3">
+    <circle cx="50" cy="48" r="33" fill="#34d399"/>
+    <path d="M28 50 50 28 72 50Z" fill="#d1fae5"/>
+    <rect x="32" y="50" width="36" height="23" rx="4" fill="#ffffff"/>
+    <rect x="45" y="57" width="10" height="16" rx="2" fill="#34d399"/>
+    <path d="M46 81h8L50 100Z" fill="#34d399"/>
+  </g>
+  <g id="h4">
+    <rect x="74" y="18" width="7" height="18" rx="2" fill="#d1fae5"/>
+    <path d="M12 50 34 20 50 40 66 20 88 50Z" fill="#d1fae5"/>
+    <path d="M27 49h46v33L50 100 27 82Z" fill="#34d399"/>
+    <rect x="42" y="61" width="16" height="23" rx="4" fill="#ffffff"/>
+  </g>
+  <g id="h5">
+    <rect x="68" y="22" width="8" height="18" rx="2" fill="#d1fae5"/>
+    <path d="M12 52 50 18 88 52H78V84L50 100 22 84V52Z" fill="#34d399"/>
+    <path d="M12 52 50 18 88 52Z" fill="#d1fae5"/>
+    <rect x="39" y="57" width="9" height="9" rx="2" fill="#fbbf24"/>
+    <rect x="52" y="57" width="9" height="9" rx="2" fill="#fbbf24"/>
+    <rect x="44" y="74" width="12" height="18" rx="3" fill="#ffffff"/>
+  </g>
+  <g id="h6">
+    <path d="M50 100 22 82V50A28 28 0 0 1 78 50V82Z" fill="#34d399"/>
+    <path d="M26 50A24 24 0 0 1 74 50Z" fill="#d1fae5"/>
+    <rect x="42" y="58" width="16" height="24" rx="8" fill="#ffffff"/>
+  </g>
+  <g id="h7">
+    <path d="M50 12 88 84H12Z" fill="#34d399"/>
+    <path d="M50 12 74 62H26Z" fill="#d1fae5"/>
+    <rect x="43" y="66" width="14" height="20" rx="2" fill="#ffffff"/>
+    <path d="M44 84h12L50 100Z" fill="#34d399"/>
+  </g>
+  <g id="h8">
+    <path d="M22 50 22 40 30 40 30 30 36 30 36 20 64 20 64 30 70 30 70 40 78 40 78 50 78 82 50 100 22 82Z" fill="#34d399"/>
+    <rect x="42" y="58" width="16" height="24" fill="#ffffff"/>
+  </g></defs>
+<rect width="1200" height="830" fill="#eef1f5"/>
+<text x="26" y="810" font-family="Microsoft YaHei" font-size="13" fill="#66788a">家图标方案：底尖保持在 (50,100) 对齐地图坐标；每格下方是 30px / 14px 实际大小</text>
+<text x="150" y="34" text-anchor="middle" font-family="Microsoft YaHei" font-size="15" font-weight="700" fill="#24323f">1. 经典尖顶屋</text><text x="150" y="56" text-anchor="middle" font-family="Microsoft YaHei" font-size="11" fill="#66788a">白屋顶 + 青绿屋身 + 底尖</text><g transform="translate(150,245) scale(1.25) translate(-50,-100)"><use href="#h1"/></g><g transform="translate(95,340) scale(0.30) translate(-50,-100)"><use href="#h1"/></g><text x="95" y="356" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">30px</text><g transform="translate(158,340) scale(0.14) translate(-50,-100)"><use href="#h1"/></g><text x="158" y="356" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">14px</text><text x="450" y="34" text-anchor="middle" font-family="Microsoft YaHei" font-size="15" font-weight="700" fill="#24323f">2. 极简剪影屋</text><text x="450" y="56" text-anchor="middle" font-family="Microsoft YaHei" font-size="11" fill="#66788a">单色剪影 + 白门，最干净</text><g transform="translate(450,245) scale(1.25) translate(-50,-100)"><use href="#h2"/></g><g transform="translate(395,340) scale(0.30) translate(-50,-100)"><use href="#h2"/></g><text x="395" y="356" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">30px</text><g transform="translate(458,340) scale(0.14) translate(-50,-100)"><use href="#h2"/></g><text x="458" y="356" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">14px</text><path d="M300 8v399" stroke="#dbe3ea" stroke-width="1"/><text x="750" y="34" text-anchor="middle" font-family="Microsoft YaHei" font-size="15" font-weight="700" fill="#24323f">3. 圆形徽章屋</text><text x="750" y="56" text-anchor="middle" font-family="Microsoft YaHei" font-size="11" fill="#66788a">青绿圆徽 + 白房子 + 指针</text><g transform="translate(750,245) scale(1.25) translate(-50,-100)"><use href="#h3"/></g><g transform="translate(695,340) scale(0.30) translate(-50,-100)"><use href="#h3"/></g><text x="695" y="356" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">30px</text><g transform="translate(758,340) scale(0.14) translate(-50,-100)"><use href="#h3"/></g><text x="758" y="356" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">14px</text><path d="M600 8v399" stroke="#dbe3ea" stroke-width="1"/><text x="1050" y="34" text-anchor="middle" font-family="Microsoft YaHei" font-size="15" font-weight="700" fill="#24323f">4. 双尖谷仓屋</text><text x="1050" y="56" text-anchor="middle" font-family="Microsoft YaHei" font-size="11" fill="#66788a">双屋脊，呼应 2 尖头标记</text><g transform="translate(1050,245) scale(1.25) translate(-50,-100)"><use href="#h4"/></g><g transform="translate(995,340) scale(0.30) translate(-50,-100)"><use href="#h4"/></g><text x="995" y="356" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">30px</text><g transform="translate(1058,340) scale(0.14) translate(-50,-100)"><use href="#h4"/></g><text x="1058" y="356" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">14px</text><path d="M900 8v399" stroke="#dbe3ea" stroke-width="1"/><text x="150" y="449" text-anchor="middle" font-family="Microsoft YaHei" font-size="15" font-weight="700" fill="#24323f">5. 温馨木屋</text><text x="150" y="471" text-anchor="middle" font-family="Microsoft YaHei" font-size="11" fill="#66788a">烟囱 + 暖窗 + 白门</text><g transform="translate(150,660) scale(1.25) translate(-50,-100)"><use href="#h5"/></g><g transform="translate(95,755) scale(0.30) translate(-50,-100)"><use href="#h5"/></g><text x="95" y="771" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">30px</text><g transform="translate(158,755) scale(0.14) translate(-50,-100)"><use href="#h5"/></g><text x="158" y="771" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">14px</text><path d="M20 415h1160" stroke="#dbe3ea" stroke-width="1"/><text x="450" y="449" text-anchor="middle" font-family="Microsoft YaHei" font-size="15" font-weight="700" fill="#24323f">6. 圆顶小屋</text><text x="450" y="471" text-anchor="middle" font-family="Microsoft YaHei" font-size="11" fill="#66788a">圆润拱顶 + 拱门，偏卡通</text><g transform="translate(450,660) scale(1.25) translate(-50,-100)"><use href="#h6"/></g><g transform="translate(395,755) scale(0.30) translate(-50,-100)"><use href="#h6"/></g><text x="395" y="771" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">30px</text><g transform="translate(458,755) scale(0.14) translate(-50,-100)"><use href="#h6"/></g><text x="458" y="771" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">14px</text><path d="M300 423v399" stroke="#dbe3ea" stroke-width="1"/><path d="M20 415h1160" stroke="#dbe3ea" stroke-width="1"/><text x="750" y="449" text-anchor="middle" font-family="Microsoft YaHei" font-size="15" font-weight="700" fill="#24323f">7. A 字小屋</text><text x="750" y="471" text-anchor="middle" font-family="Microsoft YaHei" font-size="11" fill="#66788a">帐篷式 A 字顶，最简洁</text><g transform="translate(750,660) scale(1.25) translate(-50,-100)"><use href="#h7"/></g><g transform="translate(695,755) scale(0.30) translate(-50,-100)"><use href="#h7"/></g><text x="695" y="771" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">30px</text><g transform="translate(758,755) scale(0.14) translate(-50,-100)"><use href="#h7"/></g><text x="758" y="771" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">14px</text><path d="M600 423v399" stroke="#dbe3ea" stroke-width="1"/><path d="M20 415h1160" stroke="#dbe3ea" stroke-width="1"/><text x="1050" y="449" text-anchor="middle" font-family="Microsoft YaHei" font-size="15" font-weight="700" fill="#24323f">8. 像素小屋</text><text x="1050" y="471" text-anchor="middle" font-family="Microsoft YaHei" font-size="11" fill="#66788a">方块阶梯顶，配像素字体</text><g transform="translate(1050,660) scale(1.25) translate(-50,-100)"><use href="#h8"/></g><g transform="translate(995,755) scale(0.30) translate(-50,-100)"><use href="#h8"/></g><text x="995" y="771" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">30px</text><g transform="translate(1058,755) scale(0.14) translate(-50,-100)"><use href="#h8"/></g><text x="1058" y="771" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">14px</text><path d="M900 423v399" stroke="#dbe3ea" stroke-width="1"/><path d="M20 415h1160" stroke="#dbe3ea" stroke-width="1"/>
+</svg>

@@ -1,0 +1,55 @@
+# ── 依赖 ──
+node_modules/
+.pnpm-store/
+
+# ── 构建产物 ──
+dist/
+dist-ssr/
+*.local.tsbuildinfo
+*.tsbuildinfo
+
+# ── 私密配置（最重要的一条）──
+.env
+.env.*
+*.local
+!.env.example
+
+# ── 运行时数据 ──
+# SQLite 数据库、缩略图缓存、导出备份、临时文件
+data/
+backup/
+.tmp/
+*.db
+*.db-wal
+*.db-shm
+
+# ── 素材库 ──
+# 开发期素材库（真实照片 / 视频，约 1.7GB，绝不能提交）
+.dev-media/
+# 原片默认放 <素材库目录>（仓外），万一有人改到仓内也不会被提交
+media/
+TravelMedia/
+
+# ── 字体 ──
+# public/fonts/ 随仓库发布（仅 2 款 SIL OFL 字体：喵咛狗爬黑 / 嗷呜碎瘾黑，许可见 public/fonts/LICENSES.md）
+# ── 本地不上传资料 ──
+# _local-only/：原始字体 ttc、第三方天地图类型定义等本地档案（不随仓库 / 源码包发布，可随时整体删除或移走）
+_local-only/
+
+# ── 内部交接 / 决策日志 / 详细设计文档（含本机路径与个人信息，不随仓库发布）──
+# 公开仓库只留 README + 代码；docs/ 保留在本地作开发参考（不参与构建）
+HANDOFF.md
+/docs/
+# ── 编辑器 / 系统 ──
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── 日志与缓存 ──
+*.log
+npm-debug.log*
+pnpm-debug.log*
+.npm-cache/

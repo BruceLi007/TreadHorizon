@@ -1,0 +1,359 @@
+/* ── 设置 → 用户管理（2026-11-06 M6 P2-3，D-204）──
+   管理员账号列表：账号 / 状态 / 已用空间 / 操作。
+   2026-11-07（D-221）：邀请码管理从「账号」页移到这里，相关样式也并入本文件。 */
+
+.um-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.um-head,
+.um-row {
+  display: grid;
+  /* 2026-11-07 验收反馈「字有点没对齐」：原来第 4 列写 auto——
+     表头里 auto ≈ 「操作」两个字的宽度（~24px），数据行里 auto ≈ 整组按钮（~300px），
+     两者列宽算法不同，前 3 列被挤压 / 拉伸的量也不同，表头就错位了。
+     改成固定第 4 列宽 + 两侧同样的左右内边距 / 透明边框，表头与每行使用完全相同的轨道。 */
+  grid-template-columns:
+    minmax(200px, 1.4fr)
+    68px
+    minmax(150px, 1fr)
+    150px;
+  gap: 10px;
+  align-items: center;
+}
+
+.um-head {
+  /* 数据行有 1px 边框、表头没有：用透明左右边框补齐 2px，内宽与数据行一致 */
+  padding: 0 12px;
+  border-left: 1px solid transparent;
+  border-right: 1px solid transparent;
+  font-size: calc(11px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+/* 「操作」列表头右对齐：数据行的操作按钮组是右对齐的 */
+.um-head > span:last-child {
+  text-align: right;
+}
+
+.um-row {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+}
+
+.um-row.is-open {
+  border-color: var(--accent);
+}
+
+.um-id {
+  min-width: 0;
+}
+
+.um-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: calc(13px * var(--fs-scale));
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.um-handle {
+  font-size: calc(11.5px * var(--fs-scale));
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.um-role,
+.um-self {
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: calc(10px * var(--fs-scale));
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.um-role {
+  border-color: var(--accent);
+  color: var(--text-1);
+}
+
+.um-sub {
+  margin-top: 3px;
+  font-size: calc(11px * var(--fs-scale));
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.um-status {
+  display: flex;
+}
+
+.um-badge {
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: calc(10.5px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+.um-badge.is-on {
+  border-color: var(--accent);
+  color: var(--text-1);
+}
+
+.um-badge.is-off {
+  color: var(--bad);
+  border-color: rgba(224, 108, 117, 0.4);
+}
+
+.um-usage {
+  min-width: 0;
+}
+
+.um-usage-text {
+  display: block;
+  font-size: calc(13px * var(--fs-scale));
+  color: var(--text-1);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.um-usage-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: calc(10.5px * var(--fs-scale));
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.um-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.um-pwd-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+
+.um-pwd-row input {
+  height: 30px;
+  min-width: 180px;
+  padding: 0 9px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+  color: var(--text-1);
+  font: inherit;
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.um-pwd-row .hint {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .um-head {
+    display: none;
+  }
+
+  .um-row {
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .um-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* ── 邀请码管理（2026-11-07 从「账号」页移入，D-221；类名沿用 acc-* 不动）── */
+.acc-badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--text-3);
+  font-size: calc(10.5px * var(--fs-scale));
+  white-space: nowrap;
+}
+
+/* 生成邀请码：有效期 + 备注 + 按钮一行 */
+.acc-invite-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 4px 0 12px;
+}
+
+.acc-invite-form .field {
+  margin: 0;
+}
+
+.acc-invite-days {
+  width: 108px;
+}
+
+.acc-invite-days input {
+  height: 34px;
+}
+
+.acc-invite-note {
+  flex: 1 1 180px;
+  min-width: 150px;
+}
+
+.acc-invite-note input {
+  height: 34px;
+}
+
+.acc-invite-create {
+  height: 34px;
+  padding: 0 18px;
+  white-space: nowrap;
+}
+
+/* 新邀请码（明文只显示一次） */
+.acc-newcode {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px dashed var(--accent);
+  background: var(--accent-soft);
+}
+
+.acc-newcode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.acc-newcode-text b {
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-2);
+  font-weight: 600;
+}
+
+.acc-newcode-text code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: calc(16px * var(--fs-scale));
+  letter-spacing: 0.08em;
+  color: var(--text-1);
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+
+.acc-newcode-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 邀请码列表 */
+.acc-invites {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.acc-invite-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+}
+
+.acc-invite-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.acc-invite-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.acc-invite-status {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: calc(10px * var(--fs-scale));
+  border: 1px solid var(--line);
+  color: var(--text-3);
+}
+
+.acc-invite-status.is-active {
+  border-color: var(--accent);
+  color: var(--text-1);
+}
+
+.acc-invite-status.is-used {
+  color: var(--text-3);
+  opacity: 0.8;
+}
+
+.acc-invite-status.is-expired {
+  color: var(--bad);
+  border-color: rgba(224, 108, 117, 0.4);
+}
+
+.acc-invite-note-text {
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acc-invite-meta {
+  font-size: calc(11px * var(--fs-scale));
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .acc-invite-form {
+    align-items: stretch;
+  }
+
+  .acc-invite-days {
+    width: 100%;
+  }
+
+  .acc-invite-create {
+    width: 100%;
+  }
+}

@@ -1,0 +1,196 @@
+/* ── 登录 / 邀请码注册页（2026-11-06 M6 P2-1，D-200）────
+   只在 AUTH_MODE=multi 且未登录时全屏显示；4 档外观跟随主题 token。
+   本地模式（默认）不会渲染这个页面。
+   同一套样式也被「配置天地图 Key」引导页（KeySetupPage，D-205 / D-238）复用。 */
+
+.login-page {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow: auto;
+  background:
+    radial-gradient(1100px 620px at 18% 12%, var(--accent-soft), transparent 62%),
+    radial-gradient(900px 560px at 86% 92%, var(--accent-soft), transparent 58%),
+    var(--bg-map);
+  color: var(--text-1);
+}
+
+.login-card {
+  width: min(400px, 100%);
+  padding: 34px 30px 26px;
+  border-radius: 18px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  box-shadow:
+    0 28px 70px rgba(0, 0, 0, 0.28),
+    0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .login-card {
+  box-shadow:
+    0 24px 60px rgba(30, 42, 60, 0.16),
+    0 2px 8px rgba(30, 42, 60, 0.07);
+}
+
+.login-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  user-select: none;
+}
+
+.login-brand-name {
+  font-size: calc(26px * var(--fs-scale));
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  margin-right: -0.16em; /* 抵消字距，视觉居中 */
+  color: var(--text-1);
+}
+
+.login-brand-sub {
+  font-size: calc(12px * var(--fs-scale));
+  font-weight: 500;
+  letter-spacing: 0.32em;
+  margin-right: -0.32em;
+  color: var(--text-3);
+}
+
+.login-lead {
+  margin: 0 0 18px;
+  text-align: center;
+  font-size: calc(12.5px * var(--fs-scale));
+  color: var(--text-3);
+  line-height: 1.6;
+}
+
+.login-tabs {
+  margin-bottom: 16px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.login-field > span {
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-2);
+}
+
+.login-field input {
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--text-1);
+  font: inherit;
+  font-size: calc(13px * var(--fs-scale));
+  letter-spacing: 0.02em;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.login-field input::placeholder {
+  color: var(--text-3);
+  opacity: 0.8;
+}
+
+.login-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.login-error {
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid rgba(var(--accent-rgb), 0.28);
+  background: var(--accent-soft);
+  color: var(--text-1);
+  font-size: calc(12px * var(--fs-scale));
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.login-submit {
+  height: 38px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: calc(13.5px * var(--fs-scale));
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  transition:
+    opacity 150ms ease,
+    transform 120ms ease;
+}
+
+.login-submit:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.login-submit:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.login-submit:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.login-submit:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.login-foot {
+  margin: 16px 0 0;
+  text-align: center;
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-2);
+  line-height: 1.6;
+}
+
+.login-note {
+  margin: 6px 0 0;
+  text-align: center;
+  font-size: calc(11px * var(--fs-scale));
+  color: var(--text-3);
+  line-height: 1.6;
+}
+
+/* 配置天地图 Key 引导页（D-205 / D-238）：卡片比登录页略宽，说明文字左对齐更好读 */
+.key-setup-page .login-card {
+  width: min(460px, 100%);
+}
+
+.key-setup-page .login-lead,
+.key-setup-page .login-foot,
+.key-setup-page .login-note {
+  text-align: left;
+}
+
+@media (max-width: 520px) {
+  .login-card {
+    padding: 26px 20px 20px;
+    border-radius: 16px;
+  }
+
+  .login-brand-name {
+    font-size: calc(22px * var(--fs-scale));
+  }
+}

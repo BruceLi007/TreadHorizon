@@ -1,0 +1,118 @@
+/* 排序方向切换小按键（SortToggle）/ 列表工具行图标键
+   2026-11-05 D-166 第 4~5 步统一：
+   - 图标型工具键（排序图标版 / 刷新 / 展开收起等）统一 26×26、圆角 8、1px 描边；
+   - hover：底色提亮 + 强调色描边；active：轻微缩小；focus-visible：强调色焦点环；
+   - 排序键保留「图标版（省空间）」与「文字版（信息全，如 My旅迹）」两种合法形态。
+   4 档明暗主题各自定义 hover 底色 / 边框。 */
+
+.head-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+/* 候选列表等「列表小标题 + 排序键」一行 */
+.st-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 16px 0;
+  flex: none;
+}
+
+.st-list-title {
+  font-size: calc(12.5px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+/* ── 图标型工具键（排序图标版 / 刷新等）── */
+.st-sort,
+.st-icon {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  flex: none;
+  transition:
+    background 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease,
+    transform 120ms ease;
+}
+
+.st-sort:hover,
+.st-icon:hover:not(:disabled) {
+  background: var(--bg-raised);
+  color: var(--text-1);
+  border-color: var(--accent);
+}
+
+.st-sort:active,
+.st-icon:active {
+  transform: scale(0.94);
+}
+
+.st-icon:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.st-sort:focus-visible,
+.st-icon:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ── 文字版排序键（D-113）：显示当前排序方式，如「最近在前 ↓」 ── */
+.st-sort.labeled {
+  width: auto;
+  padding: 0 8px;
+  gap: 4px;
+  font-size: calc(12px * var(--fs-scale));
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+
+.st-sort-text {
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.st-sort.labeled svg {
+  flex: none;
+}
+
+/* asc 不是默认方向，用强调色提示列表已被反转 */
+.st-sort.asc {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .st-sort:hover,
+html:is([data-theme='light'], [data-theme='white']) .st-icon:hover:not(:disabled) {
+  background: rgba(20, 30, 50, 0.06);
+}
+
+/* 常规排序图标：左升 / 右降两个半箭头，当前方向高亮、另一个变淡 */
+.st-sort svg .st-arrow {
+  opacity: 0.32;
+  transition: opacity 150ms ease;
+}
+
+.st-sort svg .st-arrow.on {
+  opacity: 1;
+}
+
+.st-sort.asc svg .st-arrow.on {
+  color: var(--accent);
+}

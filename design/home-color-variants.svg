@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1140" viewBox="0 0 1200 1140">
+<rect width="1200" height="1140" fill="#eef1f5"/>
+<text x="24" y="1120" font-family="Microsoft YaHei" font-size="13" fill="#66788a">2 号极简剪影屋 · 配色方案（底尖仍在 50,100；每格下方是 30px / 14px 实际大小）</text>
+<text x="200" y="36" text-anchor="middle" font-family="Microsoft YaHei" font-size="17" font-weight="700" fill="#24323f">青绿（当前）</text><text x="200" y="58" text-anchor="middle" font-family="Microsoft YaHei" font-size="12" fill="#66788a">#34d399　·　推荐</text><text x="200" y="78" text-anchor="middle" font-family="Microsoft YaHei" font-size="11" fill="#7a8a99">推荐：和去过琥珀 / 想去冷蓝 / 秘密基地紫都区分得开</text><g transform="translate(200,228) scale(1.25) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#34d399"/>
+    <rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><g transform="translate(142,318) scale(0.30) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#34d399"/><rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><text x="142" y="334" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">30px</text><g transform="translate(210,318) scale(0.14) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#34d399"/><rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><text x="210" y="334" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">14px</text><text x="600" y="36" text-anchor="middle" font-family="Microsoft YaHei" font-size="17" font-weight="700" fill="#24323f">森林绿</text><text x="600" y="58" text-anchor="middle" font-family="Microsoft YaHei" font-size="12" fill="#66788a">#16a34a</text><text x="600" y="78" text-anchor="middle" font-family="Microsoft YaHei" font-size="11" fill="#7a8a99">更沉、更像“常青”的家</text><g transform="translate(600,228) scale(1.25) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#16a34a"/>
+    <rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><g transform="translate(542,318) scale(0.30) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#16a34a"/><rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><text x="542" y="334" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">30px</text><g transform="translate(610,318) scale(0.14) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#16a34a"/><rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><text x="610" y="334" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">14px</text><path d="M400 8v364" stroke="#dbe3ea" stroke-width="1"/><text x="1000" y="36" text-anchor="middle" font-family="Microsoft YaHei" font-size="17" font-weight="700" fill="#24323f">薄荷绿</text><text x="1000" y="58" text-anchor="middle" font-family="Microsoft YaHei" font-size="12" fill="#66788a">#6ee7b7</text><text x="1000" y="78" text-anchor="middle" font-family="Microsoft YaHei" font-size="11" fill="#7a8a99">轻快，但浅底上对比略弱</text><g transform="translate(1000,228) scale(1.25) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#6ee7b7"/>
+    <rect x="42" y="58" width="16" height="24" rx="4" fill="#065f46"/>
+  </g><g transform="translate(942,318) scale(0.30) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#6ee7b7"/><rect x="42" y="58" width="16" height="24" rx="4" fill="#065f46"/>
+  </g><text x="942" y="334" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">30px</text><g transform="translate(1010,318) scale(0.14) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#6ee7b7"/><rect x="42" y="58" width="16" height="24" rx="4" fill="#065f46"/>
+  </g><text x="1010" y="334" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">14px</text><path d="M800 8v364" stroke="#dbe3ea" stroke-width="1"/><text x="200" y="416" text-anchor="middle" font-family="Microsoft YaHei" font-size="17" font-weight="700" fill="#24323f">深松绿</text><text x="200" y="438" text-anchor="middle" font-family="Microsoft YaHei" font-size="12" fill="#66788a">#0f766e</text><text x="200" y="458" text-anchor="middle" font-family="Microsoft YaHei" font-size="11" fill="#7a8a99">稳重、和底图对比强</text><g transform="translate(200,608) scale(1.25) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#0f766e"/>
+    <rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><g transform="translate(142,698) scale(0.30) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#0f766e"/><rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><text x="142" y="714" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">30px</text><g transform="translate(210,698) scale(0.14) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#0f766e"/><rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><text x="210" y="714" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">14px</text><path d="M20 380h1160" stroke="#dbe3ea" stroke-width="1"/><text x="600" y="416" text-anchor="middle" font-family="Microsoft YaHei" font-size="17" font-weight="700" fill="#24323f">天蓝</text><text x="600" y="438" text-anchor="middle" font-family="Microsoft YaHei" font-size="12" fill="#66788a">#38bdf8</text><text x="600" y="458" text-anchor="middle" font-family="Microsoft YaHei" font-size="11" fill="#7a8a99">清爽，但容易和“想去”冷蓝混</text><g transform="translate(600,608) scale(1.25) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#38bdf8"/>
+    <rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><g transform="translate(542,698) scale(0.30) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#38bdf8"/><rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><text x="542" y="714" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">30px</text><g transform="translate(610,698) scale(0.14) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#38bdf8"/><rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><text x="610" y="714" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">14px</text><path d="M400 388v364" stroke="#dbe3ea" stroke-width="1"/><path d="M20 380h1160" stroke="#dbe3ea" stroke-width="1"/><text x="1000" y="416" text-anchor="middle" font-family="Microsoft YaHei" font-size="17" font-weight="700" fill="#24323f">靛蓝</text><text x="1000" y="438" text-anchor="middle" font-family="Microsoft YaHei" font-size="12" fill="#66788a">#6366f1</text><text x="1000" y="458" text-anchor="middle" font-family="Microsoft YaHei" font-size="11" fill="#7a8a99">偏夜色的家，颜色较跳</text><g transform="translate(1000,608) scale(1.25) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#6366f1"/>
+    <rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><g transform="translate(942,698) scale(0.30) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#6366f1"/><rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><text x="942" y="714" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">30px</text><g transform="translate(1010,698) scale(0.14) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#6366f1"/><rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><text x="1010" y="714" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">14px</text><path d="M800 388v364" stroke="#dbe3ea" stroke-width="1"/><path d="M20 380h1160" stroke="#dbe3ea" stroke-width="1"/><text x="200" y="796" text-anchor="middle" font-family="Microsoft YaHei" font-size="17" font-weight="700" fill="#24323f">暖橙</text><text x="200" y="818" text-anchor="middle" font-family="Microsoft YaHei" font-size="12" fill="#66788a">#f59e0b</text><text x="200" y="838" text-anchor="middle" font-family="Microsoft YaHei" font-size="11" fill="#7a8a99">很暖，但接近“去过”琥珀</text><g transform="translate(200,988) scale(1.25) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#f59e0b"/>
+    <rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><g transform="translate(142,1078) scale(0.30) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#f59e0b"/><rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><text x="142" y="1094" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">30px</text><g transform="translate(210,1078) scale(0.14) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#f59e0b"/><rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><text x="210" y="1094" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">14px</text><path d="M20 760h1160" stroke="#dbe3ea" stroke-width="1"/><text x="600" y="796" text-anchor="middle" font-family="Microsoft YaHei" font-size="17" font-weight="700" fill="#24323f">珊瑚红</text><text x="600" y="818" text-anchor="middle" font-family="Microsoft YaHei" font-size="12" fill="#66788a">#fb7185</text><text x="600" y="838" text-anchor="middle" font-family="Microsoft YaHei" font-size="11" fill="#7a8a99">最显眼，和现有标记都不撞色</text><g transform="translate(600,988) scale(1.25) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#fb7185"/>
+    <rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><g transform="translate(542,1078) scale(0.30) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#fb7185"/><rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><text x="542" y="1094" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">30px</text><g transform="translate(610,1078) scale(0.14) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#fb7185"/><rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><text x="610" y="1094" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">14px</text><path d="M400 768v364" stroke="#dbe3ea" stroke-width="1"/><path d="M20 760h1160" stroke="#dbe3ea" stroke-width="1"/><text x="1000" y="796" text-anchor="middle" font-family="Microsoft YaHei" font-size="17" font-weight="700" fill="#24323f">石墨灰</text><text x="1000" y="818" text-anchor="middle" font-family="Microsoft YaHei" font-size="12" fill="#66788a">#64748b</text><text x="1000" y="838" text-anchor="middle" font-family="Microsoft YaHei" font-size="11" fill="#7a8a99">最低调，适合不想让家太跳</text><g transform="translate(1000,988) scale(1.25) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#64748b"/>
+    <rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><g transform="translate(942,1078) scale(0.30) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#64748b"/><rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><text x="942" y="1094" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">30px</text><g transform="translate(1010,1078) scale(0.14) translate(-50,-100)">
+    <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#64748b"/><rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+  </g><text x="1010" y="1094" text-anchor="middle" font-family="Microsoft YaHei" font-size="10" fill="#7a8a99">14px</text><path d="M800 768v364" stroke="#dbe3ea" stroke-width="1"/><path d="M20 760h1160" stroke="#dbe3ea" stroke-width="1"/>
+</svg>

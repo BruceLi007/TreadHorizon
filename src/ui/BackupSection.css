@@ -1,0 +1,376 @@
+/* ── 备份 / 恢复 / 提醒（F-SYS-03/04/05）──────────────────────────────
+   设置页「备份」区块。沿用现成设计语言：深色玻璃卡片、黑白强调色、
+   圆角克制；颜色只用 src/styles.css 的 CSS 变量，浅色主题在文件末尾覆盖。
+   通用按钮/提示（primary full / ghost / danger-btn / confirm-del / hint err）复用全局样式。 */
+
+.backup-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bk-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.bk-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.bk-card-title {
+  font-size: calc(13px * var(--fs-scale));
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.bk-muted {
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+/* ── 状态行（上次备份 / 阈值 / 当前数据） ── */
+.bk-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 2px 0;
+  font-size: calc(12.5px * var(--fs-scale));
+  line-height: 1.6;
+}
+
+.bk-label {
+  flex: none;
+  min-width: 56px;
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+.bk-value {
+  min-width: 0;
+  color: var(--text-1);
+  word-break: break-word;
+}
+
+.bk-due {
+  color: var(--bad);
+}
+
+.bk-inline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bk-select {
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--text-1);
+  font-size: calc(12.5px * var(--fs-scale));
+  outline: none;
+}
+
+.bk-select:focus {
+  border-color: var(--accent);
+}
+
+/* ── due 提醒条 + 稍后提醒 ── */
+.bk-due-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(224, 108, 117, 0.35);
+  background: rgba(224, 108, 117, 0.08);
+  color: var(--bad);
+  font-size: calc(12px * var(--fs-scale));
+  line-height: 1.6;
+}
+
+.bk-due-row > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.bk-snooze {
+  flex: none;
+  height: 28px;
+  padding: 0 10px;
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.bk-hint {
+  margin-top: 8px;
+  word-break: break-all;
+}
+
+/* ── 导出：勾选项 / 进度条 ── */
+.bk-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: calc(12.5px * var(--fs-scale));
+  line-height: 1.5;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.bk-check input {
+  flex: none;
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+
+.bk-check small {
+  display: block;
+  margin-top: 2px;
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+/* 元数据固定勾选（disabled）：不可取消，但保持和其他勾选行一致的排版 */
+.bk-check-fixed {
+  cursor: default;
+  opacity: 0.9;
+}
+
+/* 勾选「照片 / 视频素材」后的体积与耗时提示 */
+.bk-media-warn {
+  margin: -2px 0 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
+  background: var(--accent-soft);
+  color: var(--text-2);
+  font-size: calc(11.5px * var(--fs-scale));
+  line-height: 1.6;
+}
+
+.bk-progress {
+  margin-top: 10px;
+}
+
+/* 导出打包进度 + 取消按钮并排（窄屏可换行） */
+.bk-progress-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.bk-progress-row .bk-progress {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
+
+.bk-cancel {
+  flex: none;
+  height: 28px;
+  padding: 0 10px;
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.bk-progress-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.bk-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 140ms linear;
+}
+
+/* 恢复没有可上报的进度：用不定长滑块表示「服务端事务替换中」 */
+.bk-progress-fill.indeterminate {
+  width: 38%;
+  animation: bk-indet 1.15s ease-in-out infinite;
+}
+
+@keyframes bk-indet {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(360%);
+  }
+}
+
+.bk-progress-text {
+  margin-top: 5px;
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 恢复：文件选择 / 摘要卡片 / 结果 ── */
+.bk-file {
+  display: block;
+  width: 100%;
+  margin-bottom: 10px;
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-2);
+}
+
+.bk-file::file-selector-button {
+  height: 32px;
+  margin-right: 10px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--text-1);
+  font: inherit;
+  font-size: calc(12px * var(--fs-scale));
+  cursor: pointer;
+}
+
+.bk-file::file-selector-button:hover {
+  border-color: #3a4150;
+}
+
+.bk-file:disabled {
+  opacity: 0.55;
+}
+
+.bk-summary {
+  margin-top: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.bk-summary-title {
+  margin-bottom: 6px;
+  font-size: calc(12px * var(--fs-scale));
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+}
+
+.bk-summary .bk-line {
+  padding: 1px 0;
+}
+
+.bk-summary .row {
+  margin-top: 10px;
+}
+
+.bk-summary .row > * {
+  flex: 1;
+}
+
+.bk-warn {
+  color: var(--bad);
+}
+
+.bk-confirm {
+  margin-top: 10px;
+}
+
+/* 含素材恢复的确认提示：写入/覆盖但不删其它文件 */
+.bk-media-note {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(var(--accent-rgb), 0.4);
+  background: var(--accent-soft);
+  color: var(--text-2);
+  font-size: calc(12px * var(--fs-scale));
+  line-height: 1.6;
+}
+
+.bk-media-note b {
+  color: var(--accent);
+}
+
+.bk-result {
+  margin-top: 10px;
+}
+
+.bk-ok {
+  color: #4cc38a;
+}
+
+/* 导出完成后的手动下载兜底链接（自动下载被浏览器拦截时用） */
+.bk-download {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.bk-download:hover {
+  text-decoration: underline;
+}
+
+/* 恢复已完成：结果区里的小标题 */
+.bk-result-title {
+  margin: 0 0 4px;
+  font-size: calc(12.5px * var(--fs-scale));
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+/* ── 浅色主题覆盖 ── */
+html:is([data-theme='light'], [data-theme='white']) .bk-card,
+html:is([data-theme='light'], [data-theme='white']) .bk-summary {
+  background: rgba(20, 30, 50, 0.035);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .bk-due-row {
+  background: rgba(198, 69, 77, 0.07);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .bk-media-warn,
+html:is([data-theme='light'], [data-theme='white']) .bk-media-note {
+  background: rgba(var(--accent-rgb), 0.1);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .bk-ok {
+  color: #2f8f5b;
+}
+
+html:is([data-theme='light'], [data-theme='white']) .bk-file::file-selector-button:hover {
+  border-color: #b9c2ce;
+}
+
+/* 窄屏：进度条和取消按钮允许换行，避免在窄面板里挤成一团 */
+@media (max-width: 520px) {
+  .bk-progress-row {
+    flex-wrap: wrap;
+  }
+
+  .bk-cancel {
+    margin-left: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bk-progress-fill.indeterminate {
+    animation: none;
+    width: 100%;
+  }
+}
+
+/* 选择备份文件后：先手动点「开始检查备份包」再校验，避免一选文件就后台跑 */
+.bk-inspect-row {
+  margin-top: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}

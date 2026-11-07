@@ -1,0 +1,563 @@
+/* ── 照片墙（F-BRW-04 / F-BRW-05 正向）──────────────────────────────
+   全屏大面板：z-index 低于灯箱（.lightbox = 100），两者同时存在时灯箱在上、
+   照片墙在下；正常流程里 App 打开照片墙前会先关灯箱。 */
+
+.pw-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 98;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.58);
+}
+
+.pw-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(1500px, 100%);
+  height: 100%;
+  max-height: 1100px;
+  min-height: 0;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  animation: pw-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 拖拽缩放时全局禁选文字（D-135） */
+.pw-panel.resizing {
+  user-select: none;
+  cursor: nwse-resize;
+}
+
+/* 右下角缩放点：拖动改变照片墙大小，双击恢复自适应默认（D-135） */
+.pw-resize {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 5;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--text-3);
+  cursor: nwse-resize;
+  touch-action: none;
+  opacity: 0.7;
+  transition:
+    color 140ms ease,
+    background 140ms ease,
+    opacity 140ms ease;
+}
+
+.pw-resize:hover {
+  color: var(--accent);
+  background: var(--bg-raised);
+  opacity: 1;
+}
+
+@keyframes pw-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── 标题栏 ── */
+.pw-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+
+.pw-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: calc(18px * var(--fs-scale));
+  font-weight: 600;
+  min-width: 0;
+}
+
+.pw-count {
+  font-size: calc(12px * var(--fs-scale));
+  font-weight: 400;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 关闭键尺寸/圆角/三态统一走 styles.css 的 .icon（2026-11-05 D-166），
+   这里只保留它在头部靠右的排布。 */
+.pw-close {
+  margin-left: auto;
+  flex: none;
+}
+
+/* ── 筛选栏 ── */
+.pw-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+
+.pw-years {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pw-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--text-2);
+  font-size: calc(12px * var(--fs-scale));
+  white-space: nowrap;
+  transition: 140ms ease;
+}
+
+.pw-chip:hover {
+  color: var(--text-1);
+  border-color: var(--text-3);
+}
+
+.pw-chip:focus-visible,
+.pw-map-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.pw-chip.on {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.pw-chip-n {
+  font-size: calc(10px * var(--fs-scale));
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.pw-chip.on .pw-chip-n {
+  color: var(--accent);
+}
+
+.pw-chip-place {
+  border-style: dashed;
+  border-color: var(--accent);
+  color: var(--text-1);
+}
+
+.pw-filters-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+/* 每行照片张数（2026-11-06 用户要求）：放在年份 chip 与省份下拉之间 */
+.pw-cols {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.pw-cols-label {
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.pw-province {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+.pw-province select {
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--text-1);
+  font: inherit;
+  font-size: calc(12px * var(--fs-scale));
+  outline: none;
+  cursor: pointer;
+}
+
+.pw-province select:hover,
+.pw-province select:focus {
+  border-color: var(--accent);
+}
+
+/* ── 滚动区 ── */
+.pw-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 14px 18px 26px;
+  outline: none;
+}
+
+.pw-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.pw-scroll::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+/* ── 年份分组 + 网格 ── */
+.pw-group {
+  margin-bottom: 18px;
+}
+
+.pw-group-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 4px 0 10px;
+  font-size: calc(15px * var(--fs-scale));
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.pw-group-n {
+  font-size: calc(11px * var(--fs-scale));
+  font-weight: 400;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.pw-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 6px;
+}
+
+/* ── 格子 ── */
+.pw-tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  overflow: hidden;
+  border: none;
+  border-radius: 8px;
+  background: #0e1116;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.pw-tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 220ms ease;
+}
+
+.pw-tile:hover img {
+  transform: scale(1.045);
+}
+
+.pw-tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* focus.mediaId 定位到的那张：强调色描边常驻 */
+.pw-tile.is-target {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.pw-broken {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--bg-raised);
+  color: var(--text-3);
+  font-size: calc(12px * var(--fs-scale));
+}
+
+/* 视频角标 / 时长 */
+.pw-play {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: calc(10px * var(--fs-scale));
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.pw-dur {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 2;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.66);
+  color: #fff;
+  font-size: calc(10px * var(--fs-scale));
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* 「在地图中查看」：格子里的真实按钮（点图片本身只预览，不飞地点） */
+.pw-map-btn {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 2;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: calc(10.5px * var(--fs-scale));
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  opacity: 0.86;
+  backdrop-filter: blur(4px);
+  transition: opacity 150ms ease, background 150ms ease, border-color 150ms ease;
+}
+
+.pw-map-btn:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.82);
+  /* 2026-11-07 D-240：原来这里用 var(--accent) 当文字色，浅色 / 纯白主题下强调色近黑，
+     叠在深色半透明底上变成黑字黑底看不清；hover 统一保持白字 + 白色描边。 */
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #fff;
+}
+
+.pw-map-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  opacity: 1;
+}
+
+/* hover 元信息：日期 · 地点名 / 省市区 / 提示 */
+.pw-meta {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 26px 8px 32px;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.84),
+    rgba(0, 0, 0, 0.45) 62%,
+    rgba(0, 0, 0, 0)
+  );
+  color: #fff;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: 150ms ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.pw-tile:hover .pw-meta,
+.pw-tile:focus-visible .pw-meta {
+  opacity: 1;
+  transform: none;
+}
+
+.pw-meta-line,
+.pw-meta-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pw-meta-line {
+  font-size: calc(11px * var(--fs-scale));
+  line-height: 1.35;
+}
+
+.pw-meta-sub {
+  font-size: calc(10px * var(--fs-scale));
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.pw-meta-hint {
+  font-size: calc(10px * var(--fs-scale));
+  color: var(--accent);
+}
+
+.pw-target-flag {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  z-index: 3;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: calc(10px * var(--fs-scale));
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* ── 状态 / 页脚 ── */
+.pw-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 240px;
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--text-2);
+  font-size: calc(13px * var(--fs-scale));
+}
+
+.pw-state p {
+  margin: 0;
+}
+
+.pw-state-error {
+  color: var(--bad);
+}
+
+.pw-retry {
+  height: 28px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--text-1);
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.pw-retry:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pw-sentinel {
+  height: 1px;
+}
+
+.pw-foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 0 4px;
+  font-size: calc(11px * var(--fs-scale));
+  color: var(--text-3);
+  text-align: center;
+}
+
+.pw-foot-err {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--bad);
+}
+
+.pw-foot-note {
+  color: var(--text-3);
+}
+
+/* ── 窄屏 ── */
+@media (max-width: 720px) {
+  .pw-overlay {
+    padding: 8px;
+  }
+
+  .pw-panel {
+    border-radius: 16px;
+  }
+
+  .pw-head,
+  .pw-filters {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .pw-scroll {
+    padding: 10px 12px 20px;
+  }
+
+  /* 窄屏：每行固定 3 张（!important 覆盖卡片上的内联列数），隐藏「照片每行」控件避免误导 */
+  .pw-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 4px;
+  }
+
+  .pw-cols {
+    display: none;
+  }
+
+  .pw-filters-right {
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pw-panel {
+    animation: none;
+  }
+
+  .pw-tile img,
+  .pw-meta {
+    transition: none;
+  }
+}

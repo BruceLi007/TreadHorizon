@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- 家 · 2 号极简剪影屋 · 绿 #22c55e（scripts/build-marker-colors.mjs 生成；改色值先改 src/lib/markerPalette.ts 再重跑） -->
+  <path d="M50 10 90 48H78V82L50 100 22 82V48H10Z" fill="#22c55e"/>
+  <rect x="42" y="58" width="16" height="24" rx="4" fill="#ffffff"/>
+</svg>

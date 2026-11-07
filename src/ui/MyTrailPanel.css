@@ -1,0 +1,445 @@
+/* ── My旅迹（M5）：去过 / 想去合并成一个右侧抽屉 ─────────────────────
+   外壳沿用 .panel（定位/背景/圆角由 styles.css 提供）。
+   2026-11-04 视觉优化：
+   - D-95：抽屉加宽、头部压成两行、省→市分组；
+   - D-96：右侧抽屉统一 --panel-w（520px）；
+   - D-114：删掉头部左侧「My旅迹」小标；
+   - D-115：列表改成「极简树形」（参考用户给的样式）——
+     省 / 市 = 文件夹分组行，地点 = 单行（32px 小封面 + 名称 + 右侧灰阶信息），
+     层级用缩进 + 1px 引导线表达，不再用卡片 / 胶囊 / 分隔线；
+     图标是占位版（src/ui/TreeIcons.tsx），用户后期自行替换。
+   只改排版与样式，不改任何功能与数据。 */
+
+/* 右侧列表抽屉统一宽度（2026-11-04 D-96）：与统计 / 地点详情 / 聚合簇同宽 */
+.panel.mytrail-panel {
+  width: var(--panel-w);
+}
+
+/* ── 头部第 1 行：去过/想去 tabs + 关闭（2026-11-04 D-114：删除左侧「My旅迹」小标）；tabs 保持一档宽度、靠左，关闭靠右 ── */
+.mytrail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* 去过 / 想去分段控件：宽度固定一档，滑块由 Segmented 组件测宽（D-98） */
+.seg.mytrail-tabs-seg {
+  flex: 0 1 260px;
+  min-width: 0;
+}
+
+.mytrail-close {
+  flex: none;
+  margin-left: auto;
+}
+
+.mytrail-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+/* ── 头部第 2 行（去过）：三档小筛选（统一分段控件，D-98） ── */
+.mytrail-subfilters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 8px 14px 0;
+}
+
+/* 「补全地区 N」：只有一个/几个旧地点缺省市区时才出现（2026-11-04） */
+.mytrail-fixregion {
+  margin-left: auto;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: calc(12px * var(--fs-scale));
+  white-space: nowrap;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.mytrail-fixregion:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.mytrail-fixregion:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* embedded 子面板：去掉 .panel 的定位 / 背景 / 阴影，作为 My旅迹 body 的 flex 子项 */
+.panel.mytrail-embedded {
+  position: static;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  width: auto;
+  max-width: none;
+  height: auto;
+  max-height: none;
+  flex: 1;
+  min-height: 0;
+  z-index: auto;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+  animation: none;
+}
+
+/* ── 头部第 3 行：搜索 + 工具（全部展开/收起、排序、刷新） ── */
+.mytrail-embedded-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: none;
+  padding: 10px 14px 6px;
+}
+
+.mytrail-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.mytrail-search input {
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-raised);
+  color: var(--text-1);
+  font-size: calc(12.5px * var(--fs-scale));
+  outline: none;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.mytrail-search input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.mytrail-hint {
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+/* 嵌进来的原面板：压缩内边距；细滚动条 */
+.panel.mytrail-embedded .visits {
+  padding: 2px 12px 14px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.panel.mytrail-embedded .visits::-webkit-scrollbar {
+  width: 8px;
+}
+
+.panel.mytrail-embedded .visits::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 999px;
+}
+
+.panel.mytrail-embedded .range-chip {
+  margin: 8px 14px 0;
+}
+
+/* ── 树形列表（2026-11-04 D-115）：省 / 市分组行 ──────────────────────
+   一行 = 折叠三角 + 文件夹图标 + 名称 + 「·」+ 灰阶统计；
+   市行缩进一档并用 1px 竖线做引导线，省行不再吸顶（贴截图的无色块样式）。 */
+.panel.mytrail-embedded .grp {
+  margin-top: 4px;
+}
+
+.panel.mytrail-embedded .grp-prov {
+  display: flex;
+  align-items: center;
+  margin: 4px 0 1px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font-size: calc(13px * var(--fs-scale));
+  font-weight: 500;
+  color: var(--text-1);
+  transition: background 140ms ease;
+}
+
+.panel.mytrail-embedded .grp-prov:hover {
+  background: var(--bg-raised);
+}
+
+/* 市行：缩进一档，左侧细引导线 */
+.panel.mytrail-embedded .grp-city-wrap {
+  position: relative;
+  margin-left: 21px;
+  padding-left: 11px;
+}
+
+.panel.mytrail-embedded .grp-city-wrap::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 6px;
+  width: 1px;
+  background: var(--line);
+}
+
+.panel.mytrail-embedded .grp-city {
+  display: flex;
+  align-items: center;
+  margin: 1px 0;
+  padding: 7px 9px;
+  border-radius: 8px;
+  font-size: calc(12.5px * var(--fs-scale));
+  color: var(--text-2);
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.panel.mytrail-embedded .grp-city.open {
+  color: var(--text-1);
+}
+
+.panel.mytrail-embedded .grp-city:hover {
+  background: var(--bg-raised);
+  color: var(--text-1);
+}
+
+/* 分组行内部：三角 + 图标 + 名称 + 「·」+ 统计，全部左对齐（截图样式） */
+.grp-main {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  width: 100%;
+}
+
+.panel.mytrail-embedded .grp-caret {
+  flex: none;
+  margin-right: 0;
+  color: var(--text-3);
+}
+
+.panel.mytrail-embedded .grp-prov:hover .grp-caret,
+.panel.mytrail-embedded .grp-city:hover .grp-caret {
+  color: var(--text-2);
+}
+
+.grp-icon {
+  flex: none;
+  color: var(--text-3);
+  opacity: 0.9;
+}
+
+.panel.mytrail-embedded .grp-prov:hover .grp-icon,
+.panel.mytrail-embedded .grp-city:hover .grp-icon {
+  color: var(--text-2);
+}
+
+.grp-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grp-dot {
+  flex: none;
+  color: var(--text-3);
+  opacity: 0.7;
+}
+
+.panel.mytrail-embedded .grp-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: calc(11px * var(--fs-scale));
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+/* ── 树形列表：地点层 ────────────────────────────────────────────────
+   再缩进一档 + 第二条引导线；每行 = 32px 小封面 + 名称 + 右侧灰阶信息。
+   hover / 键盘聚焦时右侧信息淡出、操作浮现（想去：转为去过 / 删除；
+   去过：+ 到访，即原 D-109 的「添加一次到访」入口）。 */
+.place-rows {
+  position: relative;
+  margin: 2px 0 7px 15px;
+  padding-left: 9px;
+}
+
+.place-rows::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 8px;
+  width: 1px;
+  background: var(--line);
+}
+
+.place-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--text-1);
+  transition: background 140ms ease;
+}
+
+.place-row:hover {
+  background: var(--bg-raised);
+}
+
+.place-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* 小封面：32×32 圆角；没有封面时 PlaceThumb 用自己的飞镖占位 */
+.place-row-cover {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-panel);
+}
+
+.place-row-cover .pt-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.place-row-cover .pt-dart {
+  width: 17px;
+  height: 17px;
+  opacity: 0.9;
+}
+
+.place-row-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: calc(12.5px * var(--fs-scale));
+}
+
+.place-row-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 右侧灰阶信息：次数 / 最近 / 区县 / 加入日期 */
+.place-row-meta {
+  margin-left: auto;
+  padding-left: 10px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  font-size: calc(11px * var(--fs-scale));
+  transition: opacity 120ms ease;
+}
+
+/* hover / 键盘聚焦时用操作替换右侧信息（不占常驻宽度） */
+.place-row.has-actions:hover .place-row-meta,
+.place-row.has-actions:focus-within .place-row-meta {
+  opacity: 0;
+}
+
+.place-row-actions {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.place-row.has-actions:hover .place-row-actions,
+.place-row.has-actions:focus-within .place-row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.place-row-actions .text-btn {
+  height: 24px;
+  padding: 0 7px;
+  font-size: calc(11px * var(--fs-scale));
+}
+
+/* hover 后出现的「+ 到访」小按键（原 D-109 的 + 卡入口） */
+.row-action {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  color: var(--text-2);
+  font-size: calc(11px * var(--fs-scale));
+  white-space: nowrap;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.row-action:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* 触摸屏没有 hover：右侧信息与操作都常显，操作换到第二行 */
+@media (hover: none) {
+  .place-row {
+    flex-wrap: wrap;
+  }
+
+  .place-row.has-actions .place-row-meta {
+    opacity: 1;
+  }
+
+  .place-row-actions {
+    position: static;
+    transform: none;
+    opacity: 1;
+    pointer-events: auto;
+    margin-left: auto;
+  }
+}
+
+/* 从列表点进地点时，列表停在后台：保留 DOM / 展开状态 / 滚动位置，但不可见、不挡点击。
+   用 visibility 而不是 display:none —— 后者会把 .visits 的 scrollTop 清掉（D-94）。 */
+.panel.mytrail-panel.parked {
+  visibility: hidden;
+  pointer-events: none;
+}
