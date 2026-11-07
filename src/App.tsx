@@ -32,7 +32,7 @@ import KeySetupPage from './ui/KeySetupPage';
 import SecretPrompt from './ui/SecretPrompt';
 import { api } from './lib/api';
 import type { AuthMe } from './lib/types';
-import { normalizeRegion } from './lib/region';
+import { normalizeRegion, regionFromText, isChineseProvinceName } from './lib/region';
 import { isInsideChina, loadChinaBounds } from './lib/chinaBounds';
 import {
   HOME_COLOR_KEY,
@@ -706,13 +706,29 @@ export default function App() {
         if (!address) return;
         setDraft((d) => {
           if (!d) return d;
+          // 2026-11-07 D-263：逆地理对水域 / 特殊坐标可能返回空省市区（例如维多利亚港只回
+          // 「维多利亚港西北约0米」）。此时保留搜索结果地址解析出的省市区，避免存成「未标注」。
+          const addr =
+            !address.province && d.addr?.province
+              ? {
+                  ...address,
+                  province: d.addr.province,
+                  city: d.addr.city,
+                  county: d.addr.county,
+                  province_code: d.addr.province_code,
+                  city_code: d.addr.city_code,
+                  county_code: d.addr.county_code,
+                  formatted: d.addr.formatted || address.formatted,
+                  poi: d.addr.poi || address.poi,
+                }
+              : address;
           // 已有名字就不覆盖：
           // 搜索带过来的「杭州」比逆地理返回的「杭州市人民政府」更有意义。
           // 只有名称为空时才用逆地理结果兜底。
           const hasName = d.nameTouched || d.name.trim().length > 0;
           return {
             ...d,
-            addr: address,
+            addr,
             name: hasName ? d.name : address.poi || address.formatted || '',
           };
         });
@@ -859,8 +875,12 @@ export default function App() {
       const lat = Number(latS);
       if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
       // 2026-11-06 用户要求：搜索/添加足迹时也拦国外坐标（天地图搜索偶尔会给到境外 POI）
+      // 2026-11-07 D-264：沿海港口 / 近岸水域 / 离岛 POI 会掉出省界多边形（完整省界只画海岸线），
+      // 若 POI 地址文本能解析出中国省份（如「山东省青岛市…」「海南省三沙市…」）就放行；
+      // 境外 POI 的地址是外国地名，解析不出中国省份，仍会被拦下。
+      const hinted = regionFromText(poi.address);
       await loadChinaBounds();
-      if (!isInsideChina(lng, lat)) {
+      if (!isInsideChina(lng, lat) && !isChineseProvinceName(hinted?.province)) {
         say(tr('暂不支持国外到访记录'));
         return;
       }
@@ -868,7 +888,9 @@ export default function App() {
         lng,
         lat,
         name: poi.name,
-        addr: { formatted: poi.address, poi: poi.name },
+        // 2026-11-07 D-263：先用 POI 地址文本解析省市区兜底（水域坐标的逆地理可能返回空），
+        // 之后 refreshAddr 的逆地理结果有省份时才覆盖。
+        addr: { ...(hinted ?? {}), formatted: poi.address, poi: poi.name },
         date: today(),
         kind: 'visited',
         nameTouched: false,
@@ -911,8 +933,9 @@ export default function App() {
   const saveDraft = useCallback(async () => {
     if (!draft || saving) return;
     // 2026-11-06 用户要求：国外坐标不落库（点击 / 拖拽已有拦截，这里再兜底一次）
+    // 2026-11-07 D-264：与 pickPoi 同规则——地址 / 逆地理能给出中国省份的（沿海港口、离岛等）放行。
     await loadChinaBounds();
-    if (!isInsideChina(draft.lng, draft.lat)) {
+    if (!isInsideChina(draft.lng, draft.lat) && !isChineseProvinceName(draft.addr?.province)) {
       say(tr('暂不支持国外到访记录'));
       return;
     }
@@ -920,16 +943,27 @@ export default function App() {
     try {
       // 2026-11-04：保存前兜底补全省/市/区。添加面板里的逆地理是 400ms 防抖异步的，
       // 用户很快点保存时 addr 可能还没回来 → 会留下「未标注」地点；这里缺省时再同步取一次。
+      // 2026-11-07 D-263：逆地理对有省份的结果才覆盖（水域坐标会返回空省市区，别把
+      // POI 地址解析出的香港 / 澳门等地区覆盖没了）；仍缺省份时用地址文本再兜底一次。
       let addr = draft.addr;
       if (!addr?.province || !addr?.city) {
         try {
           const r = await api.reverse(draft.lng, draft.lat);
-          if (r.address) addr = r.address;
+          if (r.address?.province) addr = r.address;
         } catch {
           /* 逆地理失败也不阻塞保存，坐标仍然是准的 */
         }
       }
       const region = normalizeRegion(addr);
+      if (!region.province) {
+        const fallback =
+          regionFromText(draft.addr?.formatted) ?? regionFromText(draft.addr?.poi);
+        if (fallback) {
+          if (fallback.province) region.province = fallback.province;
+          if (fallback.city) region.city = fallback.city;
+          if (fallback.county) region.county = fallback.county;
+        }
+      }
       const p = await api.createPlace({
         name: draft.name.trim() || tr('未命名地点'),
         lng: draft.lng,
