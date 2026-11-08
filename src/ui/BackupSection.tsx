@@ -176,7 +176,7 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
           }
           setExportMsg({
             ok: true,
-            text: tr('导出完成：zip 大小 {size}；文件名为「My旅迹素材备份-YYYY-MM-DD-（备份勿删）.zip」', {
+            text: tr('导出完成：备份包大小 {size}；文件名为「My旅迹素材备份-YYYY-MM-DD-（备份勿删）.zip」', {
               size: fmtBytes(s.zipBytes),
             }),
           });
@@ -186,7 +186,7 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
         if (s.state === 'error') {
           setExportMsg({
             ok: false,
-            text: tr('导出失败：') + (s.error || tr('服务端未给出原因')),
+            text: tr('导出失败：') + (s.error || tr('没有返回原因')),
           });
           void loadStatus();
           return;
@@ -279,7 +279,7 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
     try {
       await api.cancelBackupExport(jobId);
       setExportJob(null);
-      setExportMsg({ ok: false, text: t('导出已取消（服务端临时文件已清理）') });
+      setExportMsg({ ok: false, text: t('导出已取消（临时文件已清理）') });
     } catch (e: unknown) {
       setExportMsg({ ok: false, text: t('取消导出失败：') + errText(e) });
     } finally {
@@ -429,7 +429,7 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
               <div className="bk-due-row">
                 <span>
                   {status.reason === 'never'
-                    ? t('还没有备份过：原片只有一份，数据库丢了就找不回来，建议现在导出一份。')
+                    ? t('还没有备份过：照片视频只有一份，数据丢了就找不回来，建议现在导出一份。')
                     : t('已经 {days}没备份（阈值 {days2} 天），建议现在导出一份。', {
                         days: daysText(status.daysSinceBackup),
                         days2: status.thresholdDays,
@@ -447,7 +447,7 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
 
             {status.recentAutoBackups.length > 0 && (
               <p className="hint bk-hint">
-                {t('最近自动备份：{name}（{size}）· 目录 {dir}', {
+                {t('最近自动备份：{name}（{size}）', {
                   name: status.recentAutoBackups[0].name,
                   size: fmtBytes(status.recentAutoBackups[0].bytes),
                   dir: status.autoBackupDir,
@@ -468,13 +468,13 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
       <div className="bk-card">
         <div className="bk-card-head">
           <span className="bk-card-title">{t('导出备份')}</span>
-          <span className="bk-muted">{t('zip：元数据 + 缩略图 + 可选素材')}</span>
+          <span className="bk-muted">{t('备份包：应用数据 + 缩略图 + 可选素材')}</span>
         </div>
 
         <label className="bk-check bk-check-fixed">
           <input type="checkbox" checked readOnly disabled onChange={() => undefined} />
           <span>
-            {t('元数据（必选）')}
+            {t('应用数据（必选）')}
             <small>{t('地点 / 到访 / 笔记 / 评分 / 回收站，备份的核心数据')}</small>
           </span>
         </label>
@@ -517,7 +517,7 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
 
         {includeMedia && (
           <p className="bk-media-warn">
-            {t('含素材的备份会大很多：按数据库引用逐个读取文件，1.6GB 素材大约需要几分钟；恢复时会把素材写入当前素材库，同名同内容跳过、同名不同内容覆盖，不会删除其它文件。')}
+            {t('含素材的备份会大很多：1.6GB 素材大约需要几分钟；恢复时会把素材写回当前素材库，同名同内容跳过、同名不同内容覆盖，不会删除其它文件。')}
           </p>
         )}
 
@@ -532,7 +532,7 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
               ? t('正在打包…')
               : restoring
                 ? t('恢复中，暂不能导出')
-                : t('导出备份（zip）')}
+                : t('导出备份')}
         </button>
 
         {exporting && exportJob?.state === 'building' && (
@@ -571,7 +571,7 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
           </div>
         )}
 
-        {exportStarting && <p className="hint">{t('正在向服务端提交导出任务…')}</p>}
+        {exportStarting && <p className="hint">{t('正在准备导出…')}</p>}
 
         {exportMsg && <p className={exportMsg.ok ? 'hint bk-ok' : 'hint err'}>{exportMsg.text}</p>}
 
@@ -585,12 +585,12 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
             >
               {t('点这里重新下载')}
             </a>
-            {t('（服务端会保留 10 分钟）。')}
+            {t('（10 分钟内可以重新下载）。')}
           </p>
         )}
 
         <p className="hint">
-          {t('备份不含 A 原件：A 永远不动。含素材时按数据库引用的文件逐个打包；恢复只写/覆盖备份里的文件，绝不删除素材库里的其它文件。')}
+          {t('备份不会动你电脑上的原始文件。含素材时会逐个打包素材文件；恢复只写入 / 覆盖备份里的文件，不会删除素材库里的其它文件。')}
         </p>
       </div>
 
@@ -598,7 +598,7 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
       <div className="bk-card">
         <div className="bk-card-head">
           <span className="bk-card-title">{t('从备份恢复')}</span>
-          <span className="bk-muted">{t('选择 .zip 备份包')}</span>
+          <span className="bk-muted">{t('选择备份文件')}</span>
         </div>
 
         <input
@@ -606,7 +606,7 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
           className="bk-file"
           type="file"
           accept=".zip,application/zip"
-          aria-label={t('选择备份 zip 文件')}
+          aria-label={t('选择备份文件')}
           disabled={inspecting || restoring || exporting}
           onChange={onPickFile}
         />
@@ -697,7 +697,7 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
                       n: summary.mediaCount,
                       size: fmtBytes(summary.mediaBytes),
                     })
-                  : t('不含素材（只恢复元数据）')}
+                  : t('不含素材（只恢复记录）')}
                 {summary.includeMedia && summary.mediaMissingAtExport > 0
                   ? t(' · 导出时缺失 {n} 个', { n: summary.mediaMissingAtExport })
                   : ''}
@@ -715,10 +715,10 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
               <span className="bk-label">{t('素材库')}</span>
               <span className={summary.mediaMissing > 0 ? 'bk-value bk-warn' : 'bk-value'}>
                 {summary.mediaMissing > 0
-                  ? t('当前素材库缺 {n} 个原片：恢复后记录都在，但照片/视频要拷过来才能显示', {
+                  ? t('当前素材库缺 {n} 个素材文件：恢复后记录都在，但照片/视频要拷过来才能显示', {
                       n: summary.mediaMissing,
                     })
-                  : t('原片齐全（0 个缺失）')}
+                  : t('素材齐全（0 个缺失）')}
               </span>
             </div>
             {summary.includeThumbs && summary.thumbsMissing > 0 && (
@@ -757,7 +757,7 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
                 <div className="confirm-text">
                   {t('恢复会覆盖当前全部数据：')}
                   <small>
-                    {t('地点、到访、笔记、媒体记录、秘密基地密码都会替换成备份里的内容。恢复前会自动把当前数据备份到 data/backups/；中途失败会事务回滚，当前数据保持原样。原片（A）不会被删除。')}
+                    {t('地点、到访、笔记、媒体记录、秘密基地密码都会替换成备份里的内容。恢复前会自动备份当前数据；中途失败会回滚，当前数据保持原样。你电脑上的原始文件不会被删除。')}
                   </small>
                 </div>
                 {summary.includeMedia && (
@@ -796,7 +796,7 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
               <div className="bk-progress-fill indeterminate" />
             </div>
             <div className="bk-progress-text">
-              {t('正在恢复…服务端事务替换中，请勿关闭页面')}
+              {t('正在恢复…请不要关闭页面')}
             </div>
           </div>
         )}
@@ -840,7 +840,7 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
             )}
             {restoreResult.missingMedia > 0 && (
               <p className="hint err">
-                {t('当前素材库还缺 {n} 个原片：记录已恢复，但对应照片/视频要等把素材库拷过来才能显示。', {
+                {t('当前素材库还缺 {n} 个素材文件：记录已恢复，但对应照片/视频要等把素材库拷过来才能显示。', {
                   n: restoreResult.missingMedia,
                 })}
               </p>
@@ -861,7 +861,7 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
         )}
 
         <p className="hint">
-          {t('恢复是行级事务替换：只替换应用数据（data/）与缩略图缓存。不含素材的备份完全不写素材库；含素材的备份只写入/覆盖包内文件，绝不删除素材库里的其它文件，A 原件永远不碰。')}
+          {t('恢复只替换应用数据与缩略图缓存。不含素材的备份不写素材库；含素材的备份只写入 / 覆盖包内文件，不会删除素材库里的其它文件，也不会动你电脑上的原始文件。')}
         </p>
       </div>
     </div>

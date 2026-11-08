@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * M6 P2-3 管理后台 / 配额 / 用户数据导出 隔离冒烟（D-204）
+ * M6 P2-3 管理后台 / 配额 / 用户数据导出 隔离冒烟（D-204；配额拦截 + 扩容申请 D-310）
  *
  *   node scripts/smoke-admin.mjs
  *
@@ -8,9 +8,10 @@
  * 不碰真实 data/、.dev-media、.env.local。
  *
  * 覆盖：
- * 1) 管理员用户列表（角色 / 状态 / 已用空间 / 预留配额字段）与普通用户 403
- * 2) 账号用量汇总 GET /api/account/summary（用量统计 + 预留 quotaBytes 字段）
- * 3) **不限额（D-209）**：把预留配额改小后上传仍成功、用量照常增长（只统计不拦截）
+ * 1) 管理员用户列表（角色 / 状态 / 已用空间 / 配额）与普通用户 403
+ * 2) 账号用量汇总 GET /api/account/summary（用量统计 + 默认配额 1 GiB）
+ * 3) **配额拦截 + 扩容申请（D-310）**：配额改小后上传被拒 → 用户申请扩容 → 管理员批准 → 上传恢复；
+ *    重复申请被拒；恢复默认配额
  * 4) 管理员不能禁用自己；禁用 bob → 会话失效 / 登录 401；恢复后重登；重置密码 → 旧密码 401 新密码 200
  * 5) 普通用户导出自己的数据：zip 内容 / 数据只含自己 / 不含缩略图素材的选项 / 文件名
  * 6) **普通用户从自己的导出 zip 恢复（D-210）**：检查摘要 / 事务替换 / 其他账号的包被拒 / 最小包恢复
@@ -314,36 +315,87 @@ const run = async () => {
     eq('普通用户 PATCH 用户 → 403', await alice.statusOf('PATCH', `/api/admin/users/${aliceId}`, { status: 'disabled' }), 403);
 
     // ══ 3) 账号用量汇总 ══
-    section('3) GET /api/account/summary 用量（只统计）');
+    section('3) GET /api/account/summary 用量 + 默认配额 1 GiB');
     const sum = await alice.get('/api/account/summary');
     eq('alice 用量：1 地点 / 1 到访 / 1 照片', [sum.usage.places, sum.usage.visits, sum.usage.photos], [1, 1, 1]);
     check('alice mediaBytes > 0', Number(sum.usage.mediaBytes) > 0, String(sum.usage.mediaBytes));
-    check('预留 quotaBytes 字段仍在（默认 5 GiB）', sum.quotaBytes === 5 * GB, String(sum.quotaBytes));
+    check('默认配额 1 GiB（D-310）', sum.quotaBytes === 1 * GB, String(sum.quotaBytes));
+    check('默认没有待审批的扩容申请', sum.pendingQuotaRequest == null);
 
-    // ══ 4) 不限额（D-209，2026-11-07 用户验收反馈：本机磁盘副本不限制；只统计）══
-    section('4) 不限额：配额改小后上传仍成功、用量照常增长');
+    // ══ 4) 配额拦截 + 扩容申请（D-310，2026-11-08 用户要求：默认 1 GB，可申请扩容）══
+    section('4) 配额拦截 + 扩容申请（D-310）');
     const overStats = await alice.get('/api/stats');
     const beforeBytes = (await alice.get('/api/account/summary')).usage.mediaBytes;
-    // 预留配额字段仍可被管理员修改（为 P1 上云后启用），但现在只影响数字、不影响上传
+    // 管理员把 alice 配额调到 60 KB → 再传大图应被拦截
     await admin.patch(`/api/admin/users/${aliceId}`, { quotaBytes: 60 * 1024 });
-    eq('预留配额字段已改为 60 KB', (await alice.get('/api/account/summary')).quotaBytes, 60 * 1024);
+    eq('管理员把配额改为 60 KB', (await alice.get('/api/account/summary')).quotaBytes, 60 * 1024);
     const bigJpg = await makeJpg({ width: 2600, height: 2000, noise: true });
     check('测试大图 > 60 KB', bigJpg.length > 60 * 1024, String(bigJpg.length));
     const over = await uploadOne(alice, PORT, aliceVisit, 'alice-big.jpg', bigJpg);
-    eq('配额字段很小也上传成功（不拦截）', over.added?.length ?? 0, 1);
+    eq('超配额上传被拦截（added 0）', over.added?.length ?? 0, 0);
     check(
-      '没有「配额不足」错误',
-      !(over.errors || []).some((e) => String(e).includes('配额')),
+      '拒绝原因含「存储空间不足」',
+      (over.errors || []).some((e) => String(e).includes('存储空间不足')),
       JSON.stringify(over.errors)
     );
-    eq('上传后照片数 +1', (await alice.get('/api/stats')).totals.photos, overStats.totals.photos + 1);
-    check(
-      '上传后 mediaBytes 变大（统计在更新）',
-      (await alice.get('/api/account/summary')).usage.mediaBytes > beforeBytes
+    eq('被拦截后照片数不变', (await alice.get('/api/stats')).totals.photos, overStats.totals.photos);
+    eq(
+      '被拦截后 mediaBytes 不变',
+      (await alice.get('/api/account/summary')).usage.mediaBytes,
+      beforeBytes
     );
-    // 预留字段恢复默认值（P1 上云前不改动真实数据语义）
+
+    // 用户申请扩容 120 KB → 管理员批准 → 上传恢复
+    const quotaReq = await alice.post('/api/account/quota-requests', {
+      requestedBytes: 120 * 1024,
+      reason: '冒烟测试扩容',
+    });
+    check(
+      'alice 提交扩容申请成功（pending）',
+      quotaReq?.ok === true && quotaReq?.request?.status === 'pending',
+      JSON.stringify(quotaReq)
+    );
+    eq(
+      '同一账号重复申请被拒（409）',
+      await alice.statusOf('POST', '/api/account/quota-requests', { requestedBytes: 200 * 1024 }),
+      409
+    );
+    const adminPending = await admin.get('/api/admin/quota-requests?status=pending');
+    check(
+      '管理员能看到待审批申请',
+      adminPending.items?.some((x) => x.id === quotaReq.request.id),
+      JSON.stringify(adminPending.items?.length)
+    );
+    const approvedResp = await admin.patch(`/api/admin/quota-requests/${quotaReq.request.id}`, {
+      action: 'approve',
+    });
+    check(
+      '管理员批准扩容申请成功',
+      approvedResp?.ok === true && approvedResp?.request?.status === 'approved',
+      JSON.stringify(approvedResp?.request?.status)
+    );
+    eq(
+      '批准后 alice 配额 = 120 KB',
+      (await alice.get('/api/account/summary')).quotaBytes,
+      120 * 1024
+    );
+    check(
+      '批准后 pending 已清空',
+      (await alice.get('/api/account/summary')).pendingQuotaRequest == null
+    );
+    const afterApprove = await uploadOne(
+      alice,
+      PORT,
+      aliceVisit,
+      'alice-after-approve.jpg',
+      await makeJpg({ width: 320, height: 240 })
+    );
+    eq('扩容后上传恢复成功', afterApprove.added?.length ?? 0, 1);
+    eq('扩容后照片数 +1', (await alice.get('/api/stats')).totals.photos, overStats.totals.photos + 1);
+
+    // 恢复默认配额（quotaBytes=0 = 用服务端默认 1 GiB）
     await admin.patch(`/api/admin/users/${aliceId}`, { quotaBytes: 0 });
-    eq('预留配额恢复默认 5 GiB', (await alice.get('/api/account/summary')).quotaBytes, 5 * GB);
+    eq('恢复默认配额 1 GiB', (await alice.get('/api/account/summary')).quotaBytes, 1 * GB);
 
     // ══ 5) 禁用 / 启用 / 重置密码 ══
     section('5) 禁用 / 启用 / 重置密码');

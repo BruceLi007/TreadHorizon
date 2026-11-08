@@ -1,6 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Place } from '../lib/types';
 import type { RangeValue } from './Timeline';
+import type { MyTrailFocus } from './MyTrailPanel';
+import { api } from '../lib/api';
+import ConfirmDialog from './ConfirmDialog';
 import SortToggle, { type SortOrder } from './SortToggle';
 import PlaceThumb from './PlaceThumb';
 import { FolderIcon } from './TreeIcons';
@@ -15,6 +18,8 @@ interface Props {
   onClose: () => void;
   onPick: (p: Place) => void;
   onRefresh: () => void;
+  /** 批量操作（删除）后通知 App 刷新地图 / 时间轴 / 回收站角标（D-295） */
+  onChanged?: () => void;
   onClearRange: () => void;
   /** 「+ 添加一次到访」入口：打开该地点的侧栏并直接展开新增到访表单（D-109） */
   onAddVisit?: (p: Place) => void;
@@ -22,6 +27,10 @@ interface Props {
   embedded?: boolean;
   /** 去过 tab 下的小筛选：全部 / 普通打卡（secret≠1）/ 秘密基地（secret=1） */
   secretFilter?: 'all' | 'normal' | 'secret';
+  /** D-290：从地点详情面包屑跳进来的定位请求（展开到省 / 市，滚到地点行并短暂高亮） */
+  focus?: MyTrailFocus | null;
+  /** D-290：定位应用完成（滚动 + 高亮播完）后通知父级清掉 focus，避免切 tab 回来重复高亮 */
+  onFocusApplied?: () => void;
 }
 
 const NA = '未标注';
@@ -51,6 +60,57 @@ interface ProvGroup {
 }
 
 /**
+ * 2026-11-08 D-283（用户反馈澳门出现「未标注」层级）：
+ * 如果某个省下面**所有地点都没有「市」**，就不渲染「未标注」市分组，地点直接挂在省下面。
+ * 典型：澳门——天地图逆地理只返回「澳门特别行政区」，city / county 都为空；
+ * 香港多数地点能返回区（如油尖旺区，经 normalizeRegion 兜底成 city），不受影响。
+ */
+const flattenCities = (pg: ProvGroup) => pg.cities.length === 1 && pg.cities[0].name === NA;
+
+/**
+ * 多选勾选框（2026-11-08 D-295）：三态 = 未选 / 部分（省市下只选了部分地点）/ 全选。
+ * 点击时阻止冒泡，避免顺手触发「展开 / 选中整组」。
+ */
+function TriPick({
+  state,
+  onClick,
+  label,
+}: {
+  state: 0 | 1 | 2;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      className={state === 2 ? 'pick on' : state === 1 ? 'pick some' : 'pick'}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      aria-label={label}
+      title={label}
+      aria-pressed={state === 2}
+    >
+      {state === 2 ? (
+        <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true" focusable="false">
+          <path
+            d="M2 6.4 4.6 9 10 3.2"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.9"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      ) : state === 1 ? (
+        <span className="pick-dash" aria-hidden="true" />
+      ) : null}
+    </button>
+  );
+}
+
+/**
  * 去过清单（F-PLC-10）
  * 数据来自 App：单一时序来源，和地图上的标记完全一致（受时间轴 range 过滤）。
  * 按 省 → 市 分组；有区间时同时显示「区间内 N 次 / 共 M 次」。
@@ -61,10 +121,13 @@ export default function VisitedPanel({
   onClose,
   onPick,
   onRefresh,
+  onChanged,
   onClearRange,
   onAddVisit,
   embedded = false,
   secretFilter = 'all',
+  focus = null,
+  onFocusApplied,
 }: Props) {
   const t = useT();
   const tp = useTp();
@@ -75,6 +138,16 @@ export default function VisitedPanel({
   const [expandedProv, setExpandedProv] = useState<string[]>([]);
   const [expandedCity, setExpandedCity] = useState<string[]>([]);
   const filtering = q.trim().length > 0;
+  /** D-290：列表滚动容器（从详情面包屑定位时把目标滚到可视区） */
+  const visitsScrollRef = useRef<HTMLDivElement | null>(null);
+  /** 同一个 focus.token 只应用一次（places 刷新 / 重渲染不重复滚动） */
+  const lastFocusToken = useRef(0);
+  // ── 多选批量操作（2026-11-08 D-295，用户要求：省 / 市 / 地点三级都能多选批量操作）──
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [confirmBulk, setConfirmBulk] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkErr, setBulkErr] = useState<string | null>(null);
 
   /** 过滤时强制展开，避免用户搜了东西却看不到结果 */
   const provOpen = (name: string) => filtering || expandedProv.includes(name);
@@ -142,6 +215,57 @@ export default function VisitedPanel({
     return provinces;
   }, [places, q, order, secretFilter]);
 
+  // D-290：从地点详情的地区面包屑跳进来 → 展开到目标省 / 市，滚到对应行并短暂高亮
+  useEffect(() => {
+    if (!focus || lastFocusToken.current === focus.token) return;
+    const target = places.find((p) => p.id === focus.placeId);
+    const prov = target?.province || focus.province || NA;
+    const city = target?.city || focus.city || NA;
+    setQ('');
+    setExpandedProv((cur) => (cur.includes(prov) ? cur : [...cur, prov]));
+    if (focus.level !== 'province') {
+      const key = `${prov}/${city}`;
+      setExpandedCity((cur) => (cur.includes(key) ? cur : [...cur, key]));
+    }
+    const timer = window.setTimeout(() => {
+      const box = visitsScrollRef.current;
+      if (!box) return;
+      const find = (sel: string, dataKey: 'prov' | 'city' | 'placeId', value: string) =>
+        [...box.querySelectorAll<HTMLElement>(sel)].find((el) => el.dataset[dataKey] === value) ??
+        null;
+      let el: HTMLElement | null = null;
+      if (focus.level === 'province') el = find('[data-prov]', 'prov', prov);
+      if (!el && focus.level !== 'place') el = find('[data-city]', 'city', `${prov}/${city}`);
+      if (!el) el = find('[data-place-id]', 'placeId', focus.placeId);
+      if (!el) return;
+      // 找到目标、真正应用定位后才标记 token；找不到就等 places 更新后再试
+      lastFocusToken.current = focus.token;
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      el.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+      el.classList.add('focus-flash');
+      window.setTimeout(() => {
+        el?.classList.remove('focus-flash');
+        onFocusApplied?.();
+      }, 1800);
+    }, 90);
+    return () => window.clearTimeout(timer);
+  }, [focus, places, onFocusApplied]);
+
+  // 数据刷新后把已不在当前列表里的选中项清掉，避免批量操作误删看不见的地点
+  useEffect(() => {
+    setSelected((prev) => {
+      if (!prev.size) return prev;
+      const alive = new Set(places.map((p) => p.id));
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (alive.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [places]);
+
   const totalPlaces = groups.reduce((n, g) => n + g.count, 0);
   /** 「全部展开 / 全部收起」（2026-11-04，D-94）：省 / 市两级分组一键全开或全收 */
   const allProvNames = groups.map((g) => g.name);
@@ -167,6 +291,74 @@ export default function VisitedPanel({
       {anyOpen ? t('全部收起') : t('全部展开')}
     </button>
   );
+
+  // ── 多选批量操作（2026-11-08 D-295）：省 / 市 / 地点三级勾选，底部批量「移到回收站」──
+  const visiblePlaces = useMemo(
+    () => groups.flatMap((g) => g.cities.flatMap((c) => c.items)),
+    [groups]
+  );
+  const visibleIds = useMemo(() => visiblePlaces.map((p) => p.id), [visiblePlaces]);
+  const selectedCount = selected.size;
+  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
+  const idsOfProv = (pg: ProvGroup) => pg.cities.flatMap((c) => c.items.map((p) => p.id));
+  const idsOfCity = (cg: CityGroup) => cg.items.map((p) => p.id);
+  const selState = (ids: string[]): 0 | 1 | 2 => {
+    if (!ids.length) return 0;
+    let n = 0;
+    for (const id of ids) if (selected.has(id)) n += 1;
+    return n === 0 ? 0 : n === ids.length ? 2 : 1;
+  };
+  const toggleIds = (ids: string[]) => {
+    setBulkErr(null);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      const all = ids.length > 0 && ids.every((id) => next.has(id));
+      for (const id of ids) {
+        if (all) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  };
+  const toggleAllVisible = () =>
+    setSelected(allSelected ? new Set<string>() : new Set(visibleIds));
+  const enterSelect = () => {
+    setBulkErr(null);
+    setSelected(new Set());
+    setSelectMode(true);
+  };
+  const exitSelect = () => {
+    setBulkErr(null);
+    setSelected(new Set());
+    setSelectMode(false);
+  };
+  /** 批量删除：逐个走单点 DELETE 接口（地点 + 到访 + 照片一起进回收站，可恢复） */
+  const runBulkDelete = async () => {
+    const ids = [...selected];
+    if (!ids.length) return;
+    setBulkBusy(true);
+    setBulkErr(null);
+    const failed: string[] = [];
+    for (const id of ids) {
+      try {
+        await api.deletePlace(id);
+      } catch {
+        failed.push(id);
+      }
+    }
+    setBulkBusy(false);
+    setConfirmBulk(false);
+    if (failed.length) {
+      setSelected(new Set(failed));
+      setBulkErr(t('有 {n} 个地点删除失败，请重试', { n: failed.length }));
+    } else {
+      setSelected(new Set());
+      setSelectMode(false);
+    }
+    if (onChanged) onChanged();
+    else onRefresh();
+  };
+
   /** 当前筛选口径下有没有「去过」的地点（用于空状态文案） */
   const inSecretScope = (p: Place) =>
     secretFilter === 'all' ||
@@ -187,6 +379,74 @@ export default function VisitedPanel({
       : t('共 {totalSum} 次', { totalSum });
   };
 
+  /** 地点行（正常「省 → 市 → 地点」与「省下直接挂地点」两种结构共用） */
+  const placeRow = (p: Place) => {
+    const picked = selected.has(p.id);
+    return (
+      <div
+        key={p.id}
+        data-place-id={p.id}
+        className={
+          (onAddVisit && !selectMode ? 'place-row has-actions' : 'place-row') +
+          (selectMode ? ' selectable' : '') +
+          (picked ? ' picked' : '')
+        }
+        role="button"
+        tabIndex={0}
+        aria-pressed={selectMode ? picked : undefined}
+        onClick={() => (selectMode ? toggleIds([p.id]) : onPick(p))}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            if (selectMode) toggleIds([p.id]);
+            else onPick(p);
+          }
+        }}
+      >
+        {selectMode && (
+          <TriPick
+            state={picked ? 2 : 0}
+            onClick={() => toggleIds([p.id])}
+            label={t('选择 {name}', { name: p.name })}
+          />
+        )}
+        <PlaceThumb place={p} className="place-row-cover" />
+        <span className="place-row-name">
+          <span className="place-row-title">{p.name}</span>
+          {p.secret === 1 && <span className="sec-mini">{t('秘密基地')}</span>}
+        </span>
+        <span className="place-row-meta">
+          {range
+            ? t('区间 {range} 次 · 共 {total} 次', {
+                range: rangeVisits(p),
+                total: totalVisits(p),
+              })
+            : t('{n} 次', { n: totalVisits(p) })}
+          {(p.photos ?? 0) + (p.videos ?? 0) > 0
+            ? ' · ' +
+              t('照片 {photos} · 视频 {videos}', {
+                photos: p.photos ?? 0,
+                videos: p.videos ?? 0,
+              })
+            : ''}
+          {recentOf(p) ? ' · ' + t('最近 {date}', { date: shortDate(recentOf(p)) }) : ''}
+        </span>
+        {onAddVisit && !selectMode && (
+          <span className="place-row-actions" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="row-action"
+              onClick={() => onAddVisit(p)}
+              title={t('给「{name}」添加一次到访', { name: p.name })}
+            >
+              {t('+ 到访')}
+            </button>
+          </span>
+        )}
+      </div>
+    );
+  };
+
   return (
     <aside className={embedded ? 'panel mytrail-embedded' : 'panel'}>
       {embedded ? (
@@ -201,6 +461,18 @@ export default function VisitedPanel({
             />
           </div>
           <div className="head-tools">
+            {totalPlaces > 0 && (
+              <button
+                type="button"
+                className={
+                  selectMode ? 'text-btn sm mytrail-select-btn on' : 'text-btn sm mytrail-select-btn'
+                }
+                onClick={selectMode ? exitSelect : enterSelect}
+                title={selectMode ? t('取消选择') : t('多选（可批量删除）')}
+              >
+                {selectMode ? t('取消选择') : t('选择')}
+              </button>
+            )}
             {foldAllBtn}
             <SortToggle
               order={order}
@@ -269,7 +541,7 @@ export default function VisitedPanel({
         </div>
       )}
 
-      <div className="visits" style={{ paddingTop: 4 }}>
+      <div className="visits" ref={visitsScrollRef} style={{ paddingTop: 4 }}>
         {!hasAnyVisited && (
           <div className="muted pad">
             {secretFilter === 'secret' ? (
@@ -300,18 +572,39 @@ export default function VisitedPanel({
           <div key={pg.name} className="grp">
             <div
               className={provOpen(pg.name) ? 'grp-prov open' : 'grp-prov'}
+              data-prov={pg.name}
               role="button"
               tabIndex={0}
-              onClick={() => toggleProv(pg.name)}
+              onClick={() => (selectMode ? toggleIds(idsOfProv(pg)) : toggleProv(pg.name))}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  toggleProv(pg.name);
+                  if (selectMode) toggleIds(idsOfProv(pg));
+                  else toggleProv(pg.name);
                 }
               }}
             >
               <span className="grp-main">
-                <span className={provOpen(pg.name) ? 'grp-caret open' : 'grp-caret'} />
+                {selectMode && (
+                  <TriPick
+                    state={selState(idsOfProv(pg))}
+                    onClick={() => toggleIds(idsOfProv(pg))}
+                    label={t('选择 {name}', {
+                      name: pg.name === NA ? t('未标注') : tp(pg.name),
+                    })}
+                  />
+                )}
+                <span
+                  className={provOpen(pg.name) ? 'grp-caret open' : 'grp-caret'}
+                  onClick={
+                    selectMode
+                      ? (e) => {
+                          e.stopPropagation();
+                          toggleProv(pg.name);
+                        }
+                      : undefined
+                  }
+                />
                 <FolderIcon className="grp-icon" />
                 <span className="grp-name">{pg.name === NA ? t('未标注') : tp(pg.name)}</span>
                 <span className="grp-dot">·</span>
@@ -320,25 +613,50 @@ export default function VisitedPanel({
             </div>
 
             {provOpen(pg.name) &&
-              pg.cities.map((cg) => {
+              (flattenCities(pg) ? (
+                // D-283：该省下所有地点都没有「市」→ 不显示「未标注」这一级，地点直接挂在省下
+                <div className="place-rows">{pg.cities[0].items.map(placeRow)}</div>
+              ) : (
+                pg.cities.map((cg) => {
                 const ckey = `${pg.name}/${cg.name}`;
                 const open = cityOpen(ckey);
                 return (
                   <div key={ckey} className="grp-city-wrap">
                     <div
                       className={open ? 'grp-city open' : 'grp-city'}
+                      data-city={ckey}
                       role="button"
                       tabIndex={0}
-                      onClick={() => toggleCity(ckey)}
+                      onClick={() => (selectMode ? toggleIds(idsOfCity(cg)) : toggleCity(ckey))}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
-                          toggleCity(ckey);
+                          if (selectMode) toggleIds(idsOfCity(cg));
+                          else toggleCity(ckey);
                         }
                       }}
                     >
                       <span className="grp-main">
-                        <span className={open ? 'grp-caret open' : 'grp-caret'} />
+                        {selectMode && (
+                          <TriPick
+                            state={selState(idsOfCity(cg))}
+                            onClick={() => toggleIds(idsOfCity(cg))}
+                            label={t('选择 {name}', {
+                              name: cg.name === NA ? t('未标注') : cg.name,
+                            })}
+                          />
+                        )}
+                        <span
+                          className={open ? 'grp-caret open' : 'grp-caret'}
+                          onClick={
+                            selectMode
+                              ? (e) => {
+                                  e.stopPropagation();
+                                  toggleCity(ckey);
+                                }
+                              : undefined
+                          }
+                        />
                         <FolderIcon className="grp-icon" />
                         <span className="grp-name">{cg.name === NA ? t('未标注') : cg.name}</span>
                         <span className="grp-dot">·</span>
@@ -346,69 +664,51 @@ export default function VisitedPanel({
                       </span>
                     </div>
 
-                    {open && (
-                      <div className="place-rows">
-                        {cg.items.map((p) => (
-                          <div
-                            key={p.id}
-                            className={onAddVisit ? 'place-row has-actions' : 'place-row'}
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => onPick(p)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                onPick(p);
-                              }
-                            }}
-                          >
-                            <PlaceThumb place={p} className="place-row-cover" />
-                            <span className="place-row-name">
-                              <span className="place-row-title">{p.name}</span>
-                              {p.secret === 1 && (
-                                <span className="sec-mini">{t('秘密基地')}</span>
-                              )}
-                            </span>
-                            <span className="place-row-meta">
-                              {range
-                                ? t('区间 {range} 次 · 共 {total} 次', {
-                                    range: rangeVisits(p),
-                                    total: totalVisits(p),
-                                  })
-                                : t('{n} 次', { n: totalVisits(p) })}
-                              {(p.photos ?? 0) + (p.videos ?? 0) > 0
-                                ? ' · ' +
-                                  t('照片 {photos} · 视频 {videos}', {
-                                    photos: p.photos ?? 0,
-                                    videos: p.videos ?? 0,
-                                  })
-                                : ''}
-                              {recentOf(p)
-                                ? ' · ' + t('最近 {date}', { date: shortDate(recentOf(p)) })
-                                : ''}
-                            </span>
-                            {onAddVisit && (
-                              <span className="place-row-actions" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  type="button"
-                                  className="row-action"
-                                  onClick={() => onAddVisit(p)}
-                                  title={t('给「{name}」添加一次到访', { name: p.name })}
-                                >
-                                  {t('+ 到访')}
-                                </button>
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {open && <div className="place-rows">{cg.items.map(placeRow)}</div>}
                   </div>
                 );
-              })}
+              })))}
           </div>
         ))}
       </div>
+
+      {selectMode && (
+        <div className="mytrail-bulkbar">
+          <span className="mytrail-bulk-count">{t('已选 {n} 项', { n: selectedCount })}</span>
+          <button type="button" className="text-btn sm" onClick={toggleAllVisible}>
+            {allSelected ? t('取消全选') : t('全选')}
+          </button>
+          {bulkErr && <span className="mytrail-bulk-err">{bulkErr}</span>}
+          <span className="mytrail-bulk-spacer" />
+          <button type="button" className="text-btn sm" onClick={exitSelect} disabled={bulkBusy}>
+            {t('取消选择')}
+          </button>
+          <button
+            type="button"
+            className="danger-btn"
+            onClick={() => setConfirmBulk(true)}
+            disabled={!selectedCount || bulkBusy}
+          >
+            {t('移到回收站')}
+          </button>
+        </div>
+      )}
+
+      {confirmBulk && (
+        <ConfirmDialog
+          title={t('删除选中的 {n} 个地点？', { n: selectedCount })}
+          danger
+          busy={bulkBusy}
+          busyText={t('删除中…')}
+          confirmText={t('移到回收站')}
+          onCancel={() => {
+            if (!bulkBusy) setConfirmBulk(false);
+          }}
+          onConfirm={() => void runBulkDelete()}
+        >
+          <p>{t('选中的地点会连同到访和照片一起移到回收站，之后可在顶栏「回收站」恢复。')}</p>
+        </ConfirmDialog>
+      )}
 
       {!embedded && (
         <div className="panel-foot">

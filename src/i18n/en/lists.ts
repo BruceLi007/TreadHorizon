@@ -109,8 +109,8 @@ const dict: Dict = {
   '仍然合并': 'Merge anyway',
   '合并中…': 'Merging…',
   '确认合并': 'Confirm merge',
-  '合并只调整数据库归属：到访和照片记录搬到目标地点，素材库文件不会移动或删除。':
-    'Merging only changes database ownership: visits and photo records move to the target place; files in the media library are not moved or deleted.',
+  '合并只会把到访和照片记录移到目标地点，不会移动或删除素材库里的文件。':
+    'Merging only moves visits and photo records to the target place; files in the media library are not moved or deleted.',
 
   // ── 聚合簇面板（ClusterPanel）──
   '切换排序：最近去过的在前 / 最早去过的在前':
@@ -138,7 +138,6 @@ const dict: Dict = {
   '地图加载失败': 'Map failed to load',
   '检查': 'Check',
   '里的': 'and',
-  '，以及网络能否访问天地图。': ', then make sure the network can reach Tianditu.',
 
   // ── 聚合簇提示（cluster.ts）──
   '{n} 个想去的地方': '{n} places to go',
@@ -154,8 +153,7 @@ const dict: Dict = {
 
   // ── 天地图加载（tdt.ts）──
   '脚本加载失败：{src}': 'Failed to load script: {src}',
-  '没有配置天地图 key（.env.local 里的 TDT_TK）':
-    'No Tianditu key configured (TDT_TK in .env.local)',
+  '还没有配置天地图 Key': 'No Tianditu key configured yet',
   '天地图 SDK 初始化失败：window.T 不存在':
     'Tianditu SDK initialization failed: window.T is missing',
 

@@ -1,9 +1,19 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/tread-horizon-logo-dark.png">
+    <img src="assets/readme/tread-horizon-logo-light.png" width="620" alt="Tread Horizon · 脚步丈量世界">
+  </picture>
+</p>
+
 # Tread Horizon · 脚步丈量世界
 
 把去过的地方、看过的风景、拍下的照片和视频，钉在地图上。多年以后打开，就是一张**只属于你自己的旅行足迹地图**。
 
 - **纯本地运行**：数据存在自己电脑里，不需要账号，也不会上传云端
 - **地图用天地图**：需要自己申请一个免费 Key，申请一次、填进去就能用
+
+<p align="center"><img src="assets/readme/00-welcome.gif" width="900" alt="Tread Horizon 启动欢迎页（Q 版中国地图 / 34 省景点 / 开始记录我的旅迹）"></p>
+
 <p align="center"><img src="assets/readme/01-demo.gif" width="900" alt="Tread Horizon 功能演示（地图 / My旅迹 / 照片墙 / 统计 / 设置）"></p>
 
 
@@ -44,7 +54,7 @@
 
 ### 照片和视频，一次传好
 
-- **记录结构**：地点 → 到访（日期 / 标题 / 笔记 / 评分 / 同行人）→ 照片、视频；**上传省心**：拖进侧栏或点选即可，支持批量；每个文件显示进度，可取消，失败能重试；**大文件也能传**：单个文件默认上限 8GB（`.env.local` 里可用 `MAX_UPLOAD_GB` 调整）；**自动查重**：同一张图再传一次会跳过，不重复占空间；**视频也有封面**：自动截取封面帧并显示时长（装好 ffmpeg 才有；没装视频照样能播放）
+- **记录结构**：地点 → 到访（日期 / 标题 / 笔记 / 评分 / 同行人）→ 照片、视频；**上传省心**：拖进侧栏或点选即可，支持批量；每个文件显示进度，可取消，失败能重试；**大文件也能传**：单个文件默认上限 8GB（`.env.local` 里可用 `MAX_UPLOAD_GB` 调整）；**自动查重**：同一张图再传一次会跳过，不重复占空间；**视频也有封面**：自动截取封面帧并显示时长（装好 ffmpeg 才有；没装视频照样能播放）；**iPhone 的 HEIC / HEIF 照片直接传**：服务端自动转码生成缩略图与灯箱预览，原始 `.heic` 文件仍原样保存在素材库（点「查看原图」时浏览器本身不能直接渲染 HEIC，属浏览器限制）
 - **拖文件夹上传**：把整个文件夹拖进侧栏 → 自动按文件夹名新建一次到访，并批量上传里面的图片 / 视频（日期默认今天，之后可编辑）
 <p align="center"><img src="assets/readme/07-visit-and-photos.webp" width="900" alt="到访详情与照片 / 视频上传"></p>
 
@@ -99,7 +109,7 @@
 ### 用着顺手
 
 - **中英文**：设置里一键切换，立即生效
-- **字体**：6 档界面字体（2 款随仓库附带的 SIL OFL 字体 + 4 款系统字体）、字号 3 档、字重 2 档
+- **字体**：11 档界面字体（7 款随仓库附带的 SIL OFL 字体 + 4 款系统字体）、字号 3 档、字重 2 档
 - **外观**：纯白 / 浅色 / 深色 / 纯黑 4 档明暗，也可以跟随系统
 - **主题标语**：顶栏那句标语可以自己改
 - **图标配色**：家 / 去过 / 想去 / 秘密基地 四种地图图标都能换颜色
@@ -224,7 +234,7 @@ npm run dev        # 前端 http://localhost:5173（API 自动跑在 4000，并�
 ```text
 server/    后端
 src/       前端
-public/    静态资源（地图标记、省界数据、2 款 SIL OFL 字体、天地图 Key 教程 PDF）
+public/    静态资源（地图标记、省界数据、7 款 SIL OFL 字体、天地图 Key 教程 PDF）
 scripts/   初始化 / 迁移 / 测试脚本
 design/    设计预览图与生成脚本
 data/      运行期数据（不进 Git）
@@ -234,10 +244,10 @@ data/      运行期数据（不进 Git）
 
 ## 第三方资源与许可
 
-- **字体**：`public/fonts/` 随仓库附带 2 款 **SIL OFL 1.1** 字体——**喵咛狗爬黑**（默认界面字体）/ **嗷呜碎瘾黑**，版权与 OFL 全文见 [`public/fonts/LICENSES.md`](public/fonts/LICENSES.md)；设置里的微软雅黑 / 宋体 / 黑体 / 楷体由操作系统提供，不随仓库分发
+- **字体**：`public/fonts/` 随仓库附带 7 款 **SIL OFL 1.1** 字体——默认界面字体**喵咛狗爬黑**，另有**猫啃什锦黑 / 荆南波波黑 / 游趣体 / 铁蒺藜体 / 呆萌手写体 / 字魂扁桃体**，版权与 OFL 全文见 [`public/fonts/LICENSES.md`](public/fonts/LICENSES.md)；设置里的微软雅黑 / 宋体 / 黑体 / 楷体由操作系统提供，不随仓库分发
 - **地图与地理编码**：天地图官方服务（需自备浏览器端 Key；审图号由天地图瓦片自带）
 - **省界数据**：`public/province-boundaries*.json` 由 geojson.cn「天地图-国家标准矢量地图」整理，仅用于省份点亮
-- **开源依赖**：React / Vite / Fastify / sharp 等第三方库遵循各自许可（见 `package-lock.json`）
+- **开源依赖**：React / Vite / Fastify / sharp 等第三方库遵循各自许可（见 `package-lock.json`）；**HEIC / HEIF 解码**使用 [`heic-convert`](https://www.npmjs.com/package/heic-convert)（ISC）与 `libheif-js`（LGPL-3.0）——仅作为 npm 运行时依赖安装，不随仓库 / 发布包分发源码
 - 其余美术资源（地图标记 SVG、光标、`design/` 下的设计图）为项目自绘 / 自生成；`public/docs/tianditu-key-guide.pdf` 为作者编写的教程
 
 ## License

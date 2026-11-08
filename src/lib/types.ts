@@ -557,6 +557,36 @@ export interface AccountSummary {
   user: AuthUser;
   quotaBytes: number;
   usage: UserUsage;
+  /** 待审批的扩容申请（D-310；没有则为 null / 缺省） */
+  pendingQuotaRequest?: QuotaRequestInfo | null;
+}
+
+/** 扩容申请状态（D-310） */
+export type QuotaRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+/** 扩容申请（D-310；云端 multi 默认 1 GiB，用满后可申请扩容） */
+export interface QuotaRequestInfo {
+  id: string;
+  userId: string;
+  requestedBytes: number;
+  currentBytes: number;
+  reason: string;
+  status: QuotaRequestStatus;
+  createdAt: number;
+  decidedAt: number | null;
+  approvedBytes: number | null;
+  adminNote: string | null;
+  /** 管理员列表才带：申请人的账号名 / 显示名 */
+  username?: string;
+  displayName?: string;
+}
+
+/** GET /api/account/quota-requests：我的配额 + 申请记录 */
+export interface QuotaOverview {
+  quotaBytes: number;
+  usedBytes: number;
+  pending: QuotaRequestInfo | null;
+  history: QuotaRequestInfo[];
 }
 
 // ── M4：备份 / 恢复 / 提醒（F-SYS-03/04/05） ──
@@ -719,3 +749,20 @@ export interface BackupExportJobStatus {
   error: string | null;
   createdAt: number;
 }
+
+/**
+ * GET /api/update/check：应用更新检查结果（2026-11-08 D-319，本地模式「设置 → 关于」用）。
+ * 只做提示；ok=false 时不影响使用（断网 / GitHub 不可达 / 主动关闭）。
+ */
+export interface UpdateCheckResult {
+  ok: boolean;
+  disabled?: boolean;
+  currentVersion: string;
+  latestVersion?: string;
+  hasUpdate?: boolean;
+  releaseUrl?: string;
+  publishedAt?: string | null;
+  checkedAt?: string;
+  error?: string;
+}
+

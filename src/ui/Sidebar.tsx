@@ -10,10 +10,12 @@ import {
 import { api } from '../lib/api';
 import { collectFolderDrop } from '../lib/folderDrop';
 import { fmtKm } from '../lib/geo';
+import { normalizeRegion, regionFromText, PROVINCE_FULL_NAMES } from '../lib/region';
 import { useT, useTp } from '../i18n';
 import type { MediaItem, PlaceDetail, UploadItem, Visit } from '../lib/types';
 import type { MediaCols } from './settings/types';
 import { MEDIA_COLS } from './settings/types';
+import { FolderIcon } from './TreeIcons';
 import Segmented from './Segmented';
 import CloseIcon from './CloseIcon';
 import DatePicker from './DatePicker';
@@ -24,8 +26,12 @@ import './SecretPrompt.css';
 interface Props {
   detail: PlaceDetail;
   onClose: () => void;
-  /** 从 My旅迹列表点进来的：标题栏显示「返回」，回到刚才的列表层（展开 / 滚动位置保留） */
-  onBackToList?: () => void;
+  /** 从哪一层打开（D-290）：标题栏左上「← 返回」的文案与返回目标由这个决定 */
+  entry?: 'map' | 'trail' | 'cluster';
+  /** 返回上一层：地图 = 关闭详情回地图；My旅迹 = 回列表；这一簇 = 回簇面板（D-290） */
+  onBack?: () => void;
+  /** 点地区面包屑：在 My旅迹里展开到该省 / 市 / 地点并高亮（D-290） */
+  onLocateInMyTrail?: (level: 'province' | 'city' | 'place') => void;
   /** 从 My旅迹「+ 添加一次到访」进来：自动展开新增到访表单（D-109） */
   autoAddVisit?: boolean;
   /** 自动展开一次后通知 App 清掉标记，避免每次打开都自动弹 */
@@ -284,7 +290,9 @@ function VisitFormEditor({
 export default function Sidebar({
   detail,
   onClose,
-  onBackToList,
+  entry = 'map',
+  onBack,
+  onLocateInMyTrail,
   autoAddVisit = false,
   onAutoAddVisitHandled,
   uploads,
@@ -320,6 +328,15 @@ export default function Sidebar({
   const [editingPlace, setEditingPlace] = useState(false);
   const [name, setName] = useState(detail.name);
   const [kind, setKind] = useState<'visited' | 'wishlist'>(detail.kind);
+  /**
+   * 2026-11-08 D-284（用户要求）：地区（省 / 市 / 区县）允许手动编辑——
+   * 逆地理识别不到的（如澳门只返回省级、香港个别离岸点连省都不返回）由用户自己填。
+   * 编辑时先放一份草稿，点「保存」才写回；坐标仍不可改。
+   */
+  const [province, setProvince] = useState(detail.province ?? '');
+  const [city, setCity] = useState(detail.city ?? '');
+  const [county, setCounty] = useState(detail.county ?? '');
+  const [refilling, setRefilling] = useState(false);
   // 秘密基地开关（F-PLC-11）：本地先记一份，onChanged 后 App 重新拉详情会同步回来
   const [secretOn, setSecretOn] = useState(detail.secret === 1);
   // 家开关（2026-11-04）：唯一一个普通地点，onChanged 后靠 detail.home 同步
@@ -589,11 +606,37 @@ export default function Sidebar({
   const startPlaceEdit = () => {
     setName(detail.name);
     setKind(detail.kind);
+    setProvince(detail.province ?? '');
+    setCity(detail.city ?? '');
+    setCounty(detail.county ?? '');
     setSecretOn(detail.secret === 1);
     setHomeOn(detail.home === 1);
     setErr(null);
     setConfirmingPlace(false);
     setEditingPlace(true);
+  };
+
+  /**
+   * 2026-11-08 D-284：按坐标重新识别一次地区，填进编辑框（不直接保存）。
+   * 逆地理缺省份时再用地址文本兜底（与 D-263 保存兜底同一套逻辑）。
+   */
+  const refillRegion = async () => {
+    setRefilling(true);
+    setErr(null);
+    try {
+      const { address } = await api.reverse(detail.lng, detail.lat);
+      const region = normalizeRegion(address);
+      const fallback = region.province
+        ? null
+        : regionFromText(address?.formatted) ?? regionFromText(address?.poi);
+      setProvince(region.province ?? fallback?.province ?? '');
+      setCity(region.city ?? fallback?.city ?? '');
+      setCounty(region.county ?? fallback?.county ?? '');
+    } catch (e: any) {
+      setErr(t('识别失败：{msg}', { msg: e?.message || e }));
+    } finally {
+      setRefilling(false);
+    }
   };
 
   const savePlace = async () => {
@@ -605,7 +648,18 @@ export default function Sidebar({
     setSaving(true);
     setErr(null);
     try {
-      await api.updatePlace(detail.id, { name: trimmed, kind });
+      // 2026-11-08 D-284：地区三个字段一起保存（留空 = 清空 / 未标注；代码字段一起清掉，
+      // 避免手动改省后旧 code 与文字对不上——省份点亮按名称也能匹配）。
+      await api.updatePlace(detail.id, {
+        name: trimmed,
+        kind,
+        province: province.trim() || null,
+        city: city.trim() || null,
+        county: county.trim() || null,
+        province_code: null,
+        city_code: null,
+        county_code: null,
+      });
       setEditingPlace(false);
       onChanged();
     } catch (e: any) {
@@ -828,12 +882,18 @@ export default function Sidebar({
       )}
       <div className="panel-head">
         <div className="head-left">
-          {onBackToList && !editingPlace && (
+          {onBack && !editingPlace && (
             <button
               type="button"
               className="back-btn"
-              onClick={onBackToList}
-              title={t('返回 My旅迹列表（保留列表的展开 / 滚动位置）')}
+              onClick={onBack}
+              title={
+                entry === 'trail'
+                  ? t('返回 My旅迹列表（保留列表的展开 / 滚动位置）')
+                  : entry === 'cluster'
+                    ? t('返回这一簇')
+                    : t('返回地图')
+              }
             >
               <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">
                 <path
@@ -845,7 +905,7 @@ export default function Sidebar({
                   strokeLinejoin="round"
                 />
               </svg>
-              {t('返回')}
+              {entry === 'trail' ? t('My旅迹') : entry === 'cluster' ? t('这一簇') : t('地图')}
             </button>
           )}
           {detail.cover_id && !editingPlace && (
@@ -934,8 +994,76 @@ export default function Sidebar({
             </div>
           </div>
 
+          {/* 2026-11-08 D-284（用户要求）：地区（省 / 市 / 区县）可手动编辑——
+              逆地理识别不到或识别不准（如澳门只返回省级、香港离岸点连省都不返回）时由用户自己填；
+              留空 = 未标注。编辑框旁提供「重新识别」按坐标再试一次。 */}
+          <div className="pe-region">
+            <div className="pe-region-head">
+              <span className="pe-region-title">{t('地区（省 / 市 / 区县）')}</span>
+              <span className="pe-region-tip">{t('识别不到或不准可以直接改，留空 = 未标注')}</span>
+              <button
+                type="button"
+                className="text-btn sm pe-region-refill"
+                onClick={() => void refillRegion()}
+                disabled={refilling || saving}
+                title={t('按坐标重新识别一次省 / 市 / 区县并填入')}
+              >
+                {refilling ? t('识别中…') : t('重新识别')}
+              </button>
+            </div>
+            <div className="pe-region-row">
+              <label className="pe-field">
+                <span>{t('省')}</span>
+                <input
+                  list="pe-province-options"
+                  value={province}
+                  maxLength={24}
+                  spellCheck={false}
+                  placeholder={t('如：浙江省')}
+                  onChange={(e) => setProvince(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') savePlace();
+                    if (e.key === 'Escape') setEditingPlace(false);
+                  }}
+                />
+              </label>
+              <label className="pe-field">
+                <span>{t('市')}</span>
+                <input
+                  value={city}
+                  maxLength={24}
+                  spellCheck={false}
+                  placeholder={t('如：杭州市')}
+                  onChange={(e) => setCity(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') savePlace();
+                    if (e.key === 'Escape') setEditingPlace(false);
+                  }}
+                />
+              </label>
+              <label className="pe-field">
+                <span>{t('区 / 县')}</span>
+                <input
+                  value={county}
+                  maxLength={24}
+                  spellCheck={false}
+                  placeholder={t('如：西湖区')}
+                  onChange={(e) => setCounty(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') savePlace();
+                    if (e.key === 'Escape') setEditingPlace(false);
+                  }}
+                />
+              </label>
+            </div>
+            <datalist id="pe-province-options">
+              {PROVINCE_FULL_NAMES.map((p) => (
+                <option key={p} value={p} />
+              ))}
+            </datalist>
+          </div>
+
           <div className="pe-meta">
-            <span className="pe-loc">{region || t('未知位置')}</span>
             <span className="pe-coord mono">
               {detail.lng.toFixed(5)}, {detail.lat.toFixed(5)}
             </span>
@@ -958,7 +1086,60 @@ export default function Sidebar({
       <>
         <div className={detail.kind === 'wishlist' ? 'subhead' : 'subhead subhead-split'}>
           <div className="subhead-text">
-            <div className="region">{region || t('未知位置')}</div>
+            <div className="region region-crumbs">
+              {detail.province && (
+                <button
+                  type="button"
+                  className="crumb"
+                  onClick={() => onLocateInMyTrail?.('province')}
+                  title={t('在 My旅迹中查看 {name}', { name: tp(detail.province) })}
+                >
+                  {tp(detail.province)}
+                </button>
+              )}
+              {detail.city && (
+                <>
+                  <span className="crumb-sep" aria-hidden="true">
+                    ›
+                  </span>
+                  <button
+                    type="button"
+                    className="crumb"
+                    onClick={() => onLocateInMyTrail?.('city')}
+                    title={t('在 My旅迹中查看 {name}', { name: detail.city })}
+                  >
+                    {detail.city}
+                  </button>
+                </>
+              )}
+              {detail.county && (
+                <>
+                  <span className="crumb-sep" aria-hidden="true">
+                    ›
+                  </span>
+                  <button
+                    type="button"
+                    className="crumb"
+                    onClick={() => onLocateInMyTrail?.('place')}
+                    title={t('在 My旅迹中查看并定位到这个地点')}
+                  >
+                    {detail.county}
+                  </button>
+                </>
+              )}
+              {!region && <span className="crumb-empty">{t('未知位置')}</span>}
+              {region && onLocateInMyTrail && (
+                <button
+                  type="button"
+                  className="crumb-jump"
+                  onClick={() => onLocateInMyTrail('place')}
+                  title={t('在 My旅迹中查看并定位到这个地点')}
+                  aria-label={t('在 My旅迹中查看并定位到这个地点')}
+                >
+                  <FolderIcon className="crumb-jump-icon" />
+                </button>
+              )}
+            </div>
             <div className="meta">
               {detail.kind === 'wishlist' ? (
                 <>
@@ -1323,7 +1504,7 @@ export default function Sidebar({
               ref={fileRef}
               type="file"
               multiple
-              accept="image/*,video/*"
+              accept="image/*,video/*,.heic,.heif"
               hidden
               onChange={(e) => {
                 onFilesPicked(e.target.files);

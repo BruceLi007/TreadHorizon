@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import type { AdminUserInfo, AuthUser, InviteInfo } from '../../lib/types';
+import type { AdminUserInfo, AuthUser, InviteInfo, QuotaRequestInfo } from '../../lib/types';
 import { useLang, useT } from '../../i18n';
-import { formatBytes } from '../../lib/bytes';
+import { formatBytes, formatQuota } from '../../lib/bytes';
 import './UserManagementSettings.css';
 
 interface Props {
@@ -51,6 +51,14 @@ export default function UserManagementSettings({ currentUser }: Props) {
   const [copied, setCopied] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
+  // ── 扩容申请（2026-11-08 D-310）──
+  const [quotaReqs, setQuotaReqs] = useState<QuotaRequestInfo[] | null>(null);
+  const [quotaReqErr, setQuotaReqErr] = useState<string | null>(null);
+  const [quotaReqBusy, setQuotaReqBusy] = useState<string | null>(null);
+  const [adjustFor, setAdjustFor] = useState<string | null>(null);
+  const [adjustGb, setAdjustGb] = useState('');
+  const [adjustBusy, setAdjustBusy] = useState(false);
+
   const load = useCallback(async () => {
     try {
       const r = await api.adminUsers();
@@ -65,6 +73,21 @@ export default function UserManagementSettings({ currentUser }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const loadQuotaReqs = useCallback(async () => {
+    try {
+      const r = await api.adminQuotaRequests('pending');
+      setQuotaReqs(r.items);
+      setQuotaReqErr(null);
+    } catch (e: any) {
+      setQuotaReqs(null);
+      setQuotaReqErr(e?.message || String(e));
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadQuotaReqs();
+  }, [loadQuotaReqs]);
 
   const toggleStatus = async (u: AdminUserInfo) => {
     if (busyId || u.id === currentUser.id) return;
@@ -163,6 +186,63 @@ export default function UserManagementSettings({ currentUser }: Props) {
     }
   };
 
+  // ── 配额调整 / 扩容审批（2026-11-08 D-310）──
+  const openAdjust = (u: AdminUserInfo) => {
+    setAdjustFor(adjustFor === u.id ? null : u.id);
+    setAdjustGb(((Number(u.quotaBytes) || 0) / 1024 ** 3).toFixed(0));
+    setMsg(null);
+  };
+
+  const saveQuota = async (u: AdminUserInfo) => {
+    if (adjustBusy) return;
+    const gb = Number(adjustGb);
+    if (!Number.isFinite(gb) || gb < 1) {
+      setMsg({ ok: false, text: t('配额至少 1 GB') });
+      return;
+    }
+    const bytes = Math.round(gb * 1024 ** 3);
+    setAdjustBusy(true);
+    setMsg(null);
+    try {
+      await api.adminUpdateUser(u.id, { quotaBytes: bytes });
+      setAdjustFor(null);
+      setAdjustGb('');
+      await Promise.all([load(), loadQuotaReqs()]);
+      setMsg({
+        ok: true,
+        text: t('已把 {name} 的配额调整为 {size}', {
+          name: u.username,
+          size: formatQuota(bytes),
+        }),
+      });
+    } catch (e: any) {
+      setMsg({ ok: false, text: e?.message || String(e) });
+    } finally {
+      setAdjustBusy(false);
+    }
+  };
+
+  const decideReq = async (req: QuotaRequestInfo, action: 'approve' | 'reject') => {
+    if (quotaReqBusy) return;
+    setQuotaReqBusy(req.id);
+    setQuotaReqErr(null);
+    try {
+      await api.adminDecideQuotaRequest(req.id, { action });
+      await Promise.all([loadQuotaReqs(), load()]);
+      setMsg({
+        ok: true,
+        text:
+          action === 'approve'
+            ? t('已批准扩容到 {size}', { size: formatQuota(req.requestedBytes) })
+            : t('已拒绝该扩容申请'),
+      });
+    } catch (e: any) {
+      setQuotaReqErr(e?.message || String(e));
+    } finally {
+      setQuotaReqBusy(null);
+    }
+  };
+
   return (
     <div className="set-pane">
       <section className="set-section">
@@ -173,7 +253,7 @@ export default function UserManagementSettings({ currentUser }: Props) {
           </button>
         </div>
         <p className="set-section-desc">
-          {t('每个账号的数据完全隔离；新用户通过下方「邀请码管理」生成的邀请码注册。这里可以禁用账号、重置登录密码、查看各账号的已用空间。')}
+          {t('每个账号的数据完全隔离；新用户通过下方「邀请码管理」生成的邀请码注册。这里可以禁用账号、重置登录密码、查看 / 调整各账号的存储配额，并审批扩容申请。')}
         </p>
 
         {error && <p className="hint err">{error}</p>}
@@ -190,6 +270,8 @@ export default function UserManagementSettings({ currentUser }: Props) {
             {users.map((u) => {
               const isSelf = u.id === currentUser.id;
               const used = Number(u.usedBytes) || 0;
+              const quota = Number(u.quotaBytes) || 0;
+              const over = quota > 0 && used >= quota;
               return (
                 <div className={pwdFor === u.id ? 'um-row is-open' : 'um-row'} key={u.id}>
                   <div className="um-id">
@@ -212,7 +294,10 @@ export default function UserManagementSettings({ currentUser }: Props) {
                   </div>
 
                   <div className="um-usage">
-                    <span className="um-usage-text">{formatBytes(used)}</span>
+                    <span className={over ? 'um-usage-text is-over' : 'um-usage-text'}>
+                      {formatBytes(used)} / {formatQuota(quota)}
+                    </span>
+                    {over && <span className="um-badge is-over">{t('已超额')}</span>}
                     <span className="um-usage-sub">
                       {t('{places} 个地点 · {visits} 次到访 · {photos} 张照片 · {videos} 段视频', {
                         places: u.usage?.places ?? 0,
@@ -235,6 +320,9 @@ export default function UserManagementSettings({ currentUser }: Props) {
                     >
                       {t('重置密码')}
                     </button>
+                    <button className="text-btn" onClick={() => openAdjust(u)} disabled={!!busyId || adjustBusy}>
+                      {t('调整配额')}
+                    </button>
                     <button
                       className={u.status === 'active' ? 'text-btn danger' : 'text-btn'}
                       onClick={() => toggleStatus(u)}
@@ -244,6 +332,48 @@ export default function UserManagementSettings({ currentUser }: Props) {
                       {u.status === 'active' ? t('禁用') : t('启用')}
                     </button>
                   </div>
+
+                  {adjustFor === u.id && (
+                    <div className="um-pwd-row">
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={adjustGb}
+                        placeholder={t('配额（GB）')}
+                        aria-label={t('配额（GB）')}
+                        autoFocus
+                        disabled={adjustBusy}
+                        onChange={(e) => {
+                          setAdjustGb(e.target.value);
+                          setMsg(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void saveQuota(u);
+                          if (e.key === 'Escape') {
+                            setAdjustFor(null);
+                            setMsg(null);
+                          }
+                        }}
+                      />
+                      <button className="text-btn" onClick={() => void saveQuota(u)} disabled={adjustBusy}>
+                        {adjustBusy ? t('保存中…') : t('保存配额')}
+                      </button>
+                      <button
+                        className="text-btn"
+                        onClick={() => {
+                          setAdjustFor(null);
+                          setMsg(null);
+                        }}
+                        disabled={adjustBusy}
+                      >
+                        {t('取消')}
+                      </button>
+                      <span className="hint">
+                        {t('配额以 GB 为单位（整数）；回收站里还没彻底删除的素材也计入占用。')}
+                      </span>
+                    </div>
+                  )}
 
                   {pwdFor === u.id && (
                     <div className="um-pwd-row">
@@ -285,6 +415,74 @@ export default function UserManagementSettings({ currentUser }: Props) {
         )}
 
         {msg && <p className={msg.ok ? 'hint acc-ok' : 'hint err'}>{msg.text}</p>}
+      </section>
+
+      {/* 扩容申请（2026-11-08 D-310）：用户在「设置 → 账号」提交，管理员在这里审批 */}
+      <section className="set-section">
+        <div className="set-section-head">
+          <h3 className="set-section-title">{t('扩容申请')}</h3>
+          <span className="acc-badge">
+            {quotaReqs && quotaReqs.length > 0
+              ? t('{n} 条待审批', { n: quotaReqs.length })
+              : t('暂无待审批')}
+          </span>
+        </div>
+        <p className="set-section-desc">
+          {t('用户空间用满后可以在「设置 → 账号」提交扩容申请；批准后按申请值提高配额。如需其它额度，可在上方账号列表里直接调整。')}
+        </p>
+        {quotaReqErr && <p className="hint err">{quotaReqErr}</p>}
+        {quotaReqs === null && !quotaReqErr && <p className="hint">{t('读取中…')}</p>}
+        {quotaReqs !== null && quotaReqs.length === 0 && (
+          <p className="hint">{t('暂无待审批的扩容申请。')}</p>
+        )}
+        {quotaReqs !== null && quotaReqs.length > 0 && (
+          <div className="um-req-list">
+            {quotaReqs.map((r) => (
+              <div className="um-req-row" key={r.id}>
+                <div className="um-req-main">
+                  <div className="um-req-title">
+                    <b>{r.displayName || r.username}</b>
+                    <span className="um-handle">@{r.username}</span>
+                    <span className="um-req-move">
+                      {t('申请将配额从 {current} 提高到 {requested}', {
+                        current: formatQuota(r.currentBytes),
+                        requested: formatQuota(r.requestedBytes),
+                      })}
+                    </span>
+                  </div>
+                  {r.reason && (
+                    <div className="um-req-reason">
+                      {t('理由：')}
+                      {r.reason}
+                    </div>
+                  )}
+                  <div className="um-req-meta">
+                    {t('申请时间：')}
+                    {fmtDate(r.createdAt, lang)}
+                  </div>
+                </div>
+                <div className="um-req-actions">
+                  <button
+                    className="primary"
+                    onClick={() => void decideReq(r, 'approve')}
+                    disabled={quotaReqBusy === r.id}
+                  >
+                    {quotaReqBusy === r.id
+                      ? t('处理中…')
+                      : t('批准提高到 {size}', { size: formatQuota(r.requestedBytes) })}
+                  </button>
+                  <button
+                    className="text-btn danger"
+                    onClick={() => void decideReq(r, 'reject')}
+                    disabled={quotaReqBusy === r.id}
+                  >
+                    {t('拒绝')}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* 邀请码管理（2026-11-07 按用户要求从「账号」页移到「用户管理」里，D-221） */}

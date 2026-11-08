@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import type { Place } from '../lib/types';
+import { regionNeedsFill } from '../lib/region';
 import type { RangeValue } from './Timeline';
 import VisitedPanel from './VisitedPanel';
 import WishlistPanel from './WishlistPanel';
@@ -11,6 +12,20 @@ import './MyTrailPanel.css';
 
 export type MyTrailTab = 'visited' | 'wishlist';
 type SecretFilter = 'all' | 'normal' | 'secret';
+
+/**
+ * 地点详情面包屑 → My旅迹的定位请求（2026-11-08 D-290）：
+ * My旅迹收到后展开到对应省 / 市（level 决定展开到哪一级），并把地点行滚到可视区 + 短暂高亮。
+ */
+export interface MyTrailFocus {
+  /** 每次定位自增的 token：同一个对象重复传入不会重复触发 */
+  token: number;
+  level: 'province' | 'city' | 'place';
+  placeId: string;
+  province: string | null;
+  city: string | null;
+  kind: 'visited' | 'wishlist';
+}
 
 interface Props {
   /** 地图上的地点列表（已按时间轴/同行人筛选），去过 tab 直接沿用 */
@@ -34,6 +49,10 @@ interface Props {
    * 侧栏「返回」再显示时，展开状态、搜索词、滚动位置都还在（2026-11-04 D-94）。
    */
   parked?: boolean;
+  /** 从地点详情面包屑跳进来时的定位请求（2026-11-08 D-290） */
+  focus?: MyTrailFocus | null;
+  /** D-290：定位应用完成（滚动 + 高亮播完）后通知 App 清掉 focus，避免切 tab 回来重复高亮 */
+  onFocusApplied?: () => void;
 }
 
 /**
@@ -55,6 +74,8 @@ export default function MyTrailPanel({
   onClearRange,
   onChanged,
   parked = false,
+  focus = null,
+  onFocusApplied,
 }: Props) {
   const t = useT();
   const tabs: { id: MyTrailTab; label: string }[] = [
@@ -77,7 +98,8 @@ export default function MyTrailPanel({
     try {
       const all = await api.places();
       setWishCount(all.filter((p) => p.kind === 'wishlist').length);
-      setMissingRegion(all.filter((p) => !p.province || !p.city).length);
+      // 2026-11-08 D-283：港澳台（如澳门）city 为空属正常，不计入「补全地区 N」
+      setMissingRegion(all.filter(regionNeedsFill).length);
     } catch {
       /* 读不到就等用户切 tab / 手动刷新 */
     }
@@ -86,6 +108,12 @@ export default function MyTrailPanel({
   useEffect(() => {
     void refreshCounts();
   }, [refreshCounts]);
+
+  // D-290：从详情面包屑「在 My旅迹中查看」进来时，先把「全部 / 普通打卡 / 秘密基地」筛选复位，
+  // 保证目标地点一定在列表里（否则可能被上一次的筛选藏起来）。
+  useEffect(() => {
+    if (focus) setSecretFilter('all');
+  }, [focus]);
 
   const runFillRegions = async () => {
     if (!onFillRegions || filling) return;
@@ -151,6 +179,9 @@ export default function MyTrailPanel({
               embedded
               places={places}
               range={range}
+              focus={focus?.kind === 'visited' ? focus : null}
+              onFocusApplied={onFocusApplied}
+              onChanged={onChanged}
               secretFilter={secretFilter}
               onClose={onClose}
               onPick={onPick}
@@ -162,6 +193,8 @@ export default function MyTrailPanel({
         ) : (
           <WishlistPanel
             embedded
+            focus={focus?.kind === 'wishlist' ? focus : null}
+            onFocusApplied={onFocusApplied}
             onClose={onClose}
             onPick={onPick}
             onChanged={onChanged}

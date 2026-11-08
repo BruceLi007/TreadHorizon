@@ -357,3 +357,80 @@
     width: 100%;
   }
 }
+
+/* ── 存储配额 + 扩容申请（2026-11-08 D-310）── */
+.um-usage-text.is-over {
+  color: var(--bad);
+}
+
+.um-badge.is-over {
+  display: inline-block;
+  margin-top: 3px;
+  color: var(--bad);
+  border-color: rgba(224, 108, 117, 0.4);
+}
+
+.um-req-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.um-req-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+}
+
+.um-req-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.um-req-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: calc(13px * var(--fs-scale));
+  color: var(--text-1);
+}
+
+.um-req-move {
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.um-req-reason {
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.um-req-meta {
+  font-size: calc(11px * var(--fs-scale));
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.um-req-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.um-req-actions .primary {
+  height: 30px;
+  padding: 0 12px;
+}

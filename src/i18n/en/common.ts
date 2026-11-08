@@ -33,16 +33,16 @@ const dict: Dict = {
 
   // ── 设置 → 通用：语言（D-138）──
   '语言': 'Language',
-  '界面语言，点一下立即生效；和主题、字体一样只存在本机浏览器里，不写 data/、不进备份。':
-    'UI language — applied instantly. Like the theme and font, it is stored only in this browser: nothing is written to data/ or included in backups.',
+  '界面语言，点一下立即生效。语言偏好只保存在这台电脑的浏览器里。':
+    'UI language — applied instantly. The language preference is stored only in this browser on this computer.',
   '界面语言': 'UI language',
 
   // ── 设置 → 通用：主题标语（D-146 / D-147；D-147 起一句话 + 单输入框）──
   '主题': 'Theme',
   '顶栏标语': 'Top-bar slogan',
   '标语': 'Slogan',
-  '显示在顶栏大按钮组上方，作为这个应用的主题标语（一句话）。留空则不显示标语。只存本机浏览器（不写 data/、不进备份）；自定义内容不随界面语言翻译；窄屏（<1420px）下标语本来就不显示。':
-    'Shown above the big button group in the top bar as the theme line of this app (one sentence). Leave it empty to hide the slogan. Stored only in this browser (not in data/, not in backups). Custom text is not translated with the UI language. On narrow screens (<1420px) the slogan is hidden anyway.',
+  '显示在顶栏大按钮组上方，作为这个应用的主题标语（一句话）。留空则不显示标语。自定义内容不随界面语言翻译；窄屏时不显示标语。':
+    'Shown above the big button group in the top bar as the theme line of this app (one sentence). Leave it empty to hide the slogan. Custom text is not translated with the UI language. On narrow screens the slogan is hidden.',
   '顶栏标语预览': 'Slogan preview',
   '留空 → 顶栏不显示标语': 'Empty → the top-bar slogan is hidden',
   '恢复默认标语': 'Reset to default',
@@ -72,9 +72,15 @@ const dict: Dict = {
   '宋体': 'SimSun',
   '黑体': 'SimHei',
   '楷体': 'KaiTi',
-  // D-140 / D-227：随仓库发布的两款 SIL OFL 字体（喵咛狗爬黑为默认）
+  // D-140 / D-227 / D-298：随仓库发布的 SIL OFL 字体（喵咛狗爬黑为默认；嗷呜碎瘾黑 2026-11-08 D-299 已删除）
   '喵咛狗爬黑': 'Miorning Goupa Hei',
-  '嗷呜碎瘾黑': 'Howl Shattered',
+  // D-298：用户提供的 6 款 SIL OFL 1.1 界面字体
+  '猫啃什锦黑': 'Maoken Assorted Sans',
+  '荆南波波黑': 'Jingnan Bobo Hei',
+  '游趣体': 'Child Fun Sans',
+  '铁蒺藜体': 'Tiejili',
+  '呆萌手写体': 'Dymon Handwriting',
+  '字魂扁桃体': 'ZiHun Almond',
   // D-142：界面字号三档
   '字号': 'Text size',
   '界面字号': 'UI text size',
@@ -88,8 +94,8 @@ const dict: Dict = {
   '加粗': 'Bold',
   '只改界面文字大小与粗细，不动图片 / 图标 / 布局比例':
     'Only scales UI text size and weight — images, icons and layout stay the same',
-  '选择界面文字使用的常规字体，点一下立即生效。偏好和主题一样只存在本机浏览器里， 不写进 data/、不进备份；代码和等宽数字仍保持等宽字体。':
-    'Choose the regular font for UI text — clicking applies instantly. Like the theme, this preference is stored only in this browser: nothing is written to data/ or included in backups. Code and tabular numbers keep a monospace font.',
+  '选择界面文字使用的常规字体，点一下立即生效。代码和等宽数字仍保持等宽字体。':
+    'Choose the regular font for UI text — clicking applies instantly. Code and tabular numbers keep a monospace font.',
   '界面字体': 'UI font',
   'Tread Horizon Aa 2026': 'Tread Horizon Aa 2026',
   '当前：{font} · 预览：山河远阔，人间烟火。 2026.11.04':
@@ -100,7 +106,6 @@ const dict: Dict = {
   '{n} 张': '{n} per row',
 
   // ── App：启动 / 添加足迹 ──
-  '服务端没有读到 TDT_TK': 'The server could not read TDT_TK',
   '地点不存在或已删除': 'This place does not exist or has been deleted',
   '没有需要补全地区的地点': 'No places need their region filled in',
   '已补全 {ok} 个地点，{failed} 个识别失败（可稍后再试）':
@@ -171,10 +176,7 @@ const dict: Dict = {
 
   // ── App：启动失败页 ──
   '启动失败': 'Failed to start',
-  '确认服务已启动（': 'Make sure the server is running (',
   ' 或 ': ' or ',
-  '），并检查 ': '), and check ',
-  ' 里的 ': ' in ',
   '。': '.',
   '正在连接天地图…': 'Connecting to Tianditu…',
 
@@ -197,6 +199,14 @@ const dict: Dict = {
     'Invite codes are created by the admin and can be used only once; you are signed in right after signing up.',
   '数据保存在你自己的账号下，只有你能看到。':
     'Your data lives under your own account and only you can see it.',
+  // 2026-11-08 D-311 / D-312：表单改用应用内联校验，不再依赖浏览器原生「请填写此字段」气泡
+  '请输入用户名': 'Please enter your username',
+  '请输入密码': 'Please enter your password',
+  '请填写邀请码': 'Please enter an invite code',
+  '密码至少 8 位': 'Password must be at least 8 characters',
+  '请填写天地图 Key': 'Please enter the Tianditu key',
+  '请填写地图Key': 'Enter your map key',
+  '配置天地图 Key': 'Set your Tianditu key',
 
   // ── 通知 / 提示（M6 P2-1）──
   '当前没有登录账号。': 'No account is currently signed in.',
@@ -207,20 +217,14 @@ const dict: Dict = {
   // ── 本地模式首次启动配置天地图 Key 引导页（2026-11-07，D-238）──
   '这台电脑还没有配置天地图 Key，填一次就能加载地图。':
     'This computer has no Tianditu key yet. Add one once and the map will load.',
-  'Key 只保存在本机，不会写进日志，也不会进导出 / 备份。':
-    'The key is stored only on this computer; it never appears in logs, exports or backups.',
-  '也可以把 Key 写进 .env.local 的 TDT_TK，重启应用后生效。':
-    'You can also put the key in TDT_TK inside .env.local; it takes effect after a restart.',
+  'Key 只保存在这台电脑上。': 'The key is stored only on this computer.',
   '天地图 Key（32 位）': 'Tianditu key (32 characters)',
   '保存并继续': 'Save and continue',
-  '（类型选「浏览器端」，域名白名单留空）': ' (choose the "Browser" type, leave the domain allowlist empty)',
-  'Key 只保存在你自己的账号下，不会写进日志、不会出现在导出 / 备份里，也不会被其他账号看到。':
-    'The key is stored only under your own account; it never appears in logs, exports or backups, and no other account can see it.',
+  'Key 只保存在你自己的账号下，其他账号看不到。': 'The key is stored only under your own account; no other account can see it.',
 
   // ── 天地图 Key 申请教程 PDF（2026-11-07，D-222）──
   '不知道怎么申请？': 'Not sure how to apply? ',
-  '查看《天地图 Key 申请教程》（PDF，新窗口打开）':
-    'Read the Tianditu key guide (PDF, opens in a new window)',
+  '查看《天地图 Key 申请教程》': 'Read the Tianditu key guide',
 
   // ── 顶栏账号头像 / 名称（2026-11-07，D-224）──
   '更换头像': 'Change avatar',
@@ -260,13 +264,15 @@ const dict: Dict = {
   '恢复后会回到原来的位置。': 'It will be restored to its original position.',
   '清空回收站？': 'Empty Trash?',
   '彻底删除 {n} 项，释放约 {size}？': 'Permanently delete {n} item(s) and free about {size}?',
-  '数据库记录和 B 库里的原片、缩略图/预览/封面帧缓存会被':
-    'Database records and the copies, thumbnails/previews/cover frames in library B will be',
+  '删除的记录、照片 / 视频副本和缩略图缓存会被': 'The deleted records, photo/video copies and thumbnail caches will be',
   '确认': 'Confirm',
 
   // ── 照片墙按月全选（2026-11-07，D-257）──
   '全选本月': 'Select this month',
   '取消本月': 'Deselect this month',
+
+  // ── 登录页：折叠卡 / 地图打标签（2026-11-08，D-272）──
+  '开始记录我的旅迹': 'Start recording my journey',
 };
 
 export default dict;

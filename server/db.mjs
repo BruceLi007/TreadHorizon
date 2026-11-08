@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS user (
   salt          TEXT NOT NULL,
   role          TEXT NOT NULL DEFAULT 'user',      -- admin | user
   status        TEXT NOT NULL DEFAULT 'active',    -- active | disabled
-  quota_bytes   INTEGER NOT NULL DEFAULT 0,        -- 0 = 用服务端默认配额（5 GiB）
+  quota_bytes   INTEGER NOT NULL DEFAULT 0,        -- 0 = 用服务端默认配额（2026-11-08 D-310 起默认 1 GiB）
   created_at    INTEGER NOT NULL,
   last_login_at INTEGER
 );
@@ -122,6 +122,29 @@ CREATE TABLE IF NOT EXISTS user_setting (
   backup_snooze_until   INTEGER,
   updated_at            INTEGER NOT NULL
 );
+`);
+
+/**
+ * 扩容申请（2026-11-08 D-310，用户要求：云端版每账号默认 1 GiB，可以申请扩容）。
+ * 每个账号同一时间最多一条 pending；管理员批准后把 user.quota_bytes 改成批准额度；
+ * 历史申请保留（用户可以在设置 → 账号里看到状态与结果）。
+ */
+db.exec(`
+CREATE TABLE IF NOT EXISTS quota_request (
+  id              TEXT PRIMARY KEY,
+  user_id         TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+  requested_bytes INTEGER NOT NULL,                -- 用户希望的新配额（字节）
+  current_bytes   INTEGER NOT NULL,                -- 申请时的生效配额（审计用）
+  reason          TEXT,                            -- 申请理由（可选，≤200 字）
+  status          TEXT NOT NULL DEFAULT 'pending', -- pending | approved | rejected | cancelled
+  created_at      INTEGER NOT NULL,
+  decided_at      INTEGER,
+  decided_by      TEXT,                            -- 处理的管理员 user id
+  approved_bytes  INTEGER,                         -- 批准后的配额（字节）
+  admin_note      TEXT                             -- 管理员备注
+);
+CREATE INDEX IF NOT EXISTS idx_quota_request_user   ON quota_request(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_quota_request_status ON quota_request(status, created_at);
 `);
 
 /**
@@ -759,4 +782,95 @@ export function stats(ownerId = null) {
     videos: one(`SELECT COUNT(*) AS n FROM media m WHERE m.kind='video' AND m.deleted_at IS NULL${mOwner.sql}`, mOwner.params).n,
     provinces: one(`SELECT COUNT(DISTINCT p.province_code) AS n FROM place p WHERE p.deleted_at IS NULL AND p.province_code IS NOT NULL${pOwner.sql}`, pOwner.params).n,
   };
+}
+
+// ── 扩容申请（2026-11-08 D-310）───────────────────────────────
+// 云端版每账号默认 1 GiB；用满后上传被拦截，用户可以提交扩容申请，管理员在
+// 设置 → 用户管理里批准 / 拒绝。pending 同时最多一条（接口层校验）。
+
+const QUOTA_REQUEST_COLS = `id, user_id, requested_bytes, current_bytes, reason, status,
+  created_at, decided_at, decided_by, approved_bytes, admin_note`;
+
+/** 某账号当前 pending 的扩容申请（没有返回 null） */
+export function pendingQuotaRequest(userId) {
+  if (!userId) return null;
+  return (
+    db
+      .prepare(
+        `SELECT ${QUOTA_REQUEST_COLS} FROM quota_request
+          WHERE user_id = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1`
+      )
+      .get(userId) || null
+  );
+}
+
+/** 新建一条 pending 申请（id / 各类校验由调用方负责） */
+export function insertQuotaRequest({ id, userId, requestedBytes, currentBytes, reason }) {
+  db.prepare(
+    `INSERT INTO quota_request (id,user_id,requested_bytes,current_bytes,reason,status,created_at)
+     VALUES (?,?,?,?,?,'pending',?)`
+  ).run(id, userId, Number(requestedBytes), Number(currentBytes), reason || null, now());
+  return db.prepare(`SELECT ${QUOTA_REQUEST_COLS} FROM quota_request WHERE id = ?`).get(id);
+}
+
+/** 某账号自己的申请历史（最新在前，默认 10 条） */
+export function listQuotaRequestsForUser(userId, limit = 10) {
+  if (!userId) return [];
+  const n = Math.min(100, Math.max(1, Math.floor(Number(limit) || 10)));
+  return db
+    .prepare(
+      `SELECT ${QUOTA_REQUEST_COLS} FROM quota_request
+        WHERE user_id = ? ORDER BY created_at DESC LIMIT ?`
+    )
+    .all(userId, n);
+}
+
+/** 管理员：全部申请（status 为空 = 全部；join 账号名，pending 排前面） */
+export function listQuotaRequests({ status = null, limit = 100 } = {}) {
+  const n = Math.min(500, Math.max(1, Math.floor(Number(limit) || 100)));
+  const where = status ? 'WHERE qr.status = ?' : '';
+  const params = status ? [status, n] : [n];
+  return db
+    .prepare(
+      `SELECT qr.id, qr.user_id, qr.requested_bytes, qr.current_bytes, qr.reason, qr.status,
+              qr.created_at, qr.decided_at, qr.decided_by, qr.approved_bytes, qr.admin_note,
+              u.username, u.display_name
+         FROM quota_request qr JOIN user u ON u.id = qr.user_id
+         ${where}
+        ORDER BY CASE qr.status WHEN 'pending' THEN 0 ELSE 1 END, qr.created_at DESC
+        LIMIT ?`
+    )
+    .all(...params);
+}
+
+/** 取一条申请（不存在返回 null） */
+export function getQuotaRequest(id) {
+  return db.prepare(`SELECT ${QUOTA_REQUEST_COLS} FROM quota_request WHERE id = ?`).get(id) || null;
+}
+
+/** 管理员审批：更新状态 / 批准额度 / 备注，返回更新后的行 */
+export function decideQuotaRequest(id, { status, approvedBytes = null, decidedBy, adminNote = null }) {
+  db.prepare(
+    `UPDATE quota_request
+        SET status = ?, decided_at = ?, decided_by = ?, approved_bytes = ?, admin_note = ?
+      WHERE id = ?`
+  ).run(status, now(), decidedBy || null, approvedBytes, adminNote, id);
+  return getQuotaRequest(id);
+}
+
+/** 用户取消自己的 pending 申请（返回是否真的取消了一条） */
+export function cancelQuotaRequest(id, userId) {
+  const r = db
+    .prepare(`UPDATE quota_request SET status = 'cancelled', decided_at = ? WHERE id = ? AND user_id = ? AND status = 'pending'`)
+    .run(now(), id, userId);
+  return Number(r.changes) > 0;
+}
+
+/** 管理员直接调整某账号配额时，把它所有 pending 申请一并结案（approved） */
+export function resolvePendingQuotaRequests(userId, { approvedBytes, decidedBy, adminNote = null }) {
+  db.prepare(
+    `UPDATE quota_request
+        SET status = 'approved', decided_at = ?, decided_by = ?, approved_bytes = ?, admin_note = ?
+      WHERE user_id = ? AND status = 'pending'`
+  ).run(now(), decidedBy || null, approvedBytes, adminNote, userId);
 }

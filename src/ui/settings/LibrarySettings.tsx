@@ -65,7 +65,7 @@ function UserLibraryInfo({ onChanged }: { onChanged: () => void }) {
     try {
       const r = await api.relink();
       setMsg(
-        t('扫描 {scanned} 个文件 · 重新关联 {matched} 个（按文件名 {byName}，按内容 {byHash}） · 仍缺失 {stillMissing} 个 · {ms}ms', {
+        t('扫描 {scanned} 个文件 · 重新关联 {matched} 个 · 仍缺失 {stillMissing} 个（{ms}ms）', {
           scanned: r.scanned,
           matched: r.matched,
           byName: r.byName,
@@ -187,7 +187,7 @@ function UserLibraryInfo({ onChanged }: { onChanged: () => void }) {
             </button>
           </div>
           <p className="hint" style={{ marginTop: 6 }}>
-            {t('提示：素材实际存放在这个文件夹里、以你的账号 ID 命名的子目录中；点「打开本地文件夹」会直接打开那个子目录。')}
+            {t('提示：素材实际存放在这个文件夹下以你账号命名的子目录里；点「打开本地文件夹」会直接打开那个子目录。')}
           </p>
         </div>
 
@@ -205,7 +205,7 @@ function UserLibraryInfo({ onChanged }: { onChanged: () => void }) {
         )}
 
         <button className="ghost full" onClick={() => void doRelink()} disabled={!!busy}>
-          {busy ? busy : t('重新关联（按文件名 → 大小 → 内容哈希）')}
+          {busy ? busy : t('重新关联（按文件名 → 大小 → 内容比对）')}
         </button>
 
         <label className="field" style={{ marginTop: 18 }}>
@@ -222,7 +222,7 @@ function UserLibraryInfo({ onChanged }: { onChanged: () => void }) {
           {t('切换路径（自动同步素材）')}
         </button>
         <p className="hint" style={{ marginTop: 8 }}>
-          {t('所选文件夹下会自动创建你的账号专属目录（<路径>/<账号ID>/省/市/…）；切换时会自动把当前账号的素材同步到新位置。')}
+          {t('所选文件夹下会自动创建你的账号专属文件夹；切换时会自动把当前账号的素材同步到新位置。')}
         </p>
 
         {lib?.customized && (
@@ -243,10 +243,10 @@ function UserLibraryInfo({ onChanged }: { onChanged: () => void }) {
           <h3 className="set-section-title">{t('说明')}</h3>
         </div>
         <p className="set-section-desc">
-          {t('视频封面、1600 预览和缩略图由服务器统一生成；上传只是把电脑里的原件复制一份到素材库（应用副本），你电脑上的原文件不会被移动、修改或删除。')}
+          {t('视频封面、预览和缩略图会自动生成；上传只是把电脑里的文件复制一份到素材库，你电脑上的原文件不会被移动、修改或删除。')}
         </p>
         <p className="set-section-desc">
-          {t('想完整带走素材：到「备份与恢复」里导出含原片的 zip（也可以再恢复回来）。')}
+          {t('想完整带走素材：到「备份与恢复」里导出含素材的备份（也可以再恢复回来）。')}
         </p>
       </section>
     </div>
@@ -302,7 +302,7 @@ export default function LibrarySettings({ onChanged, multi = false, isAdmin = fa
         setMsg(t('失败：') + r.error);
       } else if (!silent) {
         setMsg(
-          t('扫描 {scanned} 个文件 · 重新关联 {matched} 个（按文件名 {byName}，按内容 {byHash}） · 仍缺失 {stillMissing} 个 · {ms}ms', {
+          t('扫描 {scanned} 个文件 · 重新关联 {matched} 个 · 仍缺失 {stillMissing} 个（{ms}ms）', {
             scanned: r.scanned,
             matched: r.matched,
             byName: r.byName,
@@ -389,8 +389,8 @@ export default function LibrarySettings({ onChanged, multi = false, isAdmin = fa
         </div>
         <p className="set-section-desc">
           {multi
-            ? t('多用户模式下素材库按账号独立：这里显示/修改的是你自己账号的素材库位置；切换路径会把你的素材同步过去，不影响其他账号。照片 / 视频上传时从本地原件 A 复制一份到 B，缩略图、预览和播放都读 B，A 永远不动。')
-            : t('应用库 B 的位置。照片 / 视频上传时从本地原件 A 复制到 B；缩略图、预览和播放都读 B，A 永远不动。切换路径时会把整个素材库同步到新位置。')}
+            ? t('多用户模式下素材库按账号独立：这里显示/修改的是你自己账号的素材库位置；切换路径会把你的素材同步过去，不影响其他账号。照片 / 视频上传时会把文件复制到素材库，缩略图、预览和播放都读素材库，你电脑上的原文件永远不动。')
+            : t('素材库的位置。照片 / 视频上传时会把文件复制到素材库；缩略图、预览和播放都读素材库，你电脑上的原文件永远不动。切换路径时会把整个素材库同步到新位置。')}
         </p>
 
         <div className="field-static">
@@ -404,7 +404,7 @@ export default function LibrarySettings({ onChanged, multi = false, isAdmin = fa
           </div>
           {multi && (
             <p className="hint" style={{ marginTop: 6 }}>
-              {t('提示：素材实际存放在这个文件夹里、以你的账号 ID 命名的子目录中；点「打开本地文件夹」会直接打开那个子目录。')}
+              {t('提示：素材实际存放在这个文件夹下以你账号命名的子目录里；点「打开本地文件夹」会直接打开那个子目录。')}
             </p>
           )}
         </div>
@@ -421,7 +421,7 @@ export default function LibrarySettings({ onChanged, multi = false, isAdmin = fa
         </div>
 
         <button className="ghost full" onClick={() => void doRelink()} disabled={!!busy}>
-          {busy ? busy : t('重新关联（按文件名 → 大小 → 内容哈希）')}
+          {busy ? busy : t('重新关联（按文件名 → 大小 → 内容比对）')}
         </button>
 
         <label className="field" style={{ marginTop: 18 }}>
@@ -451,7 +451,7 @@ export default function LibrarySettings({ onChanged, multi = false, isAdmin = fa
 
         <p className="hint" style={{ marginTop: 18 }}>
           {multi
-            ? t('切换路径时会把你自己账号的素材同步到新位置（自动创建 <新路径>/<账号ID>/省/市/…）；换电脑后也可以先把素材库拷过去、再切换路径。')
+            ? t('切换路径时会把你自己账号的素材同步到新位置；换电脑后也可以先把素材库拷过去、再切换路径。')
             : t('切换路径时会把整个素材库同步到新位置；换电脑也可以先把素材库文件夹拷到新机器，再切换路径并重新关联。')}
         </p>
       </section>
@@ -461,7 +461,7 @@ export default function LibrarySettings({ onChanged, multi = false, isAdmin = fa
           <h3 className="set-section-title">{t('视频 · 封面帧')}</h3>
         </div>
         <div className="field-static">
-          <span>ffmpeg</span>
+          <span>{t('视频封面组件')}</span>
           <div className="value">
             {ffmpeg === null
               ? t('检测中…')
@@ -472,7 +472,7 @@ export default function LibrarySettings({ onChanged, multi = false, isAdmin = fa
         </div>
         {ffmpeg === false && (
           <p className="hint">
-            {t('装好 ffmpeg 后重启服务即可；也可以设置 FFMPEG_PATH 环境变量指向 exe。没装也不影响播放视频本身。')}
+            {t('安装视频封面组件后重启应用即可；不装也不影响视频播放。')}
           </p>
         )}
       </section>

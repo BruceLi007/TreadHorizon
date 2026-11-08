@@ -172,7 +172,7 @@ export default function GeneralSettings({
           <span className="set-section-tag">{lang === 'en' ? 'English' : '简体中文'}</span>
         </div>
         <p className="set-section-desc">
-          {t('界面语言，点一下立即生效；和主题、字体一样只存在本机浏览器里，不写 data/、不进备份。')}
+          {t('界面语言，点一下立即生效。语言偏好只保存在这台电脑的浏览器里。')}
         </p>
         <Segmented
           size="sm"
@@ -191,7 +191,7 @@ export default function GeneralSettings({
           <span className="set-section-tag">{t('顶栏标语')}</span>
         </div>
         <p className="set-section-desc">
-          {t('显示在顶栏大按钮组上方，作为这个应用的主题标语（一句话）。留空则不显示标语。只存本机浏览器（不写 data/、不进备份）；自定义内容不随界面语言翻译；窄屏（<1420px）下标语本来就不显示。')}
+          {t('显示在顶栏大按钮组上方，作为这个应用的主题标语（一句话）。留空则不显示标语。自定义内容不随界面语言翻译；窄屏时不显示标语。')}
         </p>
         <label className="field">
           <span>{t('标语')}</span>
@@ -289,7 +289,7 @@ export default function GeneralSettings({
           <div className="set-markercolor-head">
             <span className="set-markercolor-title">{t('图标配色')}</span>
             <span className="set-markercolor-hint">
-              {t('先点一种图标，再点下面色条里的颜色；「恢复默认颜色」回到每种图标的默认色；只改地图、聚合点和列表里的图标颜色；只存本机浏览器，不写 data/、不进备份。')}
+              {t('先点一种图标，再点下面色条里的颜色；「恢复默认颜色」回到每种图标的默认色；只改地图、聚合点和列表里的图标颜色。')}
             </span>
           </div>
 
@@ -366,7 +366,7 @@ export default function GeneralSettings({
           <span className="set-section-tag">{fontLabel}</span>
         </div>
         <p className="set-section-desc">
-          {t('选择界面文字使用的常规字体，点一下立即生效。偏好和主题一样只存在本机浏览器里， 不写进 data/、不进备份；代码和等宽数字仍保持等宽字体。')}
+          {t('选择界面文字使用的常规字体，点一下立即生效。代码和等宽数字仍保持等宽字体。')}
         </p>
 
         <div className="set-font-grid" role="radiogroup" aria-label={t('界面字体')}>

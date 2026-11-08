@@ -14,7 +14,7 @@ export const TDT_GUIDE_URL = '/docs/tianditu-key-guide.pdf';
 /** 第一次配置 Key（KeySetupPage）与 设置 → 天地图 Key（TdtSettings）共用的教程链接 */
 export default function TdtGuideLink() {
   const t = useT();
-  const label = t('查看《天地图 Key 申请教程》（PDF，新窗口打开）');
+  const label = t('查看《天地图 Key 申请教程》');
   return (
     <a
       className="tdt-guide-link"

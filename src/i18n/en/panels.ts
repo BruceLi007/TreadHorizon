@@ -242,8 +242,6 @@ const dict: Dict = {
   '当前筛选下没有照片。': 'No photos match the current filter.',
   '还没有照片。': 'No photos yet.',
   '清空筛选': 'Clear filters',
-  '{y} 年': 'Year {y}',
-  '未知年份': 'Unknown year',
   '正在加载更多…': 'Loading more…',
   '加载失败：{error}': 'Failed to load: {error}',
   '已加载 {loaded} / {total} 张': 'Loaded {loaded} / {total} photos',
@@ -296,14 +294,13 @@ const dict: Dict = {
   '暂无待处理内容': 'Nothing pending',
   '切换排序：最近删除的在前 / 最早删除的在前':
     'Switch sorting: most recently deleted first / earliest deleted first',
-  '回收站占用（原片 + 缩略图/预览缓存）':
-    'Trash size (originals + thumbnail/preview caches)',
+  '回收站占用（照片 / 视频 + 缩略图缓存）': 'Trash size (photos/videos + thumbnail caches)',
   '{media} 个照片/视频 · {places} 个地点 · {visits} 次到访':
     '{media} photos/videos · {places} places · {visits} visits',
   '删除的内容先放这里，': 'Deleted items land here first — ',
   '不会立刻释放空间': 'space is not freed immediately',
-  '；点「彻底删除」才会删 B 库文件并释放空间。 父级删除只带走当时还在的内容，之前单独删的会留在原层级。':
-    '; only “Delete permanently” removes library B files and frees space. Deleting a parent only takes what was present at the time; items deleted separately earlier stay at their original level.',
+  '；点「彻底删除」才会真正释放空间。父级删除只带走当时还在的内容，之前单独删的会留在原层级。':
+    '; only “Delete permanently” actually frees space. Deleting a parent only takes what was present at the time; items deleted separately earlier stay at their original level.',
   '回收站分类': 'Trash categories',
   '全选': 'Select all',
   '已选 {n} 项': '{n} selected',
@@ -319,10 +316,8 @@ const dict: Dict = {
   '恢复中…': 'Restoring…',
   '彻底删除 {n} 项': 'Delete {n} items permanently',
   '，释放约': ', freeing about',
-  '数据库记录和 B 库里的原片、缩略图/预览/封面帧缓存会':
-    'Database records and library B originals, thumbnails, preview and cover-frame caches will be ',
   '永久删除，无法恢复': 'permanently deleted and cannot be recovered',
-  '； 你的本地原件 A 不受影响。': '; your local originals in library A are untouched.',
+  '；你电脑上的原文件不受影响。': '; the original files on your computer are untouched.',
   ' 会连带清理此前单独删除的 {items}。':
     ' It will also clean up {items} that were deleted separately earlier.',
   '删除中…': 'Deleting…',

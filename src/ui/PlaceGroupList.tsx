@@ -39,6 +39,13 @@ interface ProvGroup {
 }
 
 /**
+ * 2026-11-08 D-283（用户反馈澳门出现「未标注」层级）：
+ * 某省下所有地点都没有「市」时（如澳门，天地图逆地理只返回省级），
+ * 不渲染「未标注」市分组，地点直接挂在省下面。
+ */
+const flattenCities = (pg: ProvGroup) => pg.cities.length === 1 && pg.cities[0].name === NA;
+
+/**
  * 地点列表的通用「省 → 市」两级分组 + 折叠（D-38/D-42/D-43 的延伸）
  * 所有地点列表（去过/想去/簇成员/合并候选）统一用这套层级，避免出现散列表。
  */
@@ -102,6 +109,32 @@ export default function PlaceGroupList({
   const toggleCity = (key: string) =>
     setOpenCity((cur) => (cur.includes(key) ? cur.filter((x) => x !== key) : [...cur, key]));
 
+  /** 地点行（「省 → 市 → 地点」与「省下直接挂地点」两种结构共用） */
+  const placeRow = (p: Place) => (
+    <div
+      key={p.id}
+      className={selectedId === p.id ? 'wish-row merge-row chosen' : 'wish-row merge-row'}
+      onClick={() => onPick(p)}
+    >
+      <div className="wish-main">
+        <div className="wish-name">
+          {p.kind === 'wishlist' && <span className="kind-wish">{t('想去')}</span>}
+          {p.name}
+        </div>
+        <div className="wish-meta">
+          {regionOf(p, t, tp)} · {visitText(p, t)}
+          {p.last_date
+            ? ' · ' +
+              t('最近 {date}', {
+                date: p.last_date.slice(0, 7).replace('-', '.'),
+              })
+            : ''}
+        </div>
+      </div>
+      {selectedId === p.id && <span className="merge-check">✓</span>}
+    </div>
+  );
+
   if (!places.length) return <div className="muted pad">{emptyText ?? t('没有地点。')}</div>;
 
   return (
@@ -128,7 +161,11 @@ export default function PlaceGroupList({
           </div>
 
           {provOpen(pg.name) &&
-            pg.cities.map((cg) => {
+            (flattenCities(pg) ? (
+              // D-283：该省下所有地点都没有「市」→ 不显示「未标注」这一级，地点直接挂在省下
+              pg.cities[0].items.map(placeRow)
+            ) : (
+              pg.cities.map((cg) => {
               const key = `${pg.name}/${cg.name}`;
               const open = cityOpen(key);
               return (
@@ -154,38 +191,10 @@ export default function PlaceGroupList({
                     </span>
                   </div>
 
-                  {open &&
-                    cg.items.map((p) => (
-                      <div
-                        key={p.id}
-                        className={
-                          selectedId === p.id ? 'wish-row merge-row chosen' : 'wish-row merge-row'
-                        }
-                        onClick={() => onPick(p)}
-                      >
-                        <div className="wish-main">
-                          <div className="wish-name">
-                            {p.kind === 'wishlist' && (
-                              <span className="kind-wish">{t('想去')}</span>
-                            )}
-                            {p.name}
-                          </div>
-                          <div className="wish-meta">
-                            {regionOf(p, t, tp)} · {visitText(p, t)}
-                            {p.last_date
-                              ? ' · ' +
-                                t('最近 {date}', {
-                                  date: p.last_date.slice(0, 7).replace('-', '.'),
-                                })
-                              : ''}
-                          </div>
-                        </div>
-                        {selectedId === p.id && <span className="merge-check">✓</span>}
-                      </div>
-                    ))}
+                  {open && cg.items.map(placeRow)}
                 </div>
               );
-            })}
+            })))}
         </div>
       ))}
     </div>

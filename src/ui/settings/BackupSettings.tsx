@@ -96,10 +96,10 @@ export default function BackupSettings({
 
   // 两条说明用显式 t() 调用（i18n-check 静态扫描需要字面量字符串）
   const adminDesc = t(
-    '管理员备份包含服务器上所有账号的数据（数据库快照 + 可选缩略图 / 素材）。恢复会覆盖整库，请先确认。'
+    '管理员备份包含服务器上所有账号的数据（可选缩略图 / 素材）。恢复会覆盖整个服务器的数据，请先确认。'
   );
   const localDesc = t(
-    '备份只含应用数据（元数据 + 可选缩略图 / 照片视频素材），不打包 A 原件。恢复前会自动备份当前数据， 中途失败会事务回滚；含素材的恢复只写 / 覆盖备份里的文件，不删除素材库里的其它文件。'
+    '备份只含应用数据（可选缩略图 / 照片视频素材）。恢复前会自动备份当前数据，中途失败会回滚；含素材的恢复只写入 / 覆盖备份里的文件，不删除素材库里的其它文件。'
   );
 
   return (
@@ -113,7 +113,7 @@ export default function BackupSettings({
           {t('从电脑本地选择照片 / 视频上传时，应用会把原件复制一份到素材库 B，并按「省 / 市 / 区县 / 日期_地点名」的文件夹结构存放（例如 浙江省/杭州市/西湖区/2024-03-10_西湖/），方便在资源管理器里按地区和日期翻看。')}
         </p>
         <p className="set-section-desc">
-          {t('原片 A 不会被移动、也不会被修改；也就是说同一份素材在你的电脑上会存两份（A 原件 + B 副本），上传前请确认磁盘空间足够。备份 / 恢复只涉及应用数据和 B 里的副本，A 原件永远不动。')}
+          {t('上传时你电脑上的原始文件不会被移动或修改，素材库会另存一份副本，上传前请确认磁盘空间足够。备份 / 恢复只涉及应用数据和素材库里的副本。')}
         </p>
       </section>
 
@@ -125,16 +125,16 @@ export default function BackupSettings({
           <div className="bk-card">
             <div className="bk-card-head">
               <span className="bk-card-title">{t('导出我的数据')}</span>
-              <span className="bk-muted">{t('zip：元数据 + 缩略图 + 可选素材')}</span>
+              <span className="bk-muted">{t('备份包：应用数据 + 缩略图 + 可选素材')}</span>
             </div>
             <p className="set-section-desc" style={{ marginTop: 0 }}>
-              {t('导出只包含你自己的账号数据（地点 / 到访 / 笔记 / 媒体记录，可选缩略图，可选照片视频原片），不会包含其他账号的数据。这个 zip 可以在下面「从我的备份恢复」里恢复回你自己的账号。')}
+              {t('导出只包含你自己的账号数据（地点 / 到访 / 笔记 / 媒体记录，可选缩略图，可选照片视频文件），不会包含其他账号的数据。这个备份可以在下面「从我的备份恢复」里恢复回你自己的账号。')}
             </p>
             {/* 用户反馈：元数据固定包含、不可取消；补一行「元数据（必选）」和本地 / 管理员界面一致 */}
             <label className="bk-check bk-check-fixed">
               <input type="checkbox" checked readOnly disabled onChange={() => undefined} />
               <span>
-                {t('元数据（必选）')}
+                {t('应用数据（必选）')}
                 <small>{t('地点 / 到访 / 笔记 / 评分 / 回收站，备份的核心数据')}</small>
               </span>
             </label>
@@ -152,16 +152,16 @@ export default function BackupSettings({
                 checked={includeMedia}
                 onChange={(e) => setIncludeMedia(e.target.checked)}
               />
-              <span>{t('包含照片 / 视频原片（体积可能很大）')}</span>
+              <span>{t('包含照片 / 视频文件（体积可能很大）')}</span>
             </label>
             <a
               className="primary full user-export-btn"
               href={api.userExportUrl({ thumbs: includeThumbs, media: includeMedia })}
             >
-              {t('下载导出 zip')}
+              {t('下载导出包')}
             </a>
             <p className="hint">
-              {t('文件包含 manifest.json / data.json / README.txt，以及可选的缩略图与素材；文件名形如「My旅迹数据导出-你的名字-2026-11-06.zip」。素材多时打包会久一点。')}
+              {t('文件包含应用数据、说明文件，以及可选的缩略图与素材；素材多时打包会久一点。')}
             </p>
           </div>
 
@@ -169,10 +169,10 @@ export default function BackupSettings({
           <div className="bk-card">
             <div className="bk-card-head">
               <span className="bk-card-title">{t('从我的备份恢复')}</span>
-              <span className="bk-muted">{t('选择 .zip 备份包')}</span>
+              <span className="bk-muted">{t('选择备份文件')}</span>
             </div>
             <p className="set-section-desc" style={{ marginTop: 0 }}>
-              {t('选择你之前用「导出我的数据」下载的 zip（含 manifest.json / data.json），检查通过后可以把地点 / 到访 / 照片视频记录恢复回当前账号。恢复会替换当前账号的全部数据（其他账号不受影响）；恢复前会自动导出当前数据作为备份。秘密基地密码和天地图 Key 不随导出恢复，需要的话恢复后请重新设置。')}
+              {t('选择你之前用「导出我的数据」下载的备份文件，检查通过后可以把地点 / 到访 / 照片视频记录恢复回当前账号。恢复会替换当前账号的全部数据（其他账号不受影响）；恢复前会自动导出当前数据作为备份。秘密基地密码和天地图 Key 不随导出恢复，需要的话恢复后请重新设置。')}
             </p>
 
             <input
@@ -250,7 +250,7 @@ export default function BackupSettings({
                       ? t('包含 {n} 个文件', { n: restoreSummary.filesInZip.media })
                       : t('不含（只恢复记录）')}
                     {restoreSummary.missingMedia > 0
-                      ? ' · ' + t('缺 {n} 个原片', { n: restoreSummary.missingMedia })
+                      ? ' · ' + t('缺 {n} 个素材文件', { n: restoreSummary.missingMedia })
                       : ''}
                   </span>
                 </div>
@@ -288,7 +288,7 @@ export default function BackupSettings({
             )}
 
             <p className="hint" style={{ marginTop: 8 }}>
-              {t('恢复只替换你自己的账号数据；其他账号不受影响。恢复前会自动把当前数据导出成一个 zip 放在服务器 data/backups 里，恢复后如需回退可以用它再恢复一次。')}
+              {t('恢复只替换你自己的账号数据；其他账号不受影响。恢复前会自动备份当前数据，恢复后如需回退可以用它再恢复一次。')}
             </p>
           </div>
         </div>

@@ -31,7 +31,7 @@ function loadScript(src: string): Promise<void> {
  */
 export function loadTdt(tk: string): Promise<any> {
   if (pending) return pending;
-  if (!tk) return Promise.reject(new Error(tr('没有配置天地图 key（.env.local 里的 TDT_TK）')));
+  if (!tk) return Promise.reject(new Error(tr('还没有配置天地图 Key')));
 
   pending = (async () => {
     await loadScript(`https://api.tianditu.gov.cn/api?v=4.0&tk=${encodeURIComponent(tk)}`);

@@ -1568,8 +1568,7 @@ export default function MapView({
           <h3>{t('地图加载失败')}</h3>
           <p>{error}</p>
           <p className="hint">
-            {t('检查')} <code>.env.local</code> {t('里的')} <code>TDT_TK</code>
-            {t('，以及网络能否访问天地图。')}
+            {t('请到 设置 → 天地图 Key 检查 Key 是否正确，并确认网络能访问天地图。')}
           </p>
         </div>
       )}

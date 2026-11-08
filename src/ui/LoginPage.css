@@ -17,15 +17,70 @@
   color: var(--text-1);
 }
 
+/* 2026-11-08 D-267（用户要求）：登录卡始终居中；默认更透（能看到背后的地图），
+   鼠标移上去 / 键盘聚焦到卡片内时变成不透明，保证输入时清晰。 */
+@media (min-width: 1100px) {
+  .login-page {
+    place-items: center;
+    padding-right: 24px;
+  }
+}
+
 .login-card {
+  position: relative;
+  z-index: 2;
   width: min(400px, 100%);
   padding: 34px 30px 26px;
   border-radius: 18px;
+  /* 先给不透明底色兜底；支持 color-mix 的浏览器再换成半透明毛玻璃。
+     2026-11-08 观感微调（用户拍板）：默认透明度 60% → 66%，文字更实、地图仍透得出来。 */
   background: var(--bg-panel);
+  background-color: color-mix(in srgb, var(--bg-panel) 66%, transparent);
+  backdrop-filter: blur(22px) saturate(1.08);
   border: 1px solid var(--line);
   box-shadow:
     0 28px 70px rgba(0, 0, 0, 0.28),
     0 2px 8px rgba(0, 0, 0, 0.12);
+  transition:
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease,
+    opacity 200ms ease;
+}
+
+/* 2026-11-08（用户要求）：登录页卡片默认折叠在左下角按钮里，点「开始记录我的旅迹」才弹出；
+   Key 引导页的卡片不加这个 class，始终显示。 */
+.login-card-collapsible {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(14px) scale(0.94);
+  transform-origin: 50% 100%;
+  transition:
+    opacity 200ms ease,
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.login-card-collapsible.is-open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+
+/* 只有鼠标悬停才变不透明（D-267 用户要求）。
+   不用 :focus-within / :has(input:focus-visible)：用户名输入框 autoFocus 时，
+   浏览器会把这种「无鼠标交互前的程序聚焦」也算 :focus-visible，导致一进页面就不透明。
+   2026-11-08（登录页观感微调）：不透明之外再加 2px 上浮，反馈更明确。 */
+.login-card:not(.login-card-collapsible):hover,
+.login-card.is-open:hover {
+  background-color: var(--bg-panel);
+  transform: translateY(-2px);
+  box-shadow:
+    0 32px 84px rgba(0, 0, 0, 0.36),
+    0 2px 10px rgba(0, 0, 0, 0.16);
 }
 
 html:is([data-theme='light'], [data-theme='white']) .login-card {
@@ -62,7 +117,7 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
 .login-lead {
   margin: 0 0 18px;
   text-align: center;
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: calc(13px * var(--fs-scale));
   color: var(--text-3);
   line-height: 1.6;
 }
@@ -105,7 +160,7 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
 
 .login-field input::placeholder {
   color: var(--text-3);
-  opacity: 0.8;
+  opacity: 0.85;
 }
 
 .login-field input:focus {
@@ -160,7 +215,7 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
 .login-foot {
   margin: 16px 0 0;
   text-align: center;
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: calc(12px * var(--fs-scale));
   color: var(--text-2);
   line-height: 1.6;
 }
@@ -168,7 +223,7 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
 .login-note {
   margin: 6px 0 0;
   text-align: center;
-  font-size: calc(11px * var(--fs-scale));
+  font-size: calc(11.5px * var(--fs-scale));
   color: var(--text-3);
   line-height: 1.6;
 }
@@ -192,5 +247,432 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
 
   .login-brand-name {
     font-size: calc(22px * var(--fs-scale));
+  }
+}
+
+/* ── 2026-11-08 D-268：背景换成明亮 Q 版 3D 地图后，登录 / Key 引导页固定用「浅色磨砂卡」──
+   不再跟随深色主题（深色半透明卡压在明亮彩色场景上会发灰、文字难读）；
+   把主题 token 在 .login-page 内重定义为浅色一套，卡片 / 输入框 / 按钮 / 分段控件自动跟着变。 */
+.login-page {
+  --bg-panel: #ffffff;
+  --bg-raised: #f3f8fc;
+  --bg-map: #eaf5fc;
+  --text-1: #17293b;
+  --text-2: #465b6f;
+  /* 2026-11-08（登录页观感微调）：半透明卡片（60~66%）上原来的 #6c8298 对比只有 ~3.5:1
+     （正文需 ≥4.5:1），副文案发灰；加深到 #56697d 后约 5:1。 */
+  --text-3: #56697d;
+  --line: #d2e2ef;
+  --accent: #1d2b3a;
+  --accent-ink: #ffffff;
+  --accent-rgb: 29, 43, 58;
+  --accent-soft: rgba(29, 43, 58, 0.08);
+}
+
+.login-page .login-card {
+  border-color: rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 22px 56px rgba(31, 71, 102, 0.2),
+    0 2px 10px rgba(31, 71, 102, 0.08);
+}
+
+.login-page .login-card:hover {
+  box-shadow:
+    0 30px 70px rgba(31, 71, 102, 0.26),
+    0 3px 12px rgba(31, 71, 102, 0.1);
+}
+
+/* 分段控件在浅色卡上也用浅色轨道（深色主题默认是深轨道） */
+.login-page .seg {
+  --seg-track: rgba(20, 40, 60, 0.07);
+  --seg-thumb: #ffffff;
+  --seg-thumb-shadow: 0 1px 3px rgba(20, 40, 60, 0.18);
+}
+
+.login-page .login-foot a {
+  color: #1c6fa8;
+}
+
+/* ── 2026-11-08（用户要求）：登录卡折叠 / 左下角「开始记录我的旅迹」按钮 ── */
+.login-card-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--text-2);
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease,
+    transform 120ms ease;
+}
+
+.login-card-close:hover {
+  background: #ffffff;
+  color: var(--text-1);
+  border-color: rgba(29, 43, 58, 0.24);
+}
+
+.login-card-close:active {
+  transform: scale(0.96);
+}
+
+.login-card-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 2026-11-08 D-303（用户要求）：按钮文字逐字拆分——
+   鼠标不在按钮上：每个字各自随机左右轻摇（相位 / 周期 / 幅度都由行内 CSS 变量给，
+   每字不同）；鼠标移上去（或键盘聚焦）时全部回正。小人物图标不参与、始终不动。 */
+.login-launch-text {
+  display: inline-flex;
+  align-items: center;
+}
+
+.login-char {
+  display: inline-block;
+  transform-origin: 50% 88%;
+  animation: login-char-wiggle var(--wiggle-dur, 1.3s) ease-in-out var(--wiggle-delay, 0s) infinite
+    alternate;
+  transition: transform 140ms ease;
+}
+
+@keyframes login-char-wiggle {
+  from {
+    transform: rotate(calc(var(--wiggle-rot, 3deg) * -1));
+  }
+  to {
+    transform: rotate(var(--wiggle-rot, 3deg));
+  }
+}
+
+/* 鼠标移到按钮上 / 键盘聚焦：所有字回正（动画停止，残余旋转归零） */
+.login-launch:hover .login-char,
+.login-launch:focus-visible .login-char {
+  animation: none;
+  transform: rotate(0deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-char {
+    animation: none;
+  }
+}
+
+/* 右下角按钮（2026-11-08 D-277 用户要求：图标换成本次定稿的 Q 版徒步者小人物；
+   按钮整体再放大一档、字重加粗；悬停时小人物轻跳一下）。 */
+.login-launch {
+  position: absolute;
+  right: clamp(20px, 6.2vw, 160px);
+  bottom: clamp(20px, 19.5vh, 252px);
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  padding: 0 30px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  background: color-mix(in srgb, #ffffff 82%, transparent);
+  backdrop-filter: blur(10px) saturate(1.08);
+  color: var(--text-1);
+  font: inherit;
+  font-size: calc(18px * var(--fs-scale));
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow:
+    0 10px 28px rgba(31, 71, 102, 0.22),
+    0 2px 6px rgba(31, 71, 102, 0.12);
+  transition:
+    background-color 160ms ease,
+    transform 160ms ease,
+    box-shadow 180ms ease;
+}
+
+/* Q 版徒步者小人物（白底按钮上 = 纯黑；深色场景改 currentColor 即可） */
+.login-launch-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #111111;
+  flex: none;
+}
+
+.login-launch-mark svg {
+  display: block;
+  height: calc(26px * var(--fs-scale));
+  width: auto;
+  transform-origin: 50% 100%;
+}
+
+/* 悬停：标记轻跳一下（动效数值与应用里 marker 的悬停轻跳完全一致） */
+.login-launch:hover .login-launch-mark svg {
+  animation: login-mark-hop 340ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes login-mark-hop {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  35% {
+    transform: translateY(-2px) scale(1.05);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+.login-launch:hover {
+  background: #ffffff;
+  transform: translateY(-1px);
+  box-shadow:
+    0 14px 32px rgba(31, 71, 102, 0.26),
+    0 3px 8px rgba(31, 71, 102, 0.14);
+}
+
+.login-launch:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.login-launch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── 2026-11-08 D-281（用户要求）：本地模式启动欢迎页 ──
+   本地版也显示与登录页同一套界面（背景 / 左上 Logo + 标语 / 右上太阳 / 34 省卡片 / 右下按钮），
+   但没有登录卡 —— 点「开始记录我的旅迹」直接进入应用。点击后先淡出再挂载主界面，
+   避免明亮欢迎页直接切到深色地图的硬切感。 */
+.local-entry-page {
+  transition: opacity 240ms ease;
+}
+
+.local-entry-page.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── 2026-11-08 D-277（用户要求）：左上角改为「正式 Logo + 右侧缩小的主题标语」──
+   正式 Logo 用 BrandLogo 组件（墨色 currentColor，跟随登录页浅色文字 token）；
+   主题标语比之前小一档，与 Logo 垂直居中放在右侧（不再绝对定位在左上角）。 */
+.login-brand-row {
+  position: absolute;
+  /* 2026-11-08 D-302：与应用顶栏品牌区同一套「垂直中心」坐标——
+     宽屏中心 96px（= 应用 HUD 行中心）、窄屏（≤1419）中心 44px；
+     这样欢迎页点「开始记录我的旅迹」进入应用时 Logo / 标语仍不跳位。 */
+  top: 96px;
+  transform: translateY(-50%);
+  left: clamp(16px, 3.2vw, 64px);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 1.5vw, 26px);
+  max-width: calc(100vw - 32px);
+  pointer-events: none;
+  user-select: none;
+}
+
+@media (max-width: 1419px) {
+  .login-brand-row {
+    top: 44px;
+  }
+}
+
+.login-brand-logo {
+  /* 2026-11-08 D-278（用户要求「logo 放大一点」，随后再要求「再大一点」）：0.95 → 1.2 → 1.4
+     （1.4 × 46px × fs-scale ≈ 70px 高、约 253px 宽，与顶栏正式 Logo 同尺寸） */
+  --brand-scale: 1.4;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  color: #17202a;
+  /* 2026-11-08 D-305：欢迎页 Logo 的白色柔光再淡一点（顶边 0.9 → 0.6、外圈 0.28 → 0.2） */
+  filter:
+    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.6))
+    drop-shadow(0 10px 22px rgba(66, 120, 155, 0.2));
+}
+
+.login-brand-logo .brand-logo-svg {
+  display: block;
+  /* 2026-11-08 D-299：与顶栏 `.brand-logo-svg` 同步把 Logo 对字号的放大封顶在 1.2
+     （大档 1.4 下欢迎页 Logo 不再长到 90px 高），保证欢迎页 → 应用 Logo 尺寸一致。 */
+  height: calc(46px * var(--brand-scale) * min(var(--fs-scale), 1.2));
+  width: auto;
+}
+
+/* 主题标语（跟 设置 → 通用 → 主题 同步；Q 版厚重字 + 白色描边光晕，不跟随深色主题） */
+.login-slogan {
+  position: static;
+  z-index: auto;
+  display: block;
+  max-width: min(46vw, 760px);
+  padding: 0;
+  text-align: left;
+  pointer-events: none;
+  user-select: none;
+  color: #12374f;
+  font-weight: 700;
+  text-shadow:
+    0 2px 0 rgba(255, 255, 255, 0.92),
+    0 8px 20px rgba(66, 120, 155, 0.28);
+}
+
+/* 默认两段文案放在同一行，字号 / 字重 / 字距完全一致（用户要求「不要两行、字体要一样」） */
+.login-slogan-line {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1.2em;
+  /* 2026-11-08 D-278（用户要求「标语字号小两号」）：1.1vw / 27px 上限 → 0.9vw / 22px 上限
+     （1920 下 21.12px → 17.28px） */
+  font-size: clamp(9px, 0.9vw, 22px);
+  letter-spacing: 0.05em;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.login-slogan-custom {
+  display: inline-block;
+  font-size: clamp(9px, 0.9vw, 22px);
+  letter-spacing: 0.05em;
+  line-height: 1.3;
+  max-width: 46vw;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 700px) {
+  .login-brand-row {
+    top: 12px;
+    left: 14px;
+    gap: 10px;
+    max-width: calc(100vw - 28px);
+  }
+  .login-brand-logo {
+    --brand-scale: 0.95;
+  }
+  .login-slogan {
+    max-width: 52vw;
+  }
+  .login-slogan-line {
+    gap: 1em;
+    font-size: clamp(8px, 1.8vw, 10.5px);
+  }
+  .login-slogan-custom {
+    font-size: clamp(8px, 2.3vw, 11px);
+    max-width: 52vw;
+  }
+  /* 2026-11-08（用户图框）：手机上按钮仍收在右下角（比桌面小一档） */
+  .login-launch {
+    left: auto;
+    right: 16px;
+    bottom: 16px;
+    height: 46px;
+    padding: 0 22px;
+    gap: 9px;
+    font-size: calc(16px * var(--fs-scale));
+  }
+  .login-launch-mark svg {
+    height: calc(22px * var(--fs-scale));
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-slogan {
+    animation: none;
+  }
+  /* 2026-11-08：弹出 / 收起 / 悬停上浮 / 按钮里标记的轻跳在减少动态效果时都不播 */
+  .login-card,
+  .login-card-collapsible,
+  .login-launch,
+  .login-card-close,
+  .local-entry-page {
+    transition: none;
+  }
+  .login-card:not(.login-card-collapsible):hover,
+  .login-card.is-open:hover,
+  .login-launch:hover,
+  .login-launch:active {
+    transform: none;
+  }
+  .login-launch:hover .login-launch-mark svg {
+    animation: none;
+  }
+}
+
+/* ── 2026-11-08 D-313（用户要求）：Key 输入改成欢迎页上的模态小窗 ──
+   背景仍是欢迎页（不换页、不刷新）；点按钮只让这个小窗浮现 / 收起。
+   2026-11-08 D-315（用户反馈「点填写 Key 后页面变灰」）：**去掉灰色遮罩**——
+   页面不再压暗 / 模糊，只保留居中的小窗；关闭走右上角 × 或 Esc。
+   2026-11-08 D-316（用户反馈「登录页鼠标能和地图互动、填 Key 界面不能」）：
+   **遮罩层不再拦截鼠标**——`pointer-events: none` 让小窗外完全穿透到欢迎页
+   （标记悬停 / 点击、地图打标签等和登录页一致），只有小窗卡片自己接收事件。 */
+.key-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  pointer-events: none;
+}
+
+.key-modal-card {
+  position: relative;
+  width: min(440px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  pointer-events: auto;
+  animation: key-modal-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.key-modal-card .login-lead,
+.key-modal-card .login-foot,
+.key-modal-card .login-note {
+  text-align: left;
+}
+
+@keyframes key-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .key-modal-backdrop {
+    padding: 14px;
+  }
+
+  .key-modal-card {
+    max-height: calc(100vh - 28px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .key-modal-card {
+    animation: none;
+  }
+}
+
+/* 矮视口（≤820px 高）：注册页卡片很高，标语让位隐藏，避免被卡片压住 */
+@media (max-height: 820px) {
+  .login-page.is-register .login-slogan {
+    display: none;
   }
 }

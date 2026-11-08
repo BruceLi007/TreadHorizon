@@ -22,6 +22,8 @@ import type {
   Poi,
   ProvinceLightData,
   PurgeTrashResult,
+  QuotaOverview,
+  QuotaRequestInfo,
   RestoreTrashResult,
   RevealResult,
   SecretStatus,
@@ -30,6 +32,7 @@ import type {
   TrashCount,
   TrashData,
   TrashSelection,
+  UpdateCheckResult,
   UploadResult,
   UserRestoreInspectResult,
   UserRestoreResult,
@@ -488,13 +491,47 @@ export const api = {
 
   // ── M6 P2-3：账号用量 / 用户管理 / 用户数据导出（2026-11-06，D-204）──
 
-  /** 当前账号 + 用量统计（quotaBytes 为预留字段，当前只统计不限额；设置 → 账号的存储用量） */
+  /** 当前账号 + 配额 + 用量（D-310 起云端 multi 按配额拦截上传，可申请扩容） */
   accountSummary: () => fetch('/api/account/summary').then((r) => json<AccountSummary>(r)),
+
+  /** 我的配额 + 扩容申请记录（D-310；设置 → 账号的「申请扩容」板块） */
+  quotaOverview: () => fetch('/api/account/quota-requests').then((r) => json<QuotaOverview>(r)),
+
+  /** 提交扩容申请：requestedBytes = 希望调整到的配额（字节） */
+  submitQuotaRequest: (requestedBytes: number, reason = '') =>
+    fetch('/api/account/quota-requests', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ requestedBytes, reason }),
+    }).then((r) => json<{ ok: boolean; request: QuotaRequestInfo }>(r)),
+
+  /** 取消自己的待审批扩容申请 */
+  cancelQuotaRequest: (id: string) =>
+    fetch(`/api/account/quota-requests/${encodeURIComponent(id)}`, { method: 'DELETE' }).then((r) =>
+      json<{ ok: boolean }>(r)
+    ),
+
+  /** 管理员：扩容申请列表（默认只看 pending） */
+  adminQuotaRequests: (status: 'pending' | 'all' = 'pending') =>
+    fetch(`/api/admin/quota-requests?status=${encodeURIComponent(status)}`).then((r) =>
+      json<{ items: QuotaRequestInfo[] }>(r)
+    ),
+
+  /** 管理员：批准（可选 quotaBytes，不传按申请值）/ 拒绝扩容申请 */
+  adminDecideQuotaRequest: (
+    id: string,
+    body: { action: 'approve' | 'reject'; quotaBytes?: number; note?: string }
+  ) =>
+    fetch(`/api/admin/quota-requests/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((r) => json<{ ok: boolean; request: QuotaRequestInfo; quotaBytes?: number }>(r)),
 
   /** 管理员：账号列表（含状态 / 配额 / 用量 / 最近登录） */
   adminUsers: () => fetch('/api/admin/users').then((r) => json<{ items: AdminUserInfo[] }>(r)),
 
-  /** 管理员：改显示名 / 禁用启用 / 调整配额（quotaBytes=0 表示用默认 5 GiB） */
+  /** 管理员：改显示名 / 禁用启用 / 调整配额（quotaBytes=0 表示用服务端默认，D-310 起默认 1 GiB） */
   adminUpdateUser: (
     id: string,
     patch: { displayName?: string; status?: 'active' | 'disabled'; quotaBytes?: number }
@@ -623,4 +660,7 @@ export const api = {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ reminderDays }),
     }).then((r) => json<BackupStatus>(r)),
+
+  /** 本地模式：检查 GitHub 上是否有新版本（2026-11-08 D-319；云端不需要，服务器更新后刷新即新版） */
+  checkUpdate: () => fetch('/api/update/check').then((r) => json<UpdateCheckResult>(r)),
 };

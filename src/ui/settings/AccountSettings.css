@@ -45,22 +45,151 @@
   vertical-align: 1px;
 }
 
-/* ── 存储用量（M6 P2-3，D-204；2026-11-07 D-209 改为只统计、不限额）──
-   不再有「已用 / 配额」进度条；直接显示已用空间数字 + 数据量。 */
-.acc-usage-total {
+/* ── 存储配额 + 扩容申请（2026-11-08 D-310：云端默认 1 GB，可申请扩容）──
+   进度条显示「已用 / 上限」；用满后上传会被拒绝，可以申请扩容。 */
+.acc-quota-head {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 10px;
   margin: 2px 0 6px;
   color: var(--text-2);
   font-size: calc(12px * var(--fs-scale));
 }
 
-.acc-usage-total b {
-  font-size: calc(20px * var(--fs-scale));
+.acc-quota-head b {
+  font-size: calc(14px * var(--fs-scale));
   font-weight: 600;
   color: var(--text-1);
   font-variant-numeric: tabular-nums;
+}
+
+.acc-quota-percent {
+  flex: none;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.acc-quota-percent.is-over {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.acc-quota-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  overflow: hidden;
+  margin: 0 0 10px;
+}
+
+.acc-quota-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 240ms ease;
+}
+
+.acc-quota-bar i.is-warn {
+  background: #d99b3f;
+}
+
+.acc-quota-bar i.is-over {
+  background: var(--bad);
+}
+
+.acc-quota-pending {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--accent);
+  background: var(--accent-soft);
+}
+
+.acc-quota-pending-title {
+  margin: 0;
+  font-size: calc(12px * var(--fs-scale));
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.acc-quota-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 420px;
+  margin: 10px 0 0;
+}
+
+.acc-quota-form .field {
+  margin: 0;
+}
+
+.acc-quota-form input {
+  height: 34px;
+}
+
+.acc-quota-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.acc-quota-form-actions .primary {
+  height: 34px;
+  padding: 0 16px;
+}
+
+.acc-quota-history {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
+.acc-quota-history-title {
+  margin: 0;
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+.acc-quota-history-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-2);
+}
+
+.acc-quota-status {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: calc(10px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+.acc-quota-status.is-approved {
+  border-color: var(--accent);
+  color: var(--text-1);
+}
+
+.acc-quota-status.is-rejected {
+  color: var(--bad);
+  border-color: rgba(224, 108, 117, 0.4);
+}
+
+.acc-quota-status.is-cancelled {
+  opacity: 0.75;
 }
 
 /* ── 头像（2026-11-07 D-224，用户要求：设置 → 账号里单独的换头像板块）── */

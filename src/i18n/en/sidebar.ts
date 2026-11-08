@@ -66,6 +66,23 @@ const dict: Dict = {
   '返回 My旅迹列表（保留列表的展开 / 滚动位置）':
     'Back to My Trail (keeps expanded and scroll position)',
   '返回': 'Back',
+  '地图': 'Map',
+  '这一簇': 'This cluster',
+  '返回地图': 'Back to map',
+  '返回这一簇': 'Back to this cluster',
+  '在 My旅迹中查看 {name}': 'View {name} in My Trail',
+  '在 My旅迹中查看并定位到这个地点': 'View this place in My Trail',
+  // ── My旅迹多选批量操作（2026-11-08 D-295）──
+  '选择 {name}': 'Select {name}',
+  '多选（可批量删除）': 'Multi-select (bulk delete)',
+  '多选（可批量删除 / 转为去过）': 'Multi-select (bulk delete / mark visited)',
+  '移到回收站': 'Move to Trash',
+  '删除选中的 {n} 个地点？': 'Delete the selected {n} places?',
+  '选中的地点会连同到访和照片一起移到回收站，之后可在顶栏「回收站」恢复。':
+    'The selected places, together with their visits and photos, will be moved to the Trash and can be restored from the top bar later.',
+  '有 {n} 个地点删除失败，请重试': '{n} places failed to delete. Please try again.',
+  '有 {n} 个地点转换失败，请重试': '{n} places failed to convert. Please try again.',
+  '打开欢迎页': 'Open welcome page',
   '编辑地点': 'Edit place',
   '合并重复地点': 'Merge duplicate places',
   '合并': 'Merge',
@@ -81,6 +98,19 @@ const dict: Dict = {
   '未知位置': 'Unknown location',
   '坐标不可改，位置不对请删掉重加':
     'Coordinates cannot be changed; delete and re-add if the location is wrong',
+
+  // ── Sidebar · 地点编辑 · 地区手动编辑（2026-11-08 D-284）──
+  '地区（省 / 市 / 区县）': 'Region (province / city / district)',
+  '识别不到或不准可以直接改，留空 = 未标注':
+    'Edit it if detection fails or is inaccurate; leave empty for unlabeled',
+  '重新识别': 'Detect again',
+  '按坐标重新识别一次省 / 市 / 区县并填入':
+    'Detect province / city / district again from the coordinates',
+  '区 / 县': 'District / county',
+  '如：浙江省': 'e.g. Zhejiang',
+  '如：杭州市': 'e.g. Hangzhou',
+  '如：西湖区': 'e.g. Xihu',
+  '识别失败：{msg}': 'Detection failed: {msg}',
 
   // ── Sidebar · 地址行 / 到访汇总 ──
   ' 加入于 {date}': ' Added on {date}',
@@ -179,8 +209,8 @@ const dict: Dict = {
   '今天': 'Today',
   '想去的地点不用填日期；之后真去了，在侧栏点「转为去过」再记日期。':
     'Wishlist places need no date. Once you actually go, click "Mark as visited" in the sidebar and add the date.',
-  '地图上的大号标记可以拖动，拖到准确位置后会自动更新行政区。':
-    'The large marker on the map can be dragged; the administrative area updates once it is in place.',
+  '地图上的大号标记可以拖动，拖到准确位置后会自动更新行政区和名称；手动改过的名称不会被覆盖。':
+    'Drag the large marker; the administrative area and name update once it is in place. A name you edited manually is kept.',
   '保存并添加照片': 'Save & add photos',
 
   // ── Lightbox · 灯箱 ──

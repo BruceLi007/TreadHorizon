@@ -29,6 +29,7 @@ import {
   loginLockRemaining,
   pruneSessions,
   publicUser,
+  QUOTA_MAX_BYTES,
   quotaBytesOf,
   readCookie,
   recordLoginFailure,
@@ -44,11 +45,27 @@ import {
   verifyPassword,
 } from './auth.mjs';
 import { db, now, listPlaces, getPlace, stats, placesInRange, timeline, listTrash, trashCount, listCompanions } from './db.mjs';
+// 2026-11-08 D-310：云端版每账号配额 + 扩容申请（申请 / 审批都在服务端）
+import {
+  cancelQuotaRequest,
+  decideQuotaRequest,
+  getQuotaRequest,
+  insertQuotaRequest,
+  listQuotaRequests,
+  listQuotaRequestsForUser,
+  pendingQuotaRequest,
+  resolvePendingQuotaRequests,
+} from './db.mjs';
 import { parseStatsQuery, buildStats, provinceLight } from './stats.mjs';
 import { parsePhotosQuery, buildPhotos } from './photos.mjs';
 import { secretStatus, setSecretPassword, verifySecret } from './secret.mjs';
 import { searchPlace, reverseGeocode } from './tdt.mjs';
 import { PHOTO_EXT, VIDEO_EXT, scanLibrary, buildPreview, publicPreview } from './importer.mjs';
+// D-307（2026-11-08）：HEIC / HEIF 真实支持——sharp 预编译版没有 HEVC 解码器，
+// 这里用 heic-convert（libheif-js wasm）先解成 JPEG 再交给 sharp 生成缩略图 / 预览 / 头像。
+import { decodeHeicToJpeg, isHeicExt } from './heic.mjs';
+// D-319（2026-11-08）：应用更新检查（本地安装版「设置 → 关于」显示是否有新版本）
+import { checkForUpdate } from './update.mjs';
 // M6 D-212 / D-213（2026-11-07）：每个账号自己的素材库根目录（普通用户 + 管理员各自管理自己的）
 import {
   mediaBaseCustomized,
@@ -129,6 +146,54 @@ const thumbRootFor = (owner) => (owner ? join(CONFIG.thumbDir, owner) : CONFIG.t
 const avatarDir = () => join(CONFIG.dataDir, 'avatars');
 const avatarPathFor = (userId) => join(avatarDir(), `${userId}.webp`);
 const AVATAR_MAX_BYTES = 10 * 1024 * 1024;
+
+/** 字节数 → 人类可读（服务端提示文案用；前端有 formatBytes 展示） */
+function fmtBytes(n) {
+  const v = Number(n) || 0;
+  if (v >= 1024 ** 3) return `${(v / 1024 ** 3).toFixed(2)} GB`;
+  if (v >= 1024 ** 2) return `${(v / 1024 ** 2).toFixed(1)} MB`;
+  if (v >= 1024) return `${(v / 1024).toFixed(0)} KB`;
+  return `${v} B`;
+}
+
+/** 扩容申请行 → 前端 camelCase（2026-11-08 D-310） */
+function publicQuotaRequest(r) {
+  if (!r) return null;
+  return {
+    id: r.id,
+    userId: r.user_id,
+    requestedBytes: r.requested_bytes,
+    currentBytes: r.current_bytes,
+    reason: r.reason || '',
+    status: r.status,
+    createdAt: r.created_at,
+    decidedAt: r.decided_at ?? null,
+    approvedBytes: r.approved_bytes ?? null,
+    adminNote: r.admin_note ?? null,
+    ...(r.username !== undefined ? { username: r.username, displayName: r.display_name || '' } : {}),
+  };
+}
+
+/**
+ * 同一账号的上传串行处理（2026-11-08 D-310）。
+ * 配额检查是「已用空间 + 本文件 ≤ 配额」，同一账号并发上传（多标签页 / 多设备）时
+ * 如果不串行，两个请求可能同时通过检查而超额；前端上传队列本身是逐文件串行的，
+ * 这里只兜住并发场景。不同账号之间不受影响。
+ */
+const ownerUploadChains = new Map();
+function runSerializedUpload(owner, task) {
+  const prev = ownerUploadChains.get(owner) || Promise.resolve();
+  const run = prev.then(task, task);
+  const tail = run.then(
+    () => undefined,
+    () => undefined
+  );
+  ownerUploadChains.set(owner, tail);
+  tail.then(() => {
+    if (ownerUploadChains.get(owner) === tail) ownerUploadChains.delete(owner);
+  });
+  return run;
+}
 
 /** 归属过滤 SQL 片段：owner 非空时追加 ` AND <col> = ?`；local 返回空串（SQL 与旧版一致） */
 const ownerSql = (owner, col = 'user_id') => (owner ? ` AND ${col} = ?` : '');
@@ -264,22 +329,39 @@ async function makePoster(absPath, id, thumbRoot = CONFIG.thumbDir) {
   return { poster: null, duration };
 }
 
+/**
+ * 统一的图片解码入口（D-307，2026-11-08）：HEIC / HEIF 先走 wasm 解成 JPEG buffer
+ * 再交给 sharp；其它格式（jpg / png / webp / gif / bmp / avif …）直接走 sharp，
+ * 行为与以前一致。返回 { img: sharp 实例, width, height }，宽高只在 HEIC 时给出
+ * （解码后的真实像素尺寸；非 HEIC 沿用原来的 metadata 取值路径，不改旧行为）。
+ */
+async function imageSource(absPath) {
+  if (isHeicExt(extname(absPath))) {
+    const jpeg = await decodeHeicToJpeg(absPath);
+    const meta = await sharp(jpeg, { failOn: 'none' }).metadata();
+    return { img: sharp(jpeg, { failOn: 'none' }), width: meta.width ?? null, height: meta.height ?? null };
+  }
+  return { img: sharp(absPath, { failOn: 'none' }), width: null, height: null };
+}
+
 async function makeThumb(absPath, id, thumbRoot = CONFIG.thumbDir) {
   mkdirSync(thumbRoot, { recursive: true });
   const out = join(thumbRoot, `${id}.webp`);
-  const info = await sharp(absPath, { failOn: 'none' })
+  const src = await imageSource(absPath);
+  const info = await src.img
     .rotate()
     .resize({ width: 400, height: 400, fit: 'inside', withoutEnlargement: true })
     .webp({ quality: 78 })
     .toFile(out);
-  return { path: out, width: info.width, height: info.height };
+  return { path: out, width: info.width, height: info.height, srcWidth: src.width, srcHeight: src.height };
 }
 
 async function ensurePreview(id, absPath, thumbRoot = CONFIG.thumbDir) {
   mkdirSync(thumbRoot, { recursive: true });
   const out = join(thumbRoot, `${id}_p.webp`);
   if (existsSync(out)) return out;
-  await sharp(absPath, { failOn: 'none' })
+  const src = await imageSource(absPath);
+  await src.img
     .rotate()
     .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
     .webp({ quality: 82 })
@@ -430,6 +512,16 @@ app.delete('/api/config/home', async (req, reply) => {
   }
   clearHome();
   return { ok: true, home: null };
+});
+
+// ── 应用更新检查（2026-11-08 D-319）──
+// 本地安装版：设置 → 关于 显示「是否有新版本」（只提示，不自动更新）。
+// 云端不需要：服务器后台更新 + npm run build 后，用户刷新页面就是新版；这里仅管理员可查。
+app.get('/api/update/check', async (req, reply) => {
+  if (CONFIG.authMode === 'multi' && req.authUser?.role !== 'admin') {
+    return reply.code(403).send({ error: '仅管理员可检查更新' });
+  }
+  return checkForUpdate();
 });
 
 // ───────────── 账号 / 会话 / 邀请码（2026-11-06 M6 P2-1，D-200）─────────────
@@ -602,11 +694,74 @@ pruneSessions();
 // 全部 multi-only：local 模式由 requireAuth / requireAdmin 直接 400「本地模式没有账号」。
 // 账号操作复用 P2-1 的 createUser / resetPassword；非 GET 的 CSRF 已由全局 preHandler 统一处理。
 
-/** 自己的存储用量（设置 → 账号；2026-11-07 D-209 起只做统计，不再限制上传） */
+/** 自己的存储用量 + 配额（设置 → 账号；D-310 起云端按配额拦截上传，可申请扩容） */
 app.get('/api/account/summary', async (req, reply) => {
   const user = requireAuth(req, reply);
   if (!user) return;
-  return { user, quotaBytes: quotaBytesOf(user), usage: userUsage(user.id) };
+  return {
+    user,
+    quotaBytes: quotaBytesOf(user),
+    usage: userUsage(user.id),
+    pendingQuotaRequest: publicQuotaRequest(pendingQuotaRequest(user.id)),
+  };
+});
+
+// ── 扩容申请（2026-11-08 D-310，用户要求「默认 1G 空间，可以申请扩容」）─────────
+// multi-only（requireAuth 在 local 模式返回 400）。用户申请「把配额提高到 N 字节」，
+// 管理员在设置 → 用户管理里批准 / 拒绝；同一时间最多一条 pending。
+
+/** 申请理由的长度上限（字） */
+const QUOTA_REASON_MAX = 200;
+
+/** 我的配额 + 申请记录（设置 → 账号的「申请扩容」板块） */
+app.get('/api/account/quota-requests', async (req, reply) => {
+  const user = requireAuth(req, reply);
+  if (!user) return;
+  return {
+    quotaBytes: quotaBytesOf(user),
+    usedBytes: userUsage(user.id).mediaBytes,
+    pending: publicQuotaRequest(pendingQuotaRequest(user.id)),
+    history: listQuotaRequestsForUser(user.id, 10).map(publicQuotaRequest),
+  };
+});
+
+/** 提交扩容申请：requestedBytes = 希望调整到的配额（字节） */
+app.post('/api/account/quota-requests', async (req, reply) => {
+  const user = requireAuth(req, reply);
+  if (!user) return;
+  const current = quotaBytesOf(user);
+  const requested = Number(req.body?.requestedBytes);
+  if (!Number.isInteger(requested) || requested <= 0) {
+    return reply.code(400).send({ error: '要申请的空间必须是正整数（字节）' });
+  }
+  if (requested <= current) {
+    return reply.code(400).send({ error: `申请的空间必须大于当前配额（${fmtBytes(current)}）` });
+  }
+  if (requested > QUOTA_MAX_BYTES) {
+    return reply.code(400).send({ error: `申请不能超过 ${fmtBytes(QUOTA_MAX_BYTES)}` });
+  }
+  if (pendingQuotaRequest(user.id)) {
+    return reply.code(409).send({ error: '你已有一条待审批的扩容申请，请等待管理员处理' });
+  }
+  const reason = String(req.body?.reason ?? '').trim().slice(0, QUOTA_REASON_MAX);
+  const row = insertQuotaRequest({
+    id: randomUUID(),
+    userId: user.id,
+    requestedBytes: requested,
+    currentBytes: current,
+    reason,
+  });
+  return { ok: true, request: publicQuotaRequest(row) };
+});
+
+/** 取消自己的待审批申请 */
+app.delete('/api/account/quota-requests/:id', async (req, reply) => {
+  const user = requireAuth(req, reply);
+  if (!user) return;
+  if (!cancelQuotaRequest(req.params.id, user.id)) {
+    return reply.code(404).send({ error: '没有找到这条待审批的申请' });
+  }
+  return { ok: true };
 });
 
 // ── 账号头像（2026-11-07 D-224，用户要求：顶栏显示头像 + 名称）─────────────
@@ -652,7 +807,11 @@ app.post('/api/account/avatar', async (req, reply) => {
   mkdirSync(avatarDir(), { recursive: true });
   const tmp = join(avatarDir(), `${user.id}.${randomUUID()}.tmp`);
   try {
-    await sharp(buf, { failOn: 'none' })
+    // D-307：HEIC 头像也要能传——先 wasm 解成 JPEG，再统一 128×128 webp
+    const avatarSrc = isHeicExt(ext)
+      ? sharp(await decodeHeicToJpeg(buf), { failOn: 'none' })
+      : sharp(buf, { failOn: 'none' });
+    await avatarSrc
       .rotate()
       .resize({ width: 128, height: 128, fit: 'cover' })
       .webp({ quality: 82 })
@@ -692,20 +851,87 @@ app.get('/api/admin/users', async (req, reply) => {
 });
 
 /**
- * 管理员：改显示名 / 启用禁用 / 存储配额（quotaBytes=0 表示回落到默认 5 GiB）。
- * 注意（D-209）：`quotaBytes` 目前**只是预留字段**（为 P1 上云后按账号限制服务器磁盘做准备），
- * 当前任何上传都不受它限制；当前 UI 也不再提供配额编辑。
+ * 管理员：改显示名 / 启用禁用 / 存储配额（quotaBytes=0 表示回落到服务端默认，D-310 起默认 1 GiB）。
+ * 2026-11-08（D-310）：配额重新生效（云端 multi 上传按配额拦截）；管理员在这里直接改配额时，
+ * 该账号待审批的扩容申请会按新配额自动结案（approved），避免重复审批。
  */
 app.patch('/api/admin/users/:id', async (req, reply) => {
   const admin = requireAdmin(req, reply);
   if (!admin) return;
   try {
-    const row = updateUserByAdmin(admin.id, req.params.id, req.body || {});
+    const body = req.body || {};
+    const row = updateUserByAdmin(admin.id, req.params.id, body);
+    if (Object.prototype.hasOwnProperty.call(body, 'quotaBytes')) {
+      resolvePendingQuotaRequests(row.id, {
+        approvedBytes: quotaBytesOf(publicUser(row)),
+        decidedBy: admin.id,
+        adminNote: '管理员在用户管理中直接调整了配额',
+      });
+    }
     const usage = userUsage(row.id);
     return { ok: true, user: { ...publicUser(row), usedBytes: usage.mediaBytes, usage } };
   } catch (e) {
     if (e instanceof AuthError) return reply.code(e.status || 400).send({ error: e.message });
     return reply.code(500).send({ error: '修改账号失败：' + (e?.message || String(e)) });
+  }
+});
+
+/** 管理员：扩容申请列表（默认 pending；?status=all 查看全部） */
+app.get('/api/admin/quota-requests', async (req, reply) => {
+  const admin = requireAdmin(req, reply);
+  if (!admin) return;
+  const statusRaw = String(req.query?.status ?? 'pending');
+  const status = ['pending', 'approved', 'rejected', 'cancelled'].includes(statusRaw)
+    ? statusRaw
+    : null;
+  return { items: listQuotaRequests({ status, limit: 200 }).map(publicQuotaRequest) };
+});
+
+/**
+ * 管理员：批准 / 拒绝扩容申请。
+ * - approve：可带 quotaBytes（不传 = 按用户申请值）；批准后写回 user.quota_bytes；
+ * - reject：只改状态，可带 note。
+ */
+app.patch('/api/admin/quota-requests/:id', async (req, reply) => {
+  const admin = requireAdmin(req, reply);
+  if (!admin) return;
+  const row = getQuotaRequest(req.params.id);
+  if (!row) return reply.code(404).send({ error: '申请不存在' });
+  if (row.status !== 'pending') return reply.code(409).send({ error: '这条申请已经处理过了' });
+  const action = String(req.body?.action || '').toLowerCase();
+  const note = String(req.body?.note ?? '').trim().slice(0, QUOTA_REASON_MAX) || null;
+  try {
+    if (action === 'approve') {
+      const target = Number(req.body?.quotaBytes ?? row.requested_bytes);
+      if (!Number.isInteger(target) || target <= row.current_bytes) {
+        return reply
+          .code(400)
+          .send({ error: '批准后的配额必须是大于当前配额的整数（字节）' });
+      }
+      if (target > QUOTA_MAX_BYTES) {
+        return reply.code(400).send({ error: `配额不能超过 ${fmtBytes(QUOTA_MAX_BYTES)}` });
+      }
+      db.prepare('UPDATE user SET quota_bytes = ? WHERE id = ?').run(target, row.user_id);
+      const updated = decideQuotaRequest(row.id, {
+        status: 'approved',
+        approvedBytes: target,
+        decidedBy: admin.id,
+        adminNote: note,
+      });
+      return { ok: true, request: publicQuotaRequest(updated), quotaBytes: target };
+    }
+    if (action === 'reject') {
+      const updated = decideQuotaRequest(row.id, {
+        status: 'rejected',
+        approvedBytes: null,
+        decidedBy: admin.id,
+        adminNote: note,
+      });
+      return { ok: true, request: publicQuotaRequest(updated) };
+    }
+    return reply.code(400).send({ error: 'action 只能是 approve / reject' });
+  } catch (e) {
+    return reply.code(500).send({ error: '处理扩容申请失败：' + (e?.message || String(e)) });
   }
 });
 
@@ -1595,10 +1821,25 @@ app.post('/api/trash/purge', async (req, reply) => {
 
 app.post('/api/media/upload', async (req, reply) => {
   const owner = ownerOf(req);
-  // 2026-11-07（D-209，用户验收反馈）：**不再按配额拦截上传**。
-  // 理由：当前素材库 B 是「本机磁盘上的一份副本」（A 复制到 B），占用的是本机容量，
-  // 限制上传没有意义；等 P1 素材真正上云、服务器磁盘成为共享资源后，再启用每账号配额
-  // （user.quota_bytes / quotaBytesOf / userUsage 等字段与接口先原样保留，仅做统计用）。
+  // 2026-11-08（D-310，用户要求）：云端 multi 恢复每账号配额拦截（默认 1 GiB、可申请扩容）。
+  // local 模式不受限（行为与以前一致）；同一账号的请求串行处理，保证配额判断准确。
+  if (owner) return runSerializedUpload(owner, () => handleMediaUpload(req, reply, owner));
+  return handleMediaUpload(req, reply, owner);
+});
+
+async function handleMediaUpload(req, reply, owner) {
+  // D-310：multi 下先算好配额，已经超了就直接拒绝整个请求（前端上传队列按单文件请求，
+  // 会把这条错误显示在该文件上）；逐文件落盘时再按「已用 + 本文件」检查一次。
+  const quota = owner ? quotaBytesOf(req.authUser) : null;
+  const usedAtStart = owner ? userUsage(owner).mediaBytes : 0;
+  if (quota && usedAtStart >= quota) {
+    return reply.code(400).send({
+      code: 'quota_exceeded',
+      error: `存储空间不足：已用 ${fmtBytes(usedAtStart)} / 上限 ${fmtBytes(quota)}。请先删除不需要的素材（回收站里的要彻底删除），或在设置 → 账号里申请扩容。`,
+      usedBytes: usedAtStart,
+      quotaBytes: quota,
+    });
+  }
   const visitId = req.query?.visitId;
   const v = visitId
     ? db.prepare(`
@@ -1666,7 +1907,18 @@ app.post('/api/media/upload', async (req, reply) => {
         continue;
       }
 
-      // 2026-11-07（D-209）：不再做配额拦截——上传一律继续（用量统计见 /api/account/summary）。
+      // 2026-11-08（D-310）：云端每账号配额——按「已用 + 本文件」检查（回收站里没彻底删除的也计入）
+      if (quota) {
+        const usedNow = userUsage(owner).mediaBytes;
+        if (usedNow + st.size > quota) {
+          try { unlinkSync(dest); } catch { /* ignore */ }
+          errors.push(
+            `${original}：存储空间不足（已用 ${fmtBytes(usedNow)} / 上限 ${fmtBytes(quota)}），请删除素材或申请扩容`
+          );
+          continue;
+        }
+      }
+
       const id = randomUUID();
       const hash = await hashFile(dest);
 
@@ -1698,13 +1950,27 @@ app.post('/api/media/upload', async (req, reply) => {
       let width = null, height = null, thumb = null, poster = null, duration = null;
 
       if (isPhoto) {
+        const heic = isHeicExt(ext);
         try {
           const t = await makeThumb(dest, id, thumbRoot);
           thumb = relative(thumbRoot, t.path);
-          const meta = await sharp(dest, { failOn: 'none' }).metadata();
-          width = meta.width ?? t.width;
-          height = meta.height ?? t.height;
+          if (heic) {
+            // HEIC 容器里的宽高与旋转后可能不一致，这里直接用解码后的真实像素尺寸
+            width = t.srcWidth ?? t.width;
+            height = t.srcHeight ?? t.height;
+          } else {
+            const meta = await sharp(dest, { failOn: 'none' }).metadata();
+            width = meta.width ?? t.width;
+            height = meta.height ?? t.height;
+          }
         } catch (e) {
+          if (heic) {
+            // HEIC 解不开 = 这张图在应用里永远显示不出来；不留下破图记录，
+            // 删掉刚复制的文件，并把明确错误返回给上传队列（D-307）。
+            try { unlinkSync(dest); } catch { /* ignore */ }
+            errors.push(`${original}：HEIC 图片解码失败（文件可能损坏或编码不受支持）`);
+            continue;
+          }
           errors.push(`${original}：缩略图失败（${e.message}）`);
         }
       } else {
@@ -1742,7 +2008,7 @@ app.post('/api/media/upload', async (req, reply) => {
   }
 
   return { added, skipped, errors };
-});
+}
 
 // 媒体读取（thumb / preview / orig）：multi 先校验 media 属于当前账号，别的账号一律 404（D-202）；
 // 缓存根目录按 owner 拼（data/thumbs/<owner>/），local 路径完全不变。
@@ -1783,10 +2049,10 @@ app.get('/api/media/:id/:variant', async (req, reply) => {
       }
       try {
         const t = await makeThumb(abs, m.id, thumbRoot);
-        db.prepare('UPDATE media SET thumb = ? WHERE id = ?').run(
-          relative(thumbRoot, t.path),
-          m.id
-        );
+        // D-307：顺手补上宽高（HEIC 支持前入库的历史记录是 null，无副作用）
+        db.prepare(
+          'UPDATE media SET thumb = ?, width = COALESCE(width, ?), height = COALESCE(height, ?) WHERE id = ?'
+        ).run(relative(thumbRoot, t.path), t.srcWidth ?? t.width, t.srcHeight ?? t.height, m.id);
         thumbPath = t.path;
       } catch (e) {
         return reply.code(500).send({ error: 'thumb failed: ' + e.message });

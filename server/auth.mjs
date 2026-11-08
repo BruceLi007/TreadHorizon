@@ -473,8 +473,8 @@ export function saveUserSetting(userId, patch = {}) {
 // ── 用量 / 配额 / 管理后台（M6 P2-3）──────────────────────────
 // 只在 multi 模式由路由调用；local 模式（数据行 user_id 全为 NULL）不调用这些函数。
 
-/** 管理员可设的配额上限：1 TiB（防手滑写出天文数字） */
-const QUOTA_MAX_BYTES = 1024 ** 4;
+/** 管理员可设的配额上限 / 用户可申请的上限：1 TiB（防手滑写出天文数字） */
+export const QUOTA_MAX_BYTES = 1024 ** 4;
 
 /** 空用量兜底（无账号 / local 模式不会被调用，防御性返回零） */
 function emptyUsage() {
@@ -517,7 +517,7 @@ export function userUsage(userId) {
 }
 
 /**
- * 账号的生效配额：quota_bytes > 0 用自己的，否则用服务端默认（CONFIG.defaultQuotaBytes = 5 GiB）。
+ * 账号的生效配额：quota_bytes > 0 用自己的，否则用服务端默认（2026-11-08 D-310 起 = 1 GiB）。
  * 兼容蛇形 db 行（quota_bytes）与驼峰 publicUser（quotaBytes，已解析成生效值）。
  */
 export function quotaBytesOf(userRow) {

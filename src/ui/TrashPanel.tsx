@@ -356,7 +356,7 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
       <div className="trash-summary">
         <div className="trash-summary-main">
           <span className="trash-size">{fmtBytes(data?.size ?? 0)}</span>
-          <span className="muted">{t('回收站占用（原片 + 缩略图/预览缓存）')}</span>
+          <span className="muted">{t('回收站占用（照片 / 视频 + 缩略图缓存）')}</span>
         </div>
         <div className="trash-sub muted">
           {t('{media} 个照片/视频 · {places} 个地点 · {visits} 次到访', {
@@ -370,7 +370,7 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
       <p className="hint trash-hint">
         {t('删除的内容先放这里，')}
         <b>{t('不会立刻释放空间')}</b>
-        {t('；点「彻底删除」才会删 B 库文件并释放空间。 父级删除只带走当时还在的内容，之前单独删的会留在原层级。')}
+        {t('；点「彻底删除」才会真正释放空间。父级删除只带走当时还在的内容，之前单独删的会留在原层级。')}
       </p>
 
       <div className="trash-tabs">
@@ -637,9 +637,9 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
           onConfirm={() => void doPurge()}
         >
           <p>
-            {t('数据库记录和 B 库里的原片、缩略图/预览/封面帧缓存会被')}
+            {t('删除的记录、照片 / 视频副本和缩略图缓存会被')}
             <b>{t('永久删除，无法恢复')}</b>
-            {t('； 你的本地原件 A 不受影响。')}
+            {t('；你电脑上的原文件不受影响。')}
           </p>
           {(purgeEarlier.visits || purgeEarlier.media) && (
             <p>

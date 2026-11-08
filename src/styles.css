@@ -36,7 +36,8 @@
      用户反馈「太靠上」，调这一个值即可整体上/下微调。 */
   --topbar-shift: 10px;
 
-  /* 2026-11-04 界面字体（D-92；2026-11-07 D-227 字体精简为 2 款 OFL + 系统 4 款）：
+  /* 2026-11-04 界面字体（D-92；2026-11-07 D-227 精简为 2 款 OFL + 系统 4 款；
+     2026-11-08 D-298 增至 8 款 OFL + 系统 4 款）：
      --font-ui 是当前生效的字体，由设置页写入 html[data-font]。
      --font-opt-* 只给设置页的字体选项做预览。 */
   --font-opt-system: -apple-system, "PingFang SC", "Source Han Sans SC", "Microsoft YaHei",
@@ -51,8 +52,9 @@
      全站 .css 里的文字大小都写成 calc(Npx * var(--fs-scale))，只缩文字，
      不改图片、图标、布局盒子比例；设置 → 通用 → 字体 里切换，值见下方
      html[data-fontsize=...] 规则。
-     D-157（用户反馈字号偏小）：三档整体上移一档 → 1.0 / 1.1 / 1.2（默认中 = 1.1）。 */
-  --fs-scale: 1.1;
+     D-157（用户反馈字号偏小）：三档整体上移一档 → 1.0 / 1.1 / 1.2（默认中 = 1.1）。
+     D-299（用户要求「中再大一个字号、大再大两个字号」）：小 1.0 / 中 1.2 / 大 1.4（默认大 = 1.4）。 */
+  --fs-scale: 1.2;
   /* 2026-11-06 用户要求：界面字重（常规 400 / 加粗 600），由 html[data-fontweight] 覆盖。 */
   --font-weight-ui: 400;
 }
@@ -78,11 +80,15 @@ html[data-font='kaiti'] {
   --font-ui: var(--font-opt-kaiti);
 }
 
-/* ── 2026-11-05 D-140 字体；2026-11-07 D-227（公开发布准备）精简为 2 款 SIL OFL 字体 ──
+/* ── 2026-11-05 D-140 字体；2026-11-07 D-227（公开发布准备）精简为 2 款 SIL OFL 字体；
+      2026-11-08 D-298（用户提供）新增 6 款猫啃网下载的 SIL OFL 1.1 字体 → 共 8 款；
+      2026-11-08 D-299（用户要求「嗷呜碎瘾黑彻底删除」）删除该款 → 现共 7 款 ──
    文件在 public/fonts/（随仓库发布，许可见 public/fonts/LICENSES.md；不进备份）。
    已删除：乐米栀夏浅风体 / 乐米清砚方墨体（© 乐米 All rights reserved，不适合公开仓库）、
-   方塘像素体（无许可声明）、系统「仿宋」选项（用户要求）。
-   - font-display: swap：先用系统字体渲染，字体就绪后替换，避免首屏被 34MB 阻塞。
+   方塘像素体（无许可声明）、系统「仿宋」选项（用户要求）、嗷呜碎瘾黑（2026-11-08 D-299 用户要求）。
+   D-298 新增：猫啃什锦黑（完整版）/ 荆南波波黑（简）/ 游趣体 / 铁蒺藜体 / 呆萌手写体 / 字魂扁桃体，
+   全部按原文件原样分发（未修改字形），OFL 版权行见 LICENSES.md。
+   - font-display: swap：先用系统字体渲染，字体就绪后替换，避免首屏被大字体阻塞。
    - 每个自定义字体后面都接系统中文栈：字体缺字时按字回退，不会出现方块。
    - 单字重字体声明 font-weight: normal，粗体由浏览器合成（D-183 另加同色描边兜底）。 */
 @font-face {
@@ -94,43 +100,114 @@ html[data-font='kaiti'] {
 }
 
 @font-face {
-  font-family: 'TM Howl Shattered';
-  src: url('/fonts/aowu-suiyin-hei.ttf') format('truetype');
+  font-family: 'TM Maoken Assorted Sans';
+  src: url('/fonts/maoken-shijin-hei.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TM Jingnan Bobohei';
+  src: url('/fonts/jingnan-bobohei.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TM Child Fun Sans';
+  src: url('/fonts/childfun-sans.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TM Tiejili SC';
+  src: url('/fonts/tiejili-sc.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TM Dymon ShouXieTi';
+  src: url('/fonts/dymon-shouxieti.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TM ZiHun Biantaoti';
+  src: url('/fonts/zihun-biantaoti.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
 }
 
 :root {
-  /* D-140 / D-227：下载字体的选项预览变量（后面接系统中文栈做缺字回退） */
+  /* D-140 / D-227 / D-298 / D-299：下载字体的选项预览变量（后面接系统中文栈做缺字回退） */
   --font-opt-miao-goupa: 'TM Miorning Goupa Hei', -apple-system, 'PingFang SC',
     'Microsoft YaHei', system-ui, sans-serif;
-  --font-opt-aowu-suiyin: 'TM Howl Shattered', -apple-system, 'PingFang SC', 'Microsoft YaHei',
+  --font-opt-maoken-shijin: 'TM Maoken Assorted Sans', -apple-system, 'PingFang SC',
+    'Microsoft YaHei', system-ui, sans-serif;
+  --font-opt-jingnan-bobohei: 'TM Jingnan Bobohei', -apple-system, 'PingFang SC',
+    'Microsoft YaHei', system-ui, sans-serif;
+  --font-opt-childfun-sans: 'TM Child Fun Sans', -apple-system, 'PingFang SC', 'Microsoft YaHei',
     system-ui, sans-serif;
+  --font-opt-tiejili: 'TM Tiejili SC', -apple-system, 'PingFang SC', 'Microsoft YaHei',
+    system-ui, sans-serif;
+  --font-opt-dymon-shouxieti: 'TM Dymon ShouXieTi', -apple-system, 'PingFang SC',
+    'Microsoft YaHei', system-ui, sans-serif;
+  --font-opt-zihun-biantaoti: 'TM ZiHun Biantaoti', -apple-system, 'PingFang SC',
+    'Microsoft YaHei', system-ui, sans-serif;
 }
 
 html[data-font='miao-goupa'] {
   --font-ui: var(--font-opt-miao-goupa);
 }
 
-html[data-font='aowu-suiyin'] {
-  --font-ui: var(--font-opt-aowu-suiyin);
+html[data-font='maoken-shijin'] {
+  --font-ui: var(--font-opt-maoken-shijin);
+}
+
+html[data-font='jingnan-bobohei'] {
+  --font-ui: var(--font-opt-jingnan-bobohei);
+}
+
+html[data-font='childfun-sans'] {
+  --font-ui: var(--font-opt-childfun-sans);
+}
+
+html[data-font='tiejili'] {
+  --font-ui: var(--font-opt-tiejili);
+}
+
+html[data-font='dymon-shouxieti'] {
+  --font-ui: var(--font-opt-dymon-shouxieti);
+}
+
+html[data-font='zihun-biantaoti'] {
+  --font-ui: var(--font-opt-zihun-biantaoti);
 }
 
 /* 2026-11-05 D-142 / D-157：界面字号三档（设置 → 通用 → 字体 → 字号）。
    只改 --fs-scale（全站文字都是 calc(Npx * var(--fs-scale))），不动图片 / 图标 / 布局比例。
    D-157（用户反馈整体偏小）把三档整体上移一档：小 1.0 / 中 1.1 / 大 1.2；
-   顶栏 6 键也跟随缩放（D-143），1.2 倍下中英文标签仍能放进 632px 轨道（按字体实测过）。 */
+   D-299（用户要求「中再大一个字号、大再大两个字号」）：小 1.0 / 中 1.2 / 大 1.4（默认大）。
+   顶栏 6 键也跟随缩放（D-143）；D-299 起大档 1.4 需重新核对 632px 轨道与各断点（见 DECISIONS D-299）。 */
 html[data-fontsize='sm'] {
   --fs-scale: 1;
 }
 
 html[data-fontsize='md'] {
-  --fs-scale: 1.1;
+  --fs-scale: 1.2;
 }
 
 html[data-fontsize='lg'] {
-  --fs-scale: 1.2;
+  --fs-scale: 1.4;
 }
 
 /* 2026-11-06 用户要求：界面字重两档（设置 → 通用 → 字体 → 字重）。
@@ -152,13 +229,17 @@ html[data-fontweight='bold'] {
    浏览器认为「已经是粗体」，不会再合成加粗 → 切到加粗档没有可见变化。
    这里在加粗档额外加一层很轻的同色描边做兜底。
    2026-11-07 D-243（用户反馈「微软雅黑和宋体的加粗模式字有重影」）：
-   这个描边**只给随仓库发布的 2 款单字重 OFL 字体**用；系统字体（微软雅黑 / 宋体 /
+   这个描边**只给随仓库发布的单字重 OFL 字体**用；系统字体（微软雅黑 / 宋体 /
    黑体 / 楷体）本身有真实粗体或由浏览器合成粗体，再叠加描边就会出现重影。
-   逐元素用 currentColor，彩色文字不会变成正文色描边。 */
+   逐元素用 currentColor，彩色文字不会变成正文色描边。
+   2026-11-08 D-298：新增字体里 **荆南波波黑** 只有 Bold 一个字面（usWeightClass=700），
+   实测 400 / 600 墨量差 0%（浏览器不合成），同样加入描边兜底；
+   其余 5 款新字体实测 600 档墨量 +19% ~ +55%（浏览器能合成），不加描边以免重影。
+   2026-11-08 D-299：**嗷呜碎瘾黑** 已按用户要求彻底删除，描边规则同步移除该字体。 */
 html[data-fontweight='bold'][data-font='miao-goupa'] body,
 html[data-fontweight='bold'][data-font='miao-goupa'] body *,
-html[data-fontweight='bold'][data-font='aowu-suiyin'] body,
-html[data-fontweight='bold'][data-font='aowu-suiyin'] body * {
+html[data-fontweight='bold'][data-font='jingnan-bobohei'] body,
+html[data-fontweight='bold'][data-font='jingnan-bobohei'] body * {
   -webkit-text-stroke-width: calc(0.32px * var(--fs-scale));
   -webkit-text-stroke-color: currentColor;
 }
@@ -397,81 +478,125 @@ code {
   pointer-events: auto;
 }
 
-/* ── 品牌文字 logo（2026-11-06 D-181，用户指定：项目正式命名 Tread Horizon）──
-   左上角纯文字 wordmark：第一行品牌名、第二行中文释义「脚步丈量世界」。
-   字体跟随设置里的界面字体（--font-ui / data-font 切换即时生效）；绝对定位不参与顶栏 flex；
-   4 档主题用文字色 token + 轻投影，保证叠在地图上也清楚。
-   D-190：两行等宽（第二行 flex space-between 均分）。
-   D-191（用户指定）：整体放大；左边距与大按钮组右边距对称（都是 64px）；
-   logo 底边与大按钮组下缘对齐（宽屏按钮组中心 38 + 下移 58 + 轨道半高 17 = 113）。
-   D-192（用户反馈「放太大了，小一点」）：尺寸统一由 --brand-scale 控制（原字号 16/10 × 该系数），
-   当前 1.4 → 约 22.4 / 14px；以后想再大/小只改这一个系数即可。
-   D-195（用户要求）：取消 D-193 的反色铭牌底色，恢复纯文字（文字投影保证地图上可读）。 */
-.brand-logo {
-  /* 品牌 logo 相对原始字号（16px / 10px）的放大系数：D-191 曾是 2，D-192 收到 1.4 */
-  --brand-scale: 1.4;
+/* ── 顶栏品牌区（2026-11-08 D-291，用户反馈「点进来后图标位置会有一个偏移」）──
+   把左上角 Logo + 主题标语合成一组，定位数值与欢迎页 `.login-brand-row` 完全同一套
+   （top / left / gap / 字号都用相同的 clamp）——欢迎页点「开始记录我的旅迹」进入应用后，
+   品牌区不再上下 / 左右跳位。想整体调位置：改这里与 LoginPage.css 的同名数值即可。 */
+.topbar-brand {
   position: absolute;
-  /* D-194（用户改主意）：与顶栏标语同一行、垂直居中对齐。
-     标语行：top 26px 起，font-size 16×fs、line-height 1.6 → 行高 25.6×fs，中心 = 26 + 12.8×fs。 */
-  top: calc(26px + 12.8px * var(--fs-scale));
-  left: 64px;
+  /* 2026-11-08 D-302（用户：Logo 要和大按钮组水平对齐）：
+     不再用固定 clamp top，而是把品牌行**垂直中心**对准右侧 HUD 行中心：
+     宽屏 HUD 中心 = topbar 内容中心 38 + translateY 58 = **96px**；窄屏（≤1419）translateY 6 → **44px**。
+     用 top + translateY(-50%) 做中心对齐，Logo 随字号变大变小都保持居中同一水平线。
+     （欢迎页 `.login-brand-row` 用同一套中心值，进入应用仍不跳位。） */
+  top: 96px;
   transform: translateY(-50%);
+  left: clamp(16px, 3.2vw, 64px);
   display: flex;
-  flex-direction: column;
-  gap: calc(3px * var(--brand-scale));
-  /* D-190：宽度取两行里更宽的一行，第二行再用 space-between 均分到同宽 */
-  width: max-content;
+  align-items: center;
+  gap: clamp(10px, 1.5vw, 26px);
+  max-width: calc(100vw - 32px);
   pointer-events: none;
   user-select: none;
-  font-family: var(--font-ui);
-  /* D-195（用户要求取消底色）：恢复纯文字 + 轻投影，保证叠在地图上可读 */
-  color: var(--text-1);
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
 }
 
-.brand-logo-name {
-  font-size: calc(16px * var(--brand-scale) * var(--fs-scale));
-  font-weight: 700;
-  line-height: 1.05;
-  letter-spacing: 0.2em;
-  /* 抵消最后一个字后面多出的字距，让「墨迹」右边缘就是盒子右边缘 */
-  margin-right: -0.2em;
-  white-space: nowrap;
-}
-
-.brand-logo-sub {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  font-size: calc(10px * var(--brand-scale) * var(--fs-scale));
-  font-weight: 500;
-  line-height: 1;
-  /* D-190：不再手调固定字距，由 flex 均分 + 两行同宽自动决定 */
-  letter-spacing: 0;
-  /* D-196（用户要求）：上下两行颜色一致 */
-  color: inherit;
-  white-space: nowrap;
-}
-
-.brand-logo-sub > span {
-  display: inline-block;
-}
-
-/* 窄屏（<1420px）：大按钮组回到顶栏内容行（下移 6px），logo 底边也跟随到按钮组下缘；
-   左边距与窄屏按钮组右边距对称（topbar 18 + hud margin-right 12 = 30）。 */
+/* 窄屏（≤1419px）：HUD 行的 translateY 变成 6 → 中心 44px（见窄屏 media 里的 .hud） */
 @media (max-width: 1419px) {
-  .brand-logo {
-    /* 窄屏没有标语，改为与窄屏 HUD 行垂直居中对齐（内容中心 38 + HUD 下移 6 = 44 = shift + 34） */
-    left: 30px;
-    top: calc(var(--topbar-shift) + 34px);
-    gap: calc(3px * var(--brand-scale) * 0.8);
+  .topbar-brand {
+    top: 44px;
   }
 }
 
-/* 窄屏：先隐藏释义，再窄整块隐藏（右侧 HUD 需要空间） */
+/* 2026-11-08 D-301（用户反馈「白色外观下正式 Logo 和旁边的标语看不清」，
+   并明确「不是整块加，在字的轮廓上加就行」）：不加大底板，只在 **Logo / 标语的轮廓**上
+   加一圈对比色描边（相当于给字形勾边）：
+   - 深色 / 纯黑外观：Logo / 标语是奶油白 → 描边用深色（rgba(8,10,14,0.85)），
+     压在地图浅色 / 花纹上也能看清；
+   - 浅色 / 纯白外观：Logo / 标语是深墨色 → 描边用白色（rgba(255,255,255,0.92)）。
+   实现用 CSS filter drop-shadow 在上下左右各偏 1.5px 叠一圈（不占布局、不改坐标，
+   D-291「欢迎页 → 应用不跳位」仍成立）；标语用 4 方向 text-shadow 勾边。 */
+
+/* 底板方案已按用户要求去掉，不再使用 ::before 整块磨砂 */
+
+/* ── 品牌 Logo（2026-11-08 D-276，用户指定：用正式矢量 Logo 替换原来的纯文字 logo）──
+   正式 Logo = 参考图 1:1 矢量徒步者 + Fredoka 字标「Tread Horizon」+ 中文「脚步丈量世界」
+   + 地平线日出；由 design/logo/final/tread-horizon-horizontal-light.svg 生成组件
+   src/ui/BrandLogo.tsx（墨色部分用 currentColor，跟随 4 档主题；朝阳固定琥珀色）。
+   2026-11-08 D-291：改为 `.topbar-brand` 内的 flex 子项（不再自己绝对定位），
+   尺寸统一由 --brand-scale 控制（想整体大 / 小只改这一个系数）。 */
+.brand-logo {
+  --brand-scale: 1.4;
+  flex: none;
+  width: max-content;
+  color: var(--text-1);
+  /* 叠在地图上要清楚：文字用 text-shadow，SVG logo 用 drop-shadow */
+  filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.45));
+  /* 2026-11-08 D-294：Logo 现在是 <button>（欢迎页入口），去掉按钮默认外观 */
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+}
+
+/* 本地模式：Logo 可点（打开欢迎页）——hover 轻微上浮 + 提亮，键盘有焦点环 */
+.brand-logo-btn {
+  pointer-events: auto;
+  cursor: pointer;
+  transition:
+    filter 140ms ease,
+    transform 140ms ease;
+}
+
+.brand-logo-btn:hover {
+  filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.5)) brightness(1.04);
+  transform: translateY(-1px);
+}
+
+.brand-logo-btn:active {
+  transform: translateY(0) scale(0.995);
+}
+
+.brand-logo-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+.brand-logo-svg {
+  display: block;
+  /* 46 × 1.4 = 64.4px 高、约 232px 宽（与原文字 logo 的视觉宽度接近）。
+     2026-11-08 D-299：用户把「大」档字号提到 1.4 后，Logo 若继续乘 --fs-scale 会长到
+     ≈90px 高，把右侧标语压到 + 添加足迹 / HUD 行里。这里把 Logo 对字号的放大**封顶在 1.2**
+     （min(var(--fs-scale), 1.2)）：大档下 Logo 保持原尺寸，欢迎页 / 应用顶栏两处同步，
+     D-291 的「Logo 不跳位」仍然成立；界面文字仍按 1.4 放大。 */
+  height: calc(46px * var(--brand-scale) * min(var(--fs-scale), 1.2));
+  width: auto;
+  /* 2026-11-08 D-301（用户：不是整块加，在字的轮廓上加对比色 → 再要求「透明一点」→
+     「有点向外扩散的，越扩散越浅」→ D-305「logo 的柔光再淡一点」）：
+     Logo 用 3 层模糊 drop-shadow 做向外渐隐的光晕，越外越淡（D-305 整体再降一档）。 */
+  filter:
+    drop-shadow(0 0 2.5px rgba(8, 10, 14, 0.34)) drop-shadow(0 0 8px rgba(8, 10, 14, 0.17))
+    drop-shadow(0 0 18px rgba(8, 10, 14, 0.07));
+}
+
+html:is([data-theme='light'], [data-theme='white']) .brand-logo-svg {
+  filter:
+    drop-shadow(0 0 2.5px rgba(255, 255, 255, 0.42)) drop-shadow(0 0 8px rgba(255, 255, 255, 0.22))
+    drop-shadow(0 0 18px rgba(255, 255, 255, 0.09));
+}
+
+/* 2026-11-08 D-291：窄屏只缩 Logo 尺寸，位置仍由 `.topbar-brand` 的 clamp 决定
+   （不再像以前那样在 1420px 处改绝对 left / top，减少进入应用时的跳位）。 */
+@media (max-width: 1419px) {
+  .brand-logo-svg {
+    height: calc(38px * var(--brand-scale) * min(var(--fs-scale), 1.2));
+  }
+}
+
+/* 窄屏（<1100px）：再收一档，给右侧 HUD 留空间 */
 @media (max-width: 1100px) {
-  .brand-logo-sub {
-    display: none;
+  .brand-logo-svg {
+    height: calc(30px * var(--brand-scale) * min(var(--fs-scale), 1.2));
   }
 }
 
@@ -495,8 +620,11 @@ code {
   align-items: center;
   gap: 3px;
   /* 2026-11-05 D-141：用户要「整体再扁一点」——轨道 40 → 34px。
-     组内按钮 / 左侧搜索图标 / 「+ 添加足迹」同步压到 34，保持整排同高。 */
-  height: 34px;
+     组内按钮 / 左侧搜索图标 / 「+ 添加足迹」同步压到 34，保持整排同高。
+     2026-11-08 D-300（用户要求「大按钮组自身上下高度调大一些」）：轨道 34 → 40px，
+     组内 6 键 32px、选中键 42px（上下各突出 1px，维持原来 +2 的关系），
+     抽屉挂点同步下移 3px（见文件末尾 .app-panel-open 的 top 注释）。 */
+  height: 40px;
   padding: 3px;
   border-radius: 999px;
   background: var(--bg-raised);
@@ -510,7 +638,8 @@ code {
   position: absolute;
   top: 50%;
   left: 0;
-  height: 36px;
+  /* 2026-11-08 D-300：轨道 40 / 选中键 42 → 滑块 42 */
+  height: 42px;
   width: 0;
   border-radius: 999px;
   background: var(--text-1);
@@ -611,7 +740,10 @@ code {
    D-141：高度跟按钮组一起压扁（40 → 34）。 */
 .hud-add {
   height: 34px;
-  padding: 0 20px;
+  /* 2026-11-08 D-299：大档字号从 1.2 提到 1.4 后，按钮文字变宽会把整排 HUD 往左推、
+     在 1600 宽下顶到左侧品牌标语；左右内边距 20 → 14 让按钮宽度基本维持原尺寸
+     （大档下 ≈128px，与旧默认 ≈126px 持平），顶栏字号仍完整跟随三档放大。 */
+  padding: 0 14px;
   border: 0;
   border-radius: 999px;
   background: var(--text-1);
@@ -641,8 +773,14 @@ code {
 .topbar .actions .ghost {
   position: relative;
   z-index: 1;
-  /* D-141：按钮 28 → 26（轨道 34，上下各留 1px 内边距） */
-  height: 26px;
+  /* 2026-11-08 D-300：按钮 26 → 32（轨道 40，上下各留 4px）；顺带修「字没居中」：
+     字号大档 19.6px 时 line-height:1.6 的行盒（31.4px）超过按钮高度，glyph 会整体偏下
+     ≈3.5px。这里改成 inline-flex + 垂直 / 水平都居中 + line-height:1，文字严格居中。 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  height: 32px;
   /* 左右内边距 16px：固定宽 632px 均分后每个键约 102px，放得下最长标签，
      配合下面的 white-space: nowrap，文字不会再折成两行。
      （D-143：字号跟随三档后，大档下「My旅迹」等长标签余量变小，内边距 20 → 16 留余量；
@@ -683,7 +821,8 @@ code {
 .topbar .actions .ghost.on:hover {
   position: relative;
   z-index: 1;
-  height: 36px;
+  /* D-141 随轨道压扁 42 → 36；2026-11-08 D-300 轨道 40 → 选中键 42（上下各突出 1px） */
+  height: 42px;
   /* D-143：选中键字号也跟随字号三档（15 × --fs-scale；16.5px 在 36px 高度内仍宽松） */
   font-size: calc(15px * var(--fs-scale));
   transform: scale(1.1, 1);
@@ -720,19 +859,19 @@ code {
 
   .actions {
     width: auto;
-    /* D-141：窄屏轨道 38 → 32 */
-    height: 32px;
+    /* D-141：窄屏轨道 38 → 32；2026-11-08 D-300 随宽屏一起加高：32 → 38 */
+    height: 38px;
   }
 
-  /* D-158：窄屏选中键高 34，滑块同样 34 */
+  /* D-158：窄屏选中键高 34，滑块同样 34；D-300：34 → 40 */
   .actions-thumb {
-    height: 34px;
+    height: 40px;
   }
 
   .topbar .actions .ghost {
     flex: 0 0 auto;
-    /* D-141：窄屏按钮 30 → 24 */
-    height: 24px;
+    /* D-141：窄屏按钮 30 → 24；D-300：24 → 30（配合轨道 38） */
+    height: 30px;
     /* D-143：和宽屏一致（20 → 16），给大字号留余量；窄屏按钮是 auto 宽度，不受轨道约束 */
     padding: 0 16px;
     /* D-143：顶栏键字号跟随三档 */
@@ -740,8 +879,8 @@ code {
   }
 
   .topbar .actions .ghost.on {
-    /* D-141：窄屏选中 40 → 34 */
-    height: 34px;
+    /* D-141：窄屏选中 40 → 34；D-300：34 → 40 */
+    height: 40px;
   }
 }
 
@@ -959,6 +1098,105 @@ html:is([data-theme='light'], [data-theme='white']) .folder-drop-overlay {
   font-size: calc(13px * var(--fs-scale));
 }
 
+/* ── 地点详情：层级面包屑（2026-11-08 D-290） ──
+   省 / 市 / 区县每级可点：跳到 My旅迹并展开定位到该级；末尾小图标 = 「在 My旅迹中查看这个地点」 */
+.region-crumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1px 3px;
+}
+
+.region-crumbs .crumb {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: calc(13px * var(--fs-scale));
+  line-height: 1.5;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+
+.region-crumbs .crumb:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.region-crumbs .crumb:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.region-crumbs .crumb-sep {
+  color: var(--text-3);
+  font-size: calc(11px * var(--fs-scale));
+  user-select: none;
+}
+
+.region-crumbs .crumb-empty {
+  color: var(--text-2);
+  font-size: calc(13px * var(--fs-scale));
+}
+
+.region-crumbs .crumb-jump {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 3px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background 140ms ease;
+}
+
+.region-crumbs .crumb-jump:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.region-crumbs .crumb-jump:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.region-crumbs .crumb-jump-icon {
+  width: 13px;
+  height: 13px;
+}
+
+/* 从详情面包屑跳到 My旅迹后，目标行 / 分组的短暂高亮 */
+@keyframes mytrail-focus-flash {
+  0%,
+  45% {
+    background: var(--accent-soft);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+.focus-flash {
+  animation: mytrail-focus-flash 1.6s ease-out;
+  border-radius: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focus-flash {
+    animation: none;
+  }
+}
+
 .meta {
   color: var(--text-3);
   font-size: calc(12px * var(--fs-scale));
@@ -1096,6 +1334,62 @@ html:is([data-theme='light'], [data-theme='white']) .folder-drop-overlay {
   height: 30px;
   padding: 0 10px;
   font-size: calc(12px * var(--fs-scale));
+}
+
+/* ── 2026-11-08 D-284（用户要求）：地点编辑 → 地区手动编辑（省 / 市 / 区县）──
+   逆地理识别不到 / 不准的地方（如澳门只返回省级、香港个别离岸点）由用户自己填；
+   留空 = 未标注；右侧「重新识别」按坐标再试一次。 */
+.place-edit .pe-region {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.place-edit .pe-region-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.place-edit .pe-region-title {
+  flex: none;
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+.place-edit .pe-region-tip {
+  overflow: hidden;
+  font-size: calc(11px * var(--fs-scale));
+  color: var(--text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-edit .pe-region-refill {
+  flex: none;
+  margin-left: auto;
+  height: 24px;
+  padding: 0 8px;
+  font-size: calc(11.5px * var(--fs-scale));
+}
+
+.place-edit .pe-region-row {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1fr;
+  gap: 8px;
+  min-width: 0;
+}
+
+.place-edit .pe-region-row .pe-field {
+  gap: 3px;
+}
+
+.place-edit .pe-region-row .pe-field input {
+  height: 30px;
+  font-size: calc(12.5px * var(--fs-scale));
 }
 
 .place-edit .pe-meta {
@@ -2772,7 +3066,8 @@ html:is([data-theme='light'], [data-theme='white']) .topbar {
 }
 
 html:is([data-theme='light'], [data-theme='white']) .brand-logo {
-  text-shadow: 0 1px 5px rgba(255, 255, 255, 0.7);
+  /* 2026-11-08 D-305：浅色外观下 Logo 的白色柔光再淡一点（0.85 → 0.5） */
+  filter: drop-shadow(0 1px 4px rgba(255, 255, 255, 0.5));
 }
 
 html:is([data-theme='light'], [data-theme='white']) .panel,
@@ -3814,10 +4109,11 @@ html:is([data-theme='dark'], [data-theme='black']) .hud-search-panel .searchbox 
   /* 2026-11-04 D-125 / D-126 / D-127 / D-128；2026-11-05 D-141 压扁 / D-145 整排下移后重算：
      HUD 行中心 = topbar 内容中心 38 + translateY 58 = 96；轨道高 34 → 组顶 79、组底 113；
      抽屉 top = 113 + 10 = 123，right 对齐 64px（与组右缘一致）。
+     2026-11-08 D-300：轨道 34 → 40 → 组顶 76、组底 116，抽屉 top = 116 + 10 = 126。
      D-128：抽屉底边抬高到时间轴上方（bottom 14 → 108），避免盖住底部时间轴。 */
   .app.app-panel-open .panel,
   .app.app-panel-open .st-panel {
-    top: 123px;
+    top: 126px;
     right: 64px;
     bottom: 108px;
   }
@@ -3943,28 +4239,38 @@ html:is([data-theme='dark'], [data-theme='black']) .hud-search-panel .searchbox 
 }
 
 .hud-slogan {
-  position: absolute;
-  top: 26px;
-  right: 64px;
+  /* 2026-11-08 D-291：从「绝对定位在右上角」改为品牌区（Logo 右侧）的 flex 子项，
+     字号 / 行高 / 字距 / 段间距与欢迎页 `.login-slogan-line` 完全一致（0.9vw / 22px 上限），
+     这样进入应用时标语也不跳位。 */
   display: flex;
   align-items: baseline;
-  gap: 2em;
-  font-size: calc(16px * var(--fs-scale));
+  gap: 1.2em;
+  font-size: clamp(9px, 0.9vw, 22px);
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: 0.05em;
+  line-height: 1.3;
   color: var(--text-1);
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
+  /* 2026-11-08 D-301：标语也改成**向外扩散、越扩散越浅**的光晕（3 层模糊 text-shadow），
+     没有硬边；深色 / 纯黑外观白字 + 深色光晕，浅色 / 纯白外观见下方主题覆盖。 */
+  text-shadow:
+    0 0 2px rgba(8, 10, 14, 0.55),
+    0 0 6px rgba(8, 10, 14, 0.34),
+    0 0 14px rgba(8, 10, 14, 0.16);
   pointer-events: none;
   user-select: none;
   /* 2026-11-05 D-148（用户反馈「不识别我的空格」）：HTML 默认会把连续空格折叠成一个，
-这里用 pre 保留自定义标语里的原始空格（含多个连续空格 / 首尾空格），且不换行
+这个用 pre 保留自定义标语里的原始空格（含多个连续空格 / 首尾空格），且不换行
 （标语是顶栏单行文字，允许换行会压到下方按钮组）。默认两段文案不受影响。 */
   white-space: pre;
 }
 
 html:is([data-theme='light'], [data-theme='white']) .hud-slogan,
 html:is([data-theme='light'], [data-theme='white']) .hud-username {
-  text-shadow: 0 1px 5px rgba(255, 255, 255, 0.7);
+  /* 2026-11-08 D-301：浅色 / 纯白外观下深色字 + 白色向外渐隐光晕（同样 3 层、越外越淡） */
+  text-shadow:
+    0 0 2px rgba(255, 255, 255, 0.7),
+    0 0 6px rgba(255, 255, 255, 0.42),
+    0 0 14px rgba(255, 255, 255, 0.2);
 }
 
 /* 无边框：靠底色 / 阴影区分层次（用户：涉及边框线条可以都不要） */
@@ -3982,12 +4288,17 @@ html:is([data-theme='light'], [data-theme='white']) .hud-username {
   box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
-@media (max-width: 1419px) {
+/* 2026-11-08 D-302：品牌行下移到大按钮组的同一水平线后，标语和右侧 HUD 同高；
+   宽度不够时会贴到搜索 /「+ 添加足迹」，所以标语在 ≤1699px 时隐藏（只留 Logo）——
+   实测 ≥1700px 时品牌区右缘与 HUD 左缘仍有 ≥120px 间距；窄于 1700 时进入应用只显示 Logo。 */
+@media (max-width: 1699px) {
   .hud-slogan {
     display: none;
   }
+}
 
-  /* 2026-11-07 D-224：窄屏（与标语同档）隐藏头像 + 名称，避免顶到浏览器边缘；
+@media (max-width: 1419px) {
+  /* 2026-11-07 D-224：窄屏隐藏头像 + 名称，避免顶到浏览器边缘；
      宽屏下头像是绝对定位在「+ 添加足迹」上方、与主题标语同一水平线 */
   .hud-user {
     display: none;
@@ -4242,5 +4553,108 @@ html[lang='en'] .topbar .actions .ghost.on:hover {
 button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+}
+
+/* ── My旅迹 · 多选批量操作（2026-11-08 D-295）──────────────────────────
+   用户要求「My旅迹列表多选操作，每一级都需要能多选批量操作（多选省、多选市、多选到访点）」。
+   勾选框三态（未选 / 部分 / 全选）+ 底部批量操作条；地点行选中高亮。
+   省 / 市 / 地点三级共用：勾省 = 选该省全部地点，勾市 = 选该市全部地点。 */
+.pick {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin-right: 7px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-panel);
+  color: #fff;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    transform 120ms ease;
+}
+
+.pick:hover {
+  border-color: var(--accent);
+}
+
+.pick:active {
+  transform: scale(0.92);
+}
+
+.pick.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.pick.some {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.pick-dash {
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+
+.place-row.selectable {
+  cursor: pointer;
+}
+
+.place-row.picked {
+  background: var(--accent-soft);
+}
+
+/* 底部批量操作条（My旅迹面板底部；flex:none，不占列表滚动区） */
+.mytrail-bulkbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-panel);
+}
+
+.mytrail-bulk-count {
+  flex: none;
+  font-size: calc(12px * var(--fs-scale));
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+
+.mytrail-bulk-err {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--bad);
+}
+
+.mytrail-bulk-spacer {
+  flex: 1;
+}
+
+.mytrail-bulkbar .danger-btn {
+  height: 26px;
+  padding: 0 12px;
+  font-size: calc(12px * var(--fs-scale));
+  white-space: nowrap;
+}
+
+.mytrail-select-btn {
+  white-space: nowrap;
+}
+
+.mytrail-select-btn.on {
+  color: var(--accent);
 }
 

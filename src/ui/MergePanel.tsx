@@ -190,7 +190,7 @@ export default function MergePanel({ from, onClose, onMerged }: Props) {
         </button>
       </div>
       <div className="merge-hint">
-        {t('合并只调整数据库归属：到访和照片记录搬到目标地点，素材库文件不会移动或删除。')}
+        {t('合并只会把到访和照片记录移到目标地点，不会移动或删除素材库里的文件。')}
       </div>
     </aside>
   );

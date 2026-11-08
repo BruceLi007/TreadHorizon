@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import MapView, { type MapApi } from './map/MapView';
 import type { Cluster } from './map/cluster';
+
+/** 地点详情从哪一层打开（D-290）：决定标题栏左上「← 返回」回到哪一层 */
+type DetailSource = 'map' | 'trail' | 'cluster';
 import Sidebar from './ui/Sidebar';
+import { BrandLogo } from './ui/BrandLogo';
 import { haversineKm } from './lib/geo';
 import SettingsModal, { type Theme, type ThemeLevel, type TabId } from './ui/settings/SettingsModal';
 import {
   DEFAULT_FONT,
+  DEFAULT_FONT_SIZE,
   DEFAULT_FONT_WEIGHT,
   SLOGAN_MAX_LEN,
   isAppFont,
@@ -18,7 +23,7 @@ import {
   type MediaCols,
   type Slogan,
 } from './ui/settings/types';
-import MyTrailPanel, { type MyTrailTab } from './ui/MyTrailPanel';
+import MyTrailPanel, { type MyTrailFocus, type MyTrailTab } from './ui/MyTrailPanel';
 import AddPanel from './ui/AddPanel';
 import Lightbox from './ui/Lightbox';
 import ClusterPanel from './ui/ClusterPanel';
@@ -28,11 +33,13 @@ import Timeline, { type RangeValue } from './ui/Timeline';
 import StatsPanel from './ui/StatsPanel';
 import PhotoWall from './ui/PhotoWall';
 import LoginPage from './ui/LoginPage';
+import { WiggleText } from './ui/LoginSlogan';
 import KeySetupPage from './ui/KeySetupPage';
+import LocalEntryPage from './ui/LocalEntryPage';
 import SecretPrompt from './ui/SecretPrompt';
 import { api } from './lib/api';
 import type { AuthMe } from './lib/types';
-import { normalizeRegion, regionFromText, isChineseProvinceName } from './lib/region';
+import { normalizeRegion, regionFromText, isChineseProvinceName, regionNeedsFill } from './lib/region';
 import { isInsideChina, loadChinaBounds } from './lib/chinaBounds';
 import {
   HOME_COLOR_KEY,
@@ -65,19 +72,42 @@ export interface DraftState {
   date: string;
   kind: 'visited' | 'wishlist';
   nameTouched: boolean;
+  /**
+   * 2026-11-08 D-285（用户反馈「打点后移动标记，名称不变」）：名称是否由逆地理自动生成。
+   * - true：地图打点产生的草稿 — 每次移动标记 / 逆地理返回后自动更新名称；
+   * - false：搜索选点带来的 POI 名称（保留搜索结果的名字，不被逆地理覆盖）。
+   * 用户手动改过名称（nameTouched）后，无论哪种都不再自动覆盖。
+   */
+  nameAuto: boolean;
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
 const THEME_KEY = 'tm-theme';
+/**
+ * 本地欢迎页是否已经进入过（2026-11-08 D-294，用户要求「进来一次后再刷新不要再出现」）。
+ * 本地模式：首次启动显示欢迎页；点「开始记录我的旅迹」后写 1，之后刷新 / 重开直接进应用。
+ * 顶部正式 Logo 变成入口：点 Logo 可再次打开欢迎页（见 openWelcomePage）。
+ */
+const WELCOME_SEEN_KEY = 'tm-welcome-seen';
+const readWelcomeSeen = (): boolean => {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem(WELCOME_SEEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
 const isTheme = (v: string | null): v is Theme =>
   v === 'white' || v === 'light' || v === 'dark' || v === 'black' || v === 'system';
-/** 主题偏好：4 档外观轴（纯白→浅色→深色→纯黑）+ 跟随系统；默认深色（保持原有行为） */
+/**
+ * 主题偏好：4 档外观轴（纯白→浅色→深色→纯黑）+ 跟随系统。
+ * 默认「纯白」（2026-11-08 D-282 用户要求；此前默认深色）。
+ */
 const readTheme = (): Theme => {
   try {
     const v = typeof localStorage !== 'undefined' ? localStorage.getItem(THEME_KEY) : null;
-    return isTheme(v) ? v : 'dark';
+    return isTheme(v) ? v : 'white';
   } catch {
-    return 'dark';
+    return 'white';
   }
 };
 /**
@@ -96,17 +126,17 @@ const readFont = (): AppFont => {
   }
   return DEFAULT_FONT;
 };
-/** 界面字号（2026-11-05，D-142）：小 / 中 / 大三档，默认「中」；只存本机浏览器 */
+/** 界面字号（2026-11-05，D-142）：小 / 中 / 大三档，默认「大」（2026-11-08 D-282 用户要求）；只存本机浏览器 */
 const FONT_SIZE_KEY = 'tm-font-size';
 const readFontSize = (): FontSize => {
   try {
     const v = typeof localStorage !== 'undefined' ? localStorage.getItem(FONT_SIZE_KEY) : null;
-    return isFontSize(v) ? v : 'md';
+    return isFontSize(v) ? v : DEFAULT_FONT_SIZE;
   } catch {
-    return 'md';
+    return DEFAULT_FONT_SIZE;
   }
 };
-/** 界面字重（2026-11-06 用户要求）：常规 / 加粗；只存本机浏览器 */
+/** 界面字重（2026-11-06 用户要求）：常规 / 加粗，默认「加粗」（2026-11-08 D-282 用户要求）；只存本机浏览器 */
 const FONT_WEIGHT_KEY = 'tm-font-weight';
 const readFontWeight = (): FontWeight => {
   try {
@@ -116,6 +146,35 @@ const readFontWeight = (): FontWeight => {
     return DEFAULT_FONT_WEIGHT;
   }
 };
+
+/**
+ * 默认外观升级（2026-11-08 D-282，用户要求：默认 纯白 / 喵咛狗爬黑 / 大 / 加粗）。
+ *
+ * 旧版本的默认值（深色 / 中 / 常规）早已被本机的 `tm-theme` / `tm-font-size` / `tm-font-weight`
+ * 记住，光改代码里的默认常量对老用户（包括这台机器）不会生效。
+ * 这里做**一次性迁移**：只有「偏好缺失或仍然是旧默认值」时才改成新默认，
+ * 用户自己选过的其它值（如浅色 / 小 / 常规之外的档位）保持不动。
+ * 迁移标记写在 `tm-ui-defaults`，版本号变化才再跑一次。
+ */
+const UI_DEFAULTS_VERSION = 'd282';
+const UI_DEFAULTS_KEY = 'tm-ui-defaults';
+const migrateUiDefaults = () => {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    if (localStorage.getItem(UI_DEFAULTS_KEY) === UI_DEFAULTS_VERSION) return;
+    const upgrade = (key: string, oldDefault: string, newDefault: string) => {
+      const cur = localStorage.getItem(key);
+      if (cur === null || cur === oldDefault) localStorage.setItem(key, newDefault);
+    };
+    upgrade(THEME_KEY, 'dark', 'white');
+    upgrade(FONT_SIZE_KEY, 'md', 'lg');
+    upgrade(FONT_WEIGHT_KEY, 'normal', 'bold');
+    localStorage.setItem(UI_DEFAULTS_KEY, UI_DEFAULTS_VERSION);
+  } catch {
+    /* 隐私模式下 localStorage 可能不可用：忽略，直接用新的默认值 */
+  }
+};
+migrateUiDefaults();
 /** 应用主题标语（2026-11-05 D-146 / D-147）：一句话，可在 设置 → 通用 → 主题 自定义；只存本机。
  *  null = 用 i18n 默认文案；字符串 = 用户自定义（空串 = 不显示标语）。
  *  D-147 起改为单句存储；旧版（D-146 两段式 {left,right} JSON）读取时自动拼成一句迁移。 */
@@ -174,6 +233,12 @@ export default function App() {
   const [places, setPlaces] = useState<Place[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<PlaceDetail | null>(null);
+  /** 详情来路（D-290）：标题栏「← 返回」回到地图 / My旅迹列表 / 这一簇 */
+  const [detailSource, setDetailSource] = useState<DetailSource>('map');
+  /** 从聚合簇点进成员时记下簇快照，返回时恢复「这一簇」面板（D-290） */
+  const [parkedCluster, setParkedCluster] = useState<Cluster | null>(null);
+  /** 详情面包屑 → My旅迹的定位请求（D-290）：展开到省 / 市并高亮地点行 */
+  const [myTrailFocus, setMyTrailFocus] = useState<MyTrailFocus | null>(null);
 
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<DraftState | null>(null);
@@ -230,7 +295,13 @@ export default function App() {
     places: 0,
   });
   const [secretUnlocked, setSecretUnlocked] = useState(false);
-  const [secretTarget, setSecretTarget] = useState<{ id: string; name: string } | null>(null);
+  const [secretTarget, setSecretTarget] = useState<{
+    id: string;
+    name: string;
+    /** 来路（D-290）：密码验证通过后按同一条来路打开详情 */
+    source?: DetailSource;
+    cluster?: Cluster | null;
+  } | null>(null);
 
   // 时间轴（F-BRW-03）
   const [range, setRange] = useState<RangeValue | null>(null);
@@ -267,6 +338,24 @@ export default function App() {
   const [authMe, setAuthMe] = useState<AuthMe | null>(null);
   /** multi 模式已登录、但当前账号还没填自己的天地图 Key → 全屏「配置 Key」引导页（P2-4，D-205） */
   const [needTdtKey, setNeedTdtKey] = useState(false);
+  /**
+   * 2026-11-08 D-312（用户要求）：Key 引导页可以关掉，关掉后回到欢迎页
+   * （右下按钮改成「请填写地图Key」，点它重新打开引导页；仍在同一个浏览器窗口内）。
+   */
+  const [keySetupClosed, setKeySetupClosed] = useState(false);
+  /**
+   * 本地模式启动欢迎页（2026-11-08 D-281，用户要求）：本地版也显示与云端登录页同一套界面，
+   * 但点击「开始记录我的旅迹」不需要登录，直接进入应用。
+   * 2026-11-08 D-294（用户要求）：进入过一次后写 `tm-welcome-seen`，之后刷新不再出现；
+   * 顶部正式 Logo 是重新打开欢迎页的入口（点 Logo → 再次显示欢迎页）。
+   */
+  const [localEntered, setLocalEntered] = useState<boolean>(readWelcomeSeen);
+  /**
+   * 2026-11-08 D-296（用户要求）：multi（云端多用户）模式下顶部正式 Logo 也要能作为欢迎页入口。
+   * 用独立的 `welcomeReplay` 表示「用户主动点 Logo 打开欢迎页」（两种模式通用），
+   * 与本地首次启动的 `localEntered` 分开——multi 首次登录不会被额外多挡一层欢迎页。
+   */
+  const [welcomeReplay, setWelcomeReplay] = useState(false);
   // ── 中英文切换（2026-11-04，D-138）──
   // t / tp 给 App 自己用；i18n 通过 Context 给所有子组件（值变化即整棵树重渲染，切换立即生效）。
   // setCurrentLang 让纯模块（cluster.ts / tdt.ts / api.ts）里的 tr()/tp() 也同步当前语言。
@@ -599,6 +688,8 @@ export default function App() {
     setSettingsInitialTab(undefined);
     setCluster(null);
     setMergeFrom(null);
+    setParkedCluster(null);
+    setMyTrailFocus(null);
   }, []);
 
   /** 退出「添加足迹」：关面板 + 收起地图点选状态（光标恢复） */
@@ -608,21 +699,54 @@ export default function App() {
     setDraft(null);
   }, []);
 
-  /** 从地点详情返回 My旅迹列表（列表一直挂载在后台，展开 / 滚动位置不丢） */
-  const returnToMyTrail = useCallback(() => {
+  /**
+   * 欢迎页：点「开始记录我的旅迹」回到应用。
+   * - 本地模式首次启动：记住已看过（`tm-welcome-seen`），之后刷新不再出现（D-294）；
+   * - multi 模式 / 本地模式点 Logo 重开的欢迎页：只关闭本次回放，不改「已看过」标记。
+   */
+  const enterFromWelcome = useCallback(() => {
+    setWelcomeReplay(false);
+    if (authMe?.mode === 'local') {
+      setLocalEntered(true);
+      try {
+        localStorage.setItem(WELCOME_SEEN_KEY, '1');
+      } catch {
+        /* 隐私模式 localStorage 不可用时忽略：仅本次不记忆 */
+      }
+    }
+  }, [authMe?.mode]);
+
+  /** 顶部正式 Logo 作为欢迎页入口（D-294 / D-296）：本地 + multi 两种模式都可用，点一下就回放欢迎页 */
+  const openWelcomePage = useCallback(() => {
+    setWelcomeReplay(true);
+  }, []);
+
+  /**
+   * 关掉地点详情：按「来路」回到上一层（D-290）。
+   * - 地图 → 直接关闭回地图；
+   * - My旅迹列表 → 回到列表（列表一直挂载在后台，展开 / 滚动位置不丢）；
+   * - 聚合簇 → 恢复「这一簇」面板（点进成员那一刻的快照）。
+   */
+  const closeDetail = useCallback(() => {
     setDetail(null);
     setSelectedId(null);
+    setAutoAddVisitFor(null);
     setMyTrailParked(false);
-    setMyTrailOpen(true);
-  }, []);
+    if (detailSource === 'trail') setMyTrailOpen(true);
+    if (detailSource === 'cluster' && parkedCluster) setCluster(parkedCluster);
+    setParkedCluster(null);
+    setDetailSource('map');
+  }, [detailSource, parkedCluster]);
 
   /**
    * 打开一个地点的侧栏（统一入口）。
    * F-PLC-11：秘密基地在密码未配置时不设门禁；已配置且当前会话未解锁时先弹密码框。
    * fly=true 时同时把地图飞过去（照片墙 / 搜索用）。
+   * source（D-290）：来路。不传时按「My旅迹列表开着 → 从列表来，否则从地图来」推断；
+   * 从聚合簇列表点成员时由 selectClusterPlace 明确传 'cluster'。
    */
   const openPlaceById = useCallback(
-    async (id: string, opts?: { fly?: boolean }) => {
+    async (id: string, opts?: { fly?: boolean; source?: DetailSource }) => {
       let p: PlaceDetail | null = null;
       try {
         p = await api.place(id);
@@ -633,28 +757,40 @@ export default function App() {
         say(tr('地点不存在或已删除'));
         return;
       }
+      const source = opts?.source ?? (myTrailOpen ? 'trail' : 'map');
       if (p.secret && secretStatus.configured && !secretUnlocked) {
-        setSecretTarget({ id: p.id, name: p.name });
+        // 密码验证通过后再按同一条来路继续打开（D-290）
+        setSecretTarget({ id: p.id, name: p.name, source, cluster });
         return;
       }
-      const fromMyTrail = myTrailOpen;
       closePanels();
       exitAdd();
       setPhotoWall(null);
       setStatsOpen(false);
       setSelectedId(p.id);
       setDetail(p);
-      if (fromMyTrail) setMyTrailParked(true);
+      setDetailSource(source);
+      setParkedCluster(source === 'cluster' ? cluster : null);
+      if (source === 'trail') setMyTrailParked(true);
       if (opts?.fly) {
         mapApi.current?.flyTo(p.lng, p.lat, Math.max(13, Number(mapApi.current.getZoom()) || 13));
       }
     },
-    [closePanels, exitAdd, myTrailOpen, secretStatus.configured, secretUnlocked, say]
+    [closePanels, exitAdd, myTrailOpen, cluster, secretStatus.configured, secretUnlocked, say]
   );
 
   const selectPlace = useCallback(
     (id: string) => {
       void openPlaceById(id);
+    },
+    [openPlaceById]
+  );
+
+  /** 从聚合簇列表点成员：飞过去 + 按「这一簇」来路打开详情（返回时恢复簇面板，D-290） */
+  const selectClusterPlace = useCallback(
+    (p: Place) => {
+      mapApi.current?.flyTo(p.lng, p.lat, Math.max(13, Number(mapApi.current.getZoom()) || 13));
+      void openPlaceById(p.id, { source: 'cluster' });
     },
     [openPlaceById]
   );
@@ -674,7 +810,7 @@ export default function App() {
     setSecretTarget(null);
     setSecretUnlocked(true);
     if (!target) return;
-    const fromMyTrail = myTrailOpen;
+    const source = target.source ?? (myTrailOpen ? 'trail' : 'map');
     try {
       const p = await api.place(target.id);
       closePanels();
@@ -682,11 +818,45 @@ export default function App() {
       setStatsOpen(false);
       setSelectedId(p.id);
       setDetail(p);
-      if (fromMyTrail) setMyTrailParked(true);
+      setDetailSource(source);
+      setParkedCluster(source === 'cluster' ? target.cluster ?? cluster : null);
+      if (source === 'trail') setMyTrailParked(true);
     } catch {
       say(tr('地点不存在或已删除'));
     }
-  }, [secretTarget, closePanels, exitAdd, myTrailOpen, say]);
+  }, [secretTarget, closePanels, exitAdd, myTrailOpen, cluster, say]);
+
+  /** 定位应用完成（滚动 + 高亮播完）后清掉 focus：稳定引用，避免面板里的应用 effect 被重复触发（D-290） */
+  const clearMyTrailFocus = useCallback(() => setMyTrailFocus(null), []);
+
+  /**
+   * 地点详情面包屑（D-290）：跳到 My旅迹，展开到该省 / 市 / 地点并短暂高亮。
+   * level = 点的是哪一级（省 → 只展开省；市 → 省 + 市；区县 / 跳转图标 → 定位到地点行）。
+   */
+  const locateInMyTrail = useCallback(
+    (level: 'province' | 'city' | 'place') => {
+      if (!detail) return;
+      const kind: 'visited' | 'wishlist' = detail.kind === 'wishlist' ? 'wishlist' : 'visited';
+      setDetail(null);
+      setSelectedId(null);
+      setAutoAddVisitFor(null);
+      setMyTrailParked(false);
+      setParkedCluster(null);
+      setDetailSource('map');
+      closePanels();
+      setMyTrailTab(kind);
+      setMyTrailFocus({
+        token: Date.now(),
+        level,
+        placeId: detail.id,
+        province: detail.province ?? null,
+        city: detail.city ?? null,
+        kind,
+      });
+      setMyTrailOpen(true);
+    },
+    [closePanels, detail]
+  );
 
   // 搜索里点「我的足迹」→ 飞过去 + 开侧栏（秘密基地会先弹密码）
   const openPlaceOnMap = useCallback(
@@ -722,14 +892,15 @@ export default function App() {
                   poi: d.addr.poi || address.poi,
                 }
               : address;
-          // 已有名字就不覆盖：
-          // 搜索带过来的「杭州」比逆地理返回的「杭州市人民政府」更有意义。
-          // 只有名称为空时才用逆地理结果兜底。
-          const hasName = d.nameTouched || d.name.trim().length > 0;
+          // 名称自动跟随规则（2026-11-08 D-285 用户反馈「打点后移动标记，名称不变」）：
+          // - 用户手动改过名称（nameTouched）→ 永不覆盖；
+          // - 名称来自逆地理自动生成（nameAuto，地图打点）→ 每次逆地理（含拖动标记后）更新为新位置名称；
+          // - 搜索选点带来的 POI 名称（nameAuto=false）→ 保留搜索结果名称，不被逆地理覆盖。
+          const keepName = d.nameTouched || !d.nameAuto;
           return {
             ...d,
             addr,
-            name: hasName ? d.name : address.poi || address.formatted || '',
+            name: keepName ? d.name : address.poi || address.formatted || '',
           };
         });
       } catch {
@@ -768,7 +939,8 @@ export default function App() {
   const fillMissingRegions = useCallback(async () => {
     try {
       const all = await api.places();
-      const targets = all.filter((p) => !p.province || !p.city);
+      // 2026-11-08 D-283：港澳台（如澳门）逆地理只有省级、city 为空属正常，不再计入「未标注」目标
+      const targets = all.filter(regionNeedsFill);
       if (!targets.length) {
         say(tr('没有需要补全地区的地点'));
         return;
@@ -831,6 +1003,8 @@ export default function App() {
         date: today(),
         kind: 'visited',
         nameTouched: false,
+        // 地图打点产生的草稿：名称跟随位置自动识别（移动标记后会更新）
+        nameAuto: true,
       });
       refreshAddr(lng, lat);
     },
@@ -894,6 +1068,8 @@ export default function App() {
         date: today(),
         kind: 'visited',
         nameTouched: false,
+        // 搜索选点：保留搜索结果的名称，不让逆地理覆盖（D-285；地图打点的才会自动跟随）
+        nameAuto: false,
       });
       mapApi.current?.flyTo(lng, lat, 12);
       refreshAddr(lng, lat);
@@ -1246,19 +1422,45 @@ export default function App() {
   if (authMe?.mode === 'multi' && !authMe.user) {
     return (
       <I18nContext.Provider value={i18n}>
-        <LoginPage onLoggedIn={() => window.location.reload()} />
+        <LoginPage onLoggedIn={() => window.location.reload()} slogan={slogan} />
       </I18nContext.Provider>
     );
   }
 
-  // 还没配置天地图 Key：multi（当前账号）与 local（本机）都先显示配置引导页（P2-4 D-205；local D-238）
+  // 还没配置天地图 Key：multi（当前账号）与 local（本机）都先显示配置引导小窗（P2-4 D-205；local D-238）
+  // 2026-11-08 D-312 / D-313（用户要求）：欢迎页作为背景，Key 输入是**叠加在上面的模态小窗**
+  // （不是整页替换、不刷新页面）；点 × / 点遮罩 / Esc 关闭后，欢迎页右下按钮显示「请填写地图Key」，
+  // 点它重新打开小窗；保存成功后整页 reload 重新走启动流程。
   if (needTdtKey) {
     return (
       <I18nContext.Provider value={i18n}>
-        <KeySetupPage
-          mode={authMe?.mode === 'multi' ? 'multi' : 'local'}
-          onDone={() => window.location.reload()}
+        <LocalEntryPage
+          slogan={slogan}
+          onEnter={() => setKeySetupClosed(false)}
+          ctaLabel={t('请填写地图Key')}
+          instant
+          overlay={
+            !keySetupClosed ? (
+              <KeySetupPage
+                mode={authMe?.mode === 'multi' ? 'multi' : 'local'}
+                onDone={() => window.location.reload()}
+                onClose={() => setKeySetupClosed(true)}
+              />
+            ) : null
+          }
         />
+      </I18nContext.Provider>
+    );
+  }
+
+  // 欢迎页（2026-11-08 D-281 用户要求；D-294 只出现一次；D-296 multi 也可通过 Logo 回放）：
+  // 本地模式首次启动 / 两种模式点顶栏 Logo 时显示——Q 版 3D 中国地图 + 正式 Logo + 主题标语
+  // + 34 省卡片 + 右下按钮；没有登录卡，点「开始记录我的旅迹」直接进入应用。
+  // 顺序仍在「multi 未登录 → 登录页」「未配置 Key → Key 引导页」之后，不绕过登录 / Key 配置。
+  if (welcomeReplay || (authMe?.mode === 'local' && !localEntered)) {
+    return (
+      <I18nContext.Provider value={i18n}>
+        <LocalEntryPage slogan={slogan} onEnter={enterFromWelcome} />
       </I18nContext.Provider>
     );
   }
@@ -1300,43 +1502,45 @@ export default function App() {
       )}
 
       <header className="topbar">
-        {/* 2026-11-06 D-181（用户指定）：项目正式命名 Tread Horizon，左上角放纯文字 logo：
-            第一行品牌名、第二行「脚步丈量世界」释义（中英文界面各有词条）。
-            绝对定位不参与顶栏 flex；字体跟随设置里的界面字体（--font-ui）；4 档主题用文字色 token。
-            D-190（用户指定）：两行要一样宽——第二行按字符 / 单词拆成多个 span，
-            用 flex space-between 均分，自动对齐第一行的宽度（换字体 / 字号也不用重调字距）。 */}
-        <div
-          className="brand-logo"
-          aria-label={`Tread Horizon · ${t('脚步丈量世界')}`}
-        >
-          <span className="brand-logo-name" aria-hidden="true">
-            Tread Horizon
-          </span>
-          <span className="brand-logo-sub" aria-hidden="true">
-            {(() => {
-              const sub = t('脚步丈量世界');
-              const parts = /\s/.test(sub) ? sub.split(/\s+/) : Array.from(sub);
-              return parts.map((part, i) => <span key={i}>{part}</span>);
-            })()}
-          </span>
+        {/* 2026-11-08 D-291（用户反馈「点进来后图标位置偏移」）：
+            左上角「正式 Logo + 主题标语」合成一组 `.topbar-brand`，定位与欢迎页
+            `.login-brand-row` 用同一套 clamp 数值——欢迎页 → 应用 品牌区不跳位。
+            Logo 组件 src/ui/BrandLogo.tsx 由 design/logo/final/*.svg 生成（D-276）。 */}
+        <div className="topbar-brand">
+          {/* 2026-11-08 D-294 / D-296（用户要求）：顶部正式 Logo 作为欢迎页入口——
+              本地模式与 multi（云端多用户）模式都可点，点一下回放欢迎页；再点按钮回到应用。 */}
+          <button
+            type="button"
+            className="brand-logo brand-logo-btn"
+            onClick={openWelcomePage}
+            title={t('打开欢迎页')}
+            aria-label={`Tread Horizon · ${t('脚步丈量世界')}`}
+          >
+            <BrandLogo />
+          </button>
+          {/* 2026-11-04 D-131 / D-133 起标语在顶栏；D-145 文案、D-146 可自定义；
+              D-291 移到 Logo 右侧（与欢迎页同一行、同一字号）。
+              2026-11-08 D-304（用户要求）：标语逐字做随机左右摇晃（与欢迎页按钮同一套
+              `WiggleText`，摆幅更大 4°~10°）。 */}
+          {(slogan === null || slogan.trim() !== '') && (
+            <div className="hud-slogan">
+              {slogan !== null ? (
+                <span>
+                  <WiggleText text={slogan} minRot={4} maxRot={10} />
+                </span>
+              ) : (
+                <>
+                  <span>
+                    <WiggleText text={t('世界辣 ~ ~ ~ 么大')} minRot={4} maxRot={10} />
+                  </span>
+                  <span>
+                    <WiggleText text={t('我想 · · · 总得去看一看吧 ! ! !')} minRot={4} maxRot={10} />
+                  </span>
+                </>
+              )}
+            </div>
+          )}
         </div>
-        {/* 2026-11-04 D-131 / D-133：左上角不再放「旅行地图」，标语居右对齐大按钮组。
-            2026-11-05 D-145（用户指定）：文案按用户原话改为「世界辣 ~ ~ ~ 么大」+
-            「我想 · · · 总得去看一看吧 ! ! !」（保留用户打的空格与三个叹号，去掉中间逗号）。
-            2026-11-05 D-146：可在 设置 → 通用 → 主题 里自定义两段文字（只存本机）；
-            slogan 为 null 时用上面这组 i18n 默认文案；自定义两段都留空则整条标语不显示。 */}
-        {(slogan === null || slogan.trim() !== '') && (
-          <div className="hud-slogan">
-            {slogan !== null ? (
-              <span>{slogan}</span>
-            ) : (
-              <>
-                <span>{t('世界辣 ~ ~ ~ 么大')}</span>
-                <span>{t('我想 · · · 总得去看一看吧 ! ! !')}</span>
-              </>
-            )}
-          </div>
-        )}
 
         {boot === 'ready' && (
           <div className="hud">
@@ -1602,15 +1806,10 @@ export default function App() {
       {detail && !adding && !mergeFrom && (
         <Sidebar
           detail={detail}
-          onClose={() => {
-            setDetail(null);
-            setSelectedId(null);
-            setAutoAddVisitFor(null);
-            // 从 My旅迹列表点进来的：关掉详情 = 回到列表层，而不是回到光秃秃的地图
-            if (myTrailParked) setMyTrailOpen(true);
-            setMyTrailParked(false);
-          }}
-          onBackToList={myTrailParked ? returnToMyTrail : undefined}
+          entry={detailSource}
+          onBack={closeDetail}
+          onLocateInMyTrail={locateInMyTrail}
+          onClose={closeDetail}
           autoAddVisit={autoAddVisitFor === detail.id}
           onAutoAddVisitHandled={() => setAutoAddVisitFor(null)}
           uploads={uploads}
@@ -1646,6 +1845,9 @@ export default function App() {
           onDeleted={async () => {
             setDetail(null);
             setSelectedId(null);
+            setAutoAddVisitFor(null);
+            setParkedCluster(null);
+            setDetailSource('map');
             // 从 My旅迹列表点进来再删除：删完回到列表层（列表会随 refreshPlaces 更新）
             if (myTrailParked) {
               setMyTrailOpen(true);
@@ -1680,15 +1882,7 @@ export default function App() {
       )}
 
       {cluster && (
-        <ClusterPanel
-          cluster={cluster}
-          onClose={() => setCluster(null)}
-          onPick={(p) => {
-            setCluster(null);
-            mapApi.current?.flyTo(p.lng, p.lat, Math.max(13, Number(mapApi.current.getZoom()) || 13));
-            selectPlace(p.id);
-          }}
-        />
+        <ClusterPanel cluster={cluster} onClose={() => setCluster(null)} onPick={selectClusterPlace} />
       )}
 
       {(myTrailOpen || myTrailParked) && (
@@ -1696,18 +1890,22 @@ export default function App() {
           places={places}
           range={range}
           tab={myTrailTab}
+          /* D-290：从详情面包屑跳进来时，展开定位到该省 / 市 / 地点并高亮 */
+          focus={myTrailFocus}
+          onFocusApplied={clearMyTrailFocus}
           /* 从列表点进地点时列表不卸载，只「停在后台」→ 返回时展开 / 滚动位置原样保留 */
           parked={!myTrailOpen}
           onTabChange={setMyTrailTab}
           onClose={() => {
             setMyTrailOpen(false);
             setMyTrailParked(false);
+            setMyTrailFocus(null);
           }}
           onPick={(p) => {
             setMyTrailOpen(false);
             setMyTrailParked(true);
             mapApi.current?.flyTo(p.lng, p.lat, 13);
-            selectPlace(p.id);
+            void openPlaceById(p.id, { source: 'trail' });
           }}
           onAddVisit={addVisitForPlace}
           onRefresh={refreshPlaces}
@@ -1882,15 +2080,7 @@ export default function App() {
           <h2>{t('启动失败')}</h2>
           <p>{bootError}</p>
           <p className="hint">
-            {t('确认服务已启动（')}
-            <code>npm run dev</code>
-            {t(' 或 ')}
-            <code>npm start</code>
-            {t('），并检查 ')}
-            <code>.env.local</code>
-            {t(' 里的 ')}
-            <code>TDT_TK</code>
-            {t('。')}
+            {t('确认程序已启动后刷新页面；如果仍然失败，请重新启动应用。')}
           </p>
         </div>
       )}

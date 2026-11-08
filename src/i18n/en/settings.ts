@@ -26,7 +26,8 @@ const dict: Dict = {
   '当前数据': 'Current data',
   '{places} 个地点 · {visits} 次到访 · {media} 张照片/视频': '{places} places · {visits} visits · {media} photos/videos',
   '（空库不会提醒备份）': ' (an empty library never triggers a backup reminder)',
-  '还没有备份过：原片只有一份，数据库丢了就找不回来，建议现在导出一份。': 'No backup yet: the originals exist only once and a lost database cannot be recovered. Export a backup now.',
+  '还没有备份过：照片视频只有一份，数据丢了就找不回来，建议现在导出一份。':
+    'No backup yet: the photos and videos exist only once, and lost data cannot be recovered. Export a backup now.',
   '已经 {days}没备份（阈值 {days2} 天），建议现在导出一份。': 'Last backup was {days} (threshold {days2} days) — export one now.',
   '稍后…': 'Snoozing…',
   '稍后提醒（24 小时）': 'Remind me in 24 hours',
@@ -34,12 +35,12 @@ const dict: Dict = {
   '稍后提醒失败：': 'Failed to snooze: ',
   '提醒阈值已改为 {n} 天': 'Reminder threshold set to {n} days',
   '修改提醒阈值失败：': 'Failed to change the reminder threshold: ',
-  '最近自动备份：{name}（{size}）· 目录 {dir}': 'Recent automatic backup: {name} ({size}) · folder {dir}',
+  '最近自动备份：{name}（{size}）': 'Recent automatic backup: {name} ({size})',
 
   // ── BackupSection：导出 ──
   '导出备份': 'Export backup',
-  'zip：元数据 + 缩略图 + 可选素材': 'zip: metadata + thumbnails + optional media',
-  '元数据（必选）': 'Metadata (required)',
+  '备份包：应用数据 + 缩略图 + 可选素材': 'Backup package: app data + thumbnails + optional media',
+  '应用数据（必选）': 'App data (required)',
   '地点 / 到访 / 笔记 / 评分 / 回收站，备份的核心数据': 'Places / visits / notes / ratings / Trash — the core data of a backup',
   '缩略图 / 预览缓存': 'Thumbnails / preview cache',
   '默认包含；体积小，也可由素材库重建': 'Included by default; small, and can be rebuilt from the media library',
@@ -48,32 +49,33 @@ const dict: Dict = {
   '读取素材体积…': 'Reading media size…',
   '；会显著增大备份体积与打包时间，恢复时会写入当前素材库': '; significantly increases backup size and packaging time, and is written into the current media library on restore',
   '；默认不打包，恢复后需自己拷素材库': '; not included by default — copy the media library yourself after restoring',
-  '含素材的备份会大很多：按数据库引用逐个读取文件，1.6GB 素材大约需要几分钟；恢复时会把素材写入当前素材库，同名同内容跳过、同名不同内容覆盖，不会删除其它文件。': 'Backups with media are much larger: files are read one by one following database references, so 1.6 GB of media takes a few minutes. Restoring writes the media into the current media library: same name and content is skipped, same name with different content is overwritten, and no other files are deleted.',
+  '含素材的备份会大很多：1.6GB 素材大约需要几分钟；恢复时会把素材写回当前素材库，同名同内容跳过、同名不同内容覆盖，不会删除其它文件。':
+    'Backups with media are much larger: 1.6 GB of media takes a few minutes. Restoring writes the media back into the current media library: same name and content is skipped, same name with different content is overwritten, and no other files are deleted.',
   '正在准备…': 'Preparing…',
   '正在打包…': 'Packaging…',
   '恢复中，暂不能导出': 'Restoring — export unavailable',
-  '导出备份（zip）': 'Export backup (zip)',
   '备份打包进度': 'Backup packaging progress',
   '正在打包… {pct}%（{done} / {total} · 文件 {filesDone}/{filesTotal}）': 'Packaging… {pct}% ({done} / {total} · files {filesDone}/{filesTotal})',
   '取消中…': 'Canceling…',
-  '正在向服务端提交导出任务…': 'Submitting the export job to the server…',
-  '导出完成：zip 大小 {size}；文件名为「My旅迹素材备份-YYYY-MM-DD-（备份勿删）.zip」': 'Export complete: zip size {size}; filename is "My Travel Backup-YYYY-MM-DD-(do not delete).zip"',
+  '正在准备导出…': 'Preparing the export…',
+  '导出完成：备份包大小 {size}；文件名为「My旅迹素材备份-YYYY-MM-DD-（备份勿删）.zip」':
+    'Export complete: backup size {size}; filename is "My Travel Backup-YYYY-MM-DD-(do not delete).zip"',
   '导出失败：': 'Export failed: ',
-  '服务端未给出原因': 'the server gave no reason',
+  '没有返回原因': 'no reason given',
   '导出已取消': 'Export canceled',
-  '导出已取消（服务端临时文件已清理）': 'Export canceled (temporary server files cleaned up)',
+  '导出已取消（临时文件已清理）': 'Export canceled (temporary files cleaned up)',
   '读取导出进度失败：': 'Failed to read export progress: ',
   '开始导出失败：': 'Failed to start export: ',
   '取消导出失败：': 'Failed to cancel export: ',
   '如果浏览器没有自动开始下载，可': 'If the browser did not start downloading, ',
   '点这里重新下载': 'click here to download again',
-  '（服务端会保留 10 分钟）。': ' (the server keeps the file for 10 minutes).',
-  '备份不含 A 原件：A 永远不动。含素材时按数据库引用的文件逐个打包；恢复只写/覆盖备份里的文件，绝不删除素材库里的其它文件。': 'Backups never include the A originals: A is never touched. With media, every referenced file is packaged individually; a restore only writes/overwrites files from the package and never deletes other files in the media library.',
+  '（10 分钟内可以重新下载）。': '(you can download it again within 10 minutes).',
+  '备份不会动你电脑上的原始文件。含素材时会逐个打包素材文件；恢复只写入 / 覆盖备份里的文件，不会删除素材库里的其它文件。':
+    'Backups never touch the original files on your computer. With media, every media file is packaged individually; a restore only writes/overwrites files from the package and never deletes other files in the media library.',
 
   // ── BackupSection：从备份恢复 ──
   '从备份恢复': 'Restore from backup',
-  '选择 .zip 备份包': 'Choose a .zip backup',
-  '选择备份 zip 文件': 'Choose a backup zip file',
+  '选择备份文件': 'Choose a backup file',
   '正在检查…': 'Checking…',
   '开始检查备份包': 'Inspect backup package',
   '取消选择': 'Clear selection',
@@ -92,23 +94,25 @@ const dict: Dict = {
   '不含（恢复后按素材库重建）': 'Not included (rebuilt from the media library after restore)',
   '素材': 'Media',
   '{n} 个文件 / {size}': '{n} files / {size}',
-  '不含素材（只恢复元数据）': 'No media (metadata only)',
+  '不含素材（只恢复记录）': 'No media (records only)',
   ' · 导出时缺失 {n} 个': ' · {n} missing at export',
   '包含密码（恢复后沿用备份里的密码）': 'Includes the password (the password from the backup is used after restore)',
   '未设置密码（恢复后会清除当前密码）': 'No password set (restoring clears the current password)',
-  '当前素材库缺 {n} 个原片：恢复后记录都在，但照片/视频要拷过来才能显示': 'The current media library is missing {n} originals: records will be restored, but photos/videos only show after you copy them over',
-  '原片齐全（0 个缺失）': 'All originals present (0 missing)',
+  '当前素材库缺 {n} 个素材文件：恢复后记录都在，但照片/视频要拷过来才能显示':
+    'The current media library is missing {n} media files: records will be restored, but photos/videos only show after you copy them over',
+  '素材齐全（0 个缺失）': 'All media files present (0 missing)',
   '缩略图缺失': 'Missing thumbnails',
   '{n} 张（打开时会按素材库重建）': '{n} (rebuilt from the media library when opened)',
   '从备份恢复…': 'Restore from backup…',
   '恢复会覆盖当前全部数据：': 'Restoring overwrites all current data: ',
-  '地点、到访、笔记、媒体记录、秘密基地密码都会替换成备份里的内容。恢复前会自动把当前数据备份到 data/backups/；中途失败会事务回滚，当前数据保持原样。原片（A）不会被删除。': 'Places, visits, notes, media records and the secret spot password are all replaced with the contents of the backup. The current data is backed up automatically to data/backups/ before restoring; a mid-way failure rolls back and leaves the current data untouched. The A originals are never deleted.',
+  '地点、到访、笔记、媒体记录、秘密基地密码都会替换成备份里的内容。恢复前会自动备份当前数据；中途失败会回滚，当前数据保持原样。你电脑上的原始文件不会被删除。':
+    'Places, visits, notes, media records and the secret spot password are all replaced with the contents of the backup. The current data is backed up automatically before restoring; a mid-way failure rolls back and leaves the current data untouched. The original files on your computer are never deleted.',
   '这是含素材的备份：恢复时会把 {n} 个素材文件写入当前素材库—— 同名同内容跳过、同名不同内容覆盖，': 'This backup includes media: restoring writes {n} media files into the current media library — same name and content is skipped, same name with different content is overwritten, ',
   '不会删除素材库里的其它文件': 'no other files in the media library are deleted',
   '恢复中…': 'Restoring…',
   '确认恢复': 'Confirm restore',
   '正在恢复': 'Restoring',
-  '正在恢复…服务端事务替换中，请勿关闭页面': 'Restoring… the server is replacing data in a transaction; do not close this page',
+  '正在恢复…请不要关闭页面': 'Restoring… please do not close this page',
   '（已回滚，当前数据未被修改）': ' (rolled back; current data was not modified)',
   '恢复完成': 'Restore complete',
   '已恢复 {places} 个地点 · {visits} 次到访 · {media} 张照片/视频；地图和清单已刷新。': 'Restored {places} places · {visits} visits · {media} photos/videos; the map and lists are refreshed.',
@@ -117,32 +121,39 @@ const dict: Dict = {
   '素材：写入 {written} 个 · 跳过 {skipped} 个（同名同内容）': 'Media: {written} written · {skipped} skipped (same name and content)',
   ' · 失败 {n} 个': ' · {n} failed',
   '素材库里有 {n} 个文件不被当前数据引用（可能来自旧数据或手工放置），已保留未删除；确认没用后可自行清理。': 'The media library has {n} files not referenced by current data (possibly from old data or placed manually). They were kept, not deleted; remove them yourself once you are sure they are unused.',
-  '当前素材库还缺 {n} 个原片：记录已恢复，但对应照片/视频要等把素材库拷过来才能显示。': 'The current media library is still missing {n} originals: records are restored, but the photos/videos only show once you copy the media library over.',
+  '当前素材库还缺 {n} 个素材文件：记录已恢复，但对应照片/视频要等把素材库拷过来才能显示。':
+    'The current media library is still missing {n} media files: records are restored, but the photos/videos only show once you copy the media library over.',
   '有 {n} 张缩略图缺失，打开照片墙时会按素材库重建。': '{n} thumbnails are missing; they are rebuilt from the media library when the photo wall opens.',
-  '恢复是行级事务替换：只替换应用数据（data/）与缩略图缓存。不含素材的备份完全不写素材库；含素材的备份只写入/覆盖包内文件，绝不删除素材库里的其它文件，A 原件永远不碰。': 'Restoring replaces rows in a transaction: only app data (data/) and the thumbnail cache are replaced. Backups without media never write to the media library; backups with media only write/overwrite files from the package, never delete other files in the media library, and never touch the A originals.',
+  '恢复只替换应用数据与缩略图缓存。不含素材的备份不写素材库；含素材的备份只写入 / 覆盖包内文件，不会删除素材库里的其它文件，也不会动你电脑上的原始文件。':
+    'Restoring replaces only app data and the thumbnail cache. Backups without media never write to the media library; backups with media only write/overwrite files from the package, never delete other files in the media library, and never touch the original files on your computer.',
 
   // ── BackupSettings ──
-  '备份只含应用数据（元数据 + 可选缩略图 / 照片视频素材），不打包 A 原件。恢复前会自动备份当前数据， 中途失败会事务回滚；含素材的恢复只写 / 覆盖备份里的文件，不删除素材库里的其它文件。': 'A backup contains only app data (metadata plus optional thumbnails / photo and video media), never the A originals. The current data is backed up automatically before a restore, and a mid-way failure rolls back; a restore with media only writes/overwrites files from the backup and never deletes other files in the media library.',
+  '备份只含应用数据（可选缩略图 / 照片视频素材）。恢复前会自动备份当前数据，中途失败会回滚；含素材的恢复只写入 / 覆盖备份里的文件，不删除素材库里的其它文件。':
+    'A backup contains only app data (optional thumbnails / photo and video media). The current data is backed up automatically before a restore, and a mid-way failure rolls back; a restore with media only writes/overwrites files from the backup and never deletes other files in the media library.',
 
   // ── LibrarySettings ──
   '读取失败：': 'Failed to read: ',
   '正在扫描素材库…': 'Scanning the media library…',
   '失败：': 'Failed: ',
-  '扫描 {scanned} 个文件 · 重新关联 {matched} 个（按文件名 {byName}，按内容 {byHash}） · 仍缺失 {stillMissing} 个 · {ms}ms': 'Scanned {scanned} files · relinked {matched} (by name {byName}, by content {byHash}) · still missing {stillMissing} · {ms}ms',
+  '扫描 {scanned} 个文件 · 重新关联 {matched} 个 · 仍缺失 {stillMissing} 个（{ms}ms）':
+    'Scanned {scanned} files · relinked {matched} · still missing {stillMissing} ({ms}ms)',
   '切换路径…': 'Switching path…',
   '切换失败：': 'Switch failed: ',
-  '应用库 B 的位置。照片 / 视频上传时从本地原件 A 复制到 B；缩略图、预览和播放都读 B，A 永远不动。切换路径时会把整个素材库同步到新位置。': 'Location of app library B. On upload, photos/videos are copied from the local originals A into B; thumbnails, previews and playback all read B, and A is never touched. Switching the path syncs the whole media library to the new location.',
-  '多用户模式下素材库按账号独立：这里显示/修改的是你自己账号的素材库位置；切换路径会把你的素材同步过去，不影响其他账号。照片 / 视频上传时从本地原件 A 复制一份到 B，缩略图、预览和播放都读 B，A 永远不动。': 'In multi-user mode the media library is per-account: this page shows/changes your own account\'s location; switching it syncs your media over and does not affect other accounts. On upload, photos/videos are copied from the local originals A into B; thumbnails, previews and playback all read B, and A is never touched.',
+  '素材库的位置。照片 / 视频上传时会把文件复制到素材库；缩略图、预览和播放都读素材库，你电脑上的原文件永远不动。切换路径时会把整个素材库同步到新位置。':
+    'Location of the media library. On upload, photos/videos are copied into the media library; thumbnails, previews and playback all read from it, and the original files on your computer are never touched. Switching the path syncs the whole media library to the new location.',
+  '多用户模式下素材库按账号独立：这里显示/修改的是你自己账号的素材库位置；切换路径会把你的素材同步过去，不影响其他账号。照片 / 视频上传时会把文件复制到素材库，缩略图、预览和播放都读素材库，你电脑上的原文件永远不动。':
+    'In multi-user mode the media library is per-account: this page shows/changes your own account\'s location; switching it syncs your media over and does not affect other accounts. On upload, photos/videos are copied into the media library; thumbnails, previews and playback all read from it, and the original files on your computer are never touched.',
   '当前路径': 'Current path',
   '状态': 'Status',
   '{total} 个文件 · 丢失 ': '{total} files · missing ',
   ' 个': '',
   ' · 回收站 {n} 个': ' · {n} in Trash',
   ' · {n} 张缩略图待重建': ' · {n} thumbnails to rebuild',
-  '重新关联（按文件名 → 大小 → 内容哈希）': 'Relink (by name → size → content hash)',
+  '重新关联（按文件名 → 大小 → 内容比对）': 'Relink (by name → size → content comparison)',
   '换电脑了？输入素材库的新路径': 'New PC? Enter the new media library path',
   '切换路径（自动同步素材）': 'Switch path (sync media automatically)',
-  '切换路径时会把你自己账号的素材同步到新位置（自动创建 <新路径>/<账号ID>/省/市/…）；换电脑后也可以先把素材库拷过去、再切换路径。': 'Switching the path syncs your own account\'s media to the new location (it creates <new path>/<account ID>/province/city/… automatically). When moving to a new PC you can also copy the media library over first, then switch the path.',
+  '切换路径时会把你自己账号的素材同步到新位置；换电脑后也可以先把素材库拷过去、再切换路径。':
+    'Switching the path syncs your own account\'s media to the new location. When moving to a new PC you can also copy the media library over first, then switch the path.',
   '切换路径时会把整个素材库同步到新位置；换电脑也可以先把素材库文件夹拷到新机器，再切换路径并重新关联。': 'Switching the path syncs the whole media library to the new location. When moving to a new PC you can also copy the media library folder to the new machine first, then switch the path and relink.',
   '恢复默认路径': 'Restore default location',
   '没有需要同步的素材文件': 'No media files needed syncing',
@@ -155,29 +166,30 @@ const dict: Dict = {
   '检测中…': 'Checking…',
   '已就绪：视频会生成封面帧和时长': 'Ready: videos get a cover frame and duration',
   '未检测到：视频仍能播放，但没有封面帧': 'Not detected: videos still play but have no cover frame',
-  '装好 ffmpeg 后重启服务即可；也可以设置 FFMPEG_PATH 环境变量指向 exe。没装也不影响播放视频本身。': 'Install ffmpeg and restart the service, or set the FFMPEG_PATH environment variable to the exe. Playback works even without it.',
+  '安装视频封面组件后重启应用即可；不装也不影响视频播放。':
+    'Install the video-cover component and restart the app; videos still play without it.',
 
   // ── LibrarySettings · 普通用户素材库信息（2026-11-07，D-211 / D-212 / D-213）──
   '我的素材': 'My media',
   '你的照片 / 视频保存在你账号专属的素材库里（按账号隔离，其他账号看不到也访问不到），按「省 / 市 / 区县 / 日期_地点名」归档。当前路径就是素材库在你电脑上的文件夹，可以直接打开，也可以换成别的文件夹（只影响你自己的账号）。':
     'Your photos / videos are stored in your account\'s own media library (isolated per account — other accounts cannot see or access it), organized by province / city / county / date_place. The current path is the media library folder on your computer — you can open it directly or switch it to another folder (affects your account only).',
-  '提示：素材实际存放在这个文件夹里、以你的账号 ID 命名的子目录中；点「打开本地文件夹」会直接打开那个子目录。':
-    'Note: the media actually lives in a subfolder named after your account ID inside this folder; "Open local folder" opens that subfolder directly.',
+  '提示：素材实际存放在这个文件夹下以你账号命名的子目录里；点「打开本地文件夹」会直接打开那个子目录。':
+    'Note: the media actually lives in a subfolder named after your account inside this folder; "Open local folder" opens that subfolder directly.',
   '{photos} 张照片 · {videos} 段视频（共 {n} 个素材文件）':
     '{photos} photos · {videos} videos ({n} media files in total)',
   '说明': 'Notes',
-  '视频封面、1600 预览和缩略图由服务器统一生成；上传只是把电脑里的原件复制一份到素材库（应用副本），你电脑上的原文件不会被移动、修改或删除。':
-    'Video covers, 1600px previews and thumbnails are generated by the server. Uploading only copies the original file from your computer into the media library (an app copy); the original files on your computer are never moved, modified or deleted.',
-  '想完整带走素材：到「备份与恢复」里导出含原片的 zip（也可以再恢复回来）。':
-    'To take your media with you: export a zip with originals from "Backup & restore" (you can restore it again later).',
+  '视频封面、预览和缩略图会自动生成；上传只是把电脑里的文件复制一份到素材库，你电脑上的原文件不会被移动、修改或删除。':
+    'Video covers, previews and thumbnails are generated automatically. Uploading only copies the file from your computer into the media library; the original files on your computer are never moved, modified or deleted.',
+  '想完整带走素材：到「备份与恢复」里导出含素材的备份（也可以再恢复回来）。':
+    'To take your media with you: export a backup that includes media from "Backup & restore" (you can restore it again later).',
   '素材库路径（仅你的账号）': 'Media library path (your account only)',
   '我的素材库路径、重新关联与用量': 'My media library path, relink and usage',
   '每个账号可以把自己素材库的存放位置切到自己的文件夹；切换只影响你自己的账号，其他账号的素材库不受影响。':
     'Each account can switch its own media library location to its own folder; the change only affects your account, other accounts are untouched.',
   '换电脑 / 想放到自己的文件夹？输入你的素材库新路径':
     'New PC / prefer your own folder? Enter your new media library path',
-  '所选文件夹下会自动创建你的账号专属目录（<路径>/<账号ID>/省/市/…）；切换时会自动把当前账号的素材同步到新位置。':
-    'A folder for your account is created automatically under the chosen path (<path>/<account ID>/province/city/…); switching automatically syncs your account\'s media to the new location.',
+  '所选文件夹下会自动创建你的账号专属文件夹；切换时会自动把当前账号的素材同步到新位置。':
+    'A folder for your account is created automatically under the chosen path; switching automatically syncs your account\'s media to the new location.',
 
   // ── SecuritySettings ──
   '读取秘密基地状态失败：': 'Failed to read secret spot status: ',
@@ -191,7 +203,8 @@ const dict: Dict = {
   '修改失败：': 'Failed to change the password: ',
   '已重置密码：秘密基地不再上锁（地点标记和内容都保留）': 'Password reset: secret spots are no longer locked (markers and content are kept)',
   '重置失败：': 'Failed to reset the password: ',
-  '秘密基地在地图上照常可见（只用紫罗兰色飞镖区分），点开详情需要密码。密码只保存在本机 `data/config.json` 的加盐哈希里，不写浏览器存储、不加密数据库/素材库。': 'Secret spots stay visible on the map (only distinguished by the violet dart), and opening their details requires the password. The password is stored only as a salted hash in `data/config.json` on this device — it is not written to browser storage and does not encrypt the database or media library.',
+  '秘密基地在地图上照常可见（只用紫罗兰色飞镖区分），点开详情需要密码。密码只保存在这台电脑上，不会上传。':
+    'Secret spots stay visible on the map (only distinguished by the violet dart), and opening their details requires the password. The password is stored only on this computer and is never uploaded.',
   '读取中…': 'Loading…',
   '已设置密码 · {n} 个秘密基地': 'Password set · {n} secret spots',
   '未设置密码（秘密基地不会上锁）': 'No password set (secret spots are not locked)',
@@ -215,7 +228,8 @@ const dict: Dict = {
   '确认密码': 'Confirm password',
   '再输一次': 'Enter it again',
   '设置中…': 'Setting…',
-  '密码只保存在本机（加盐哈希），不写进浏览器存储，也不会出现在日志里。': 'The password is stored only on this device (as a salted hash). It is not written to browser storage and never appears in logs.',
+  '密码只保存在这台电脑上，不会上传，也不会显示在任何地方。':
+    'The password is stored only on this computer; it is never uploaded or displayed anywhere.',
 
   // ── 图标配色（D-161 / D-164：家 + 去过 / 想去 / 秘密基地 共用一条十二色相条）──
   '图标配色': 'Icon colors',
@@ -223,8 +237,8 @@ const dict: Dict = {
   '色相条': 'Hue strip',
   '正在改：{name} · {color}': 'Editing: {name} · {color}',
   '恢复默认颜色': 'Reset to default color',
-  '先点一种图标，再点下面色条里的颜色；「恢复默认颜色」回到每种图标的默认色；只改地图、聚合点和列表里的图标颜色；只存本机浏览器，不写 data/、不进备份。':
-    'Pick an icon type first, then click a color in the strip below. “Reset to default color” restores that icon’s default. Changes only the icon colors on the map, clusters and lists; stored in this browser only, not in data/ or backups.',
+  '先点一种图标，再点下面色条里的颜色；「恢复默认颜色」回到每种图标的默认色；只改地图、聚合点和列表里的图标颜色。':
+    'Pick an icon type first, then click a color in the strip below. “Reset to default color” restores that icon’s default. Changes only the icon colors on the map, clusters and lists.',
   '红': 'Red',
   '橙': 'Orange',
   '黄': 'Yellow',
@@ -262,50 +276,41 @@ const dict: Dict = {
     'To make the most of Tianditu’s free quota (and keep this app free to use), we recommend applying for your own Tianditu key — it is currently free for personal use.',
   '免费 Key 每天有调用次数限制：只要不是频繁、长时间地使用地图（大量搜索、反复拖动、批量逆地理），日常记录完全够用；万一当天额度用完，地图可能暂时加载不出来，第二天额度重置后就恢复，已记录的数据不受影响。':
     'Free keys have a daily call limit. As long as you don’t use the map heavily (lots of searches, repeated panning, bulk reverse geocoding), everyday use is plenty. If the daily quota runs out, the map may temporarily fail to load and recovers after the reset — your recorded data is unaffected.',
-  '。Key 只保存在本机 ': '. The key is stored only on this device in ',
-  '，不会写日志、不会进入备份 zip； 请不要把 Key 发到聊天或截图里。': ', is never logged or included in backup zips; do not post the key in chats or screenshots.',
   '素材与数据流转': 'How media is stored',
   '从电脑本地选择照片 / 视频上传时，应用会把原件复制一份到素材库 B，并按「省 / 市 / 区县 / 日期_地点名」的文件夹结构存放（例如 浙江省/杭州市/西湖区/2024-03-10_西湖/），方便在资源管理器里按地区和日期翻看。':
     'When you upload photos/videos from your computer, the app copies the originals into media library B and stores them under province / city / district / date_place folders (e.g. Zhejiang/Hangzhou/Xihu/2024-03-10_West Lake), so you can browse them by region in File Explorer.',
-  '原片 A 不会被移动、也不会被修改；也就是说同一份素材在你的电脑上会存两份（A 原件 + B 副本），上传前请确认磁盘空间足够。备份 / 恢复只涉及应用数据和 B 里的副本，A 原件永远不动。':
-    'The A originals are never moved or modified — so every file exists twice on your computer (A original + B copy); make sure you have enough disk space before uploading. Backup/restore only touches app data and the B copies; A originals are never touched.',
+  '上传时你电脑上的原始文件不会被移动或修改，素材库会另存一份副本，上传前请确认磁盘空间足够。备份 / 恢复只涉及应用数据和素材库里的副本。':
+    'Uploading never moves or modifies the original files on your computer — the media library keeps a copy, so make sure you have enough disk space. Backup/restore only touches app data and the copies in the media library.',
 
   // ── TrashSettings ──
-  '删除的地点 / 到访 / 照片视频先放在这里，不会立刻释放空间；「彻底删除」（单条 / 所选 / 清空） 才会删 B 库文件 + 缓存并释放空间。A 原件永远不动。': 'Deleted places / visits / photos and videos wait here and do not free space immediately; only Delete permanently (single / selected / empty Trash) deletes library B files and cache and frees space. The A originals are never touched.',
+  '删除的地点 / 到访 / 照片视频先放在这里，不会立刻释放空间；「彻底删除」（单条 / 所选 / 清空）才会真正删除并释放空间。你电脑上的原文件不会被删除。':
+    'Deleted places / visits / photos and videos wait here and do not free space immediately; only Delete permanently (single / selected / empty Trash) actually deletes them and frees space. The original files on your computer are never touched.',
 
   // ── AboutSettings ──
   '读取运行状态失败：': 'Failed to read runtime status: ',
   'Tread Horizon 本地旅行足迹': 'Tread Horizon · Local travel map',
   '本地运行 · 无账号 · 无云': 'Runs locally · No account · No cloud',
-  '一个纯本地的个人旅行足迹地图：数据在 SQLite，照片/视频在本地素材库，地图用天地图。 A 原件永远不被 app 读取或修改；B 素材库是上传时生成的副本。': 'A purely local personal travel-footprint map: data lives in SQLite, photos/videos in the local media library, and the map uses Tianditu. The A originals are never read or modified by the app; library B holds copies created at upload time.',
+  '一个纯本地的个人旅行足迹地图：数据保存在本机，照片 / 视频放在本地素材库，地图使用天地图。':
+    'A purely local personal travel-footprint map: data stays on this computer, photos/videos live in the local media library, and the map uses Tianditu.',
   '地点': 'Places',
   '到访': 'Visits',
   '照片': 'Photos',
   '视频': 'Videos',
   '应用版本': 'App version',
   '运行模式': 'Run mode',
-  '开发模式（npm run dev）': 'Development mode (npm run dev)',
-  '正式模式（npm start / node server/index.mjs）': 'Production mode (npm start / node server/index.mjs)',
-  '数据目录': 'Data directory',
-  '素材库 B': 'Media library B',
+  '开发模式': 'Development mode',
+  '正式模式': 'Production mode',
+  '数据位置': 'Data location',
+  '素材库位置': 'Media library location',
   '天地图 key': 'Tianditu key',
   '未配置（地图可能加载不出来）': 'Not configured (the map may fail to load)',
-  '视频封面（ffmpeg）': 'Video covers (ffmpeg)',
+  '视频封面生成': 'Video cover generation',
   '可用': 'Available',
   '不可用（视频仍可播放）': 'Unavailable (videos still play)',
   '数据文件说明': 'Data files',
-  '数据库 / 配置': 'Database / config',
   '、': ', ',
-  '（唯一元数据；请定期手动备份）': ' (the only metadata; back it up manually from time to time)',
   '缩略图缓存': 'Thumbnail cache',
-  '（可重建，不算数据）': ' (rebuildable, not data)',
   '恢复前自动备份': 'Auto backup before restore',
-  '（保留最近 5 份 pre-restore zip）': ' (keeps the 5 most recent pre-restore zips)',
-  '导出 / 检查临时文件': 'Export / inspect temp files',
-  '（自动清理）': ' (cleaned up automatically)',
-  '换电脑：拷贝 ': 'Moving to a new PC: copy ',
-  ' + 素材库 B + ': ' + media library B + ',
-  '； 或使用「备份与恢复」里的完整备份（含素材）一次性带走。': '; or take a full backup (with media) from Backup & Restore in one go.',
 
   // ── 设置 → 账号 / 邀请码（M6 P2-1，D-200）──
   '账号': 'Account',
@@ -320,8 +325,8 @@ const dict: Dict = {
   '加入时间': 'Joined',
   '最近登录': 'Last sign-in',
   '修改登录密码': 'Change sign-in password',
-  '修改后请用新密码登录；登录密码只以 scrypt 加盐哈希保存在服务端，任何人都看不到原文。':
-    'Use the new password next time. The password is stored on the server only as a salted scrypt hash; nobody can see the original.',
+  '修改后请用新密码登录；密码会加密保存，任何人都看不到原文。':
+    'Use the new password next time. Passwords are stored encrypted; nobody can see the original.',
   '新密码（至少 8 位）': 'New password (at least 8 characters)',
   '新密码至少 8 位': 'The new password must be at least 8 characters',
   '邀请码管理': 'Invite codes',
@@ -353,25 +358,22 @@ const dict: Dict = {
   // ── 设置 → 账号用量 / 用户管理 / 用户数据导出（M6 P2-3，D-204；D-209 去掉配额）──
   '存储用量': 'Storage usage',
   '已用空间': 'Used space',
-  '已用空间只做统计、不限制上传（素材库里的照片 / 视频在磁盘上，每份素材都会占用容量，回收站里还没彻底删除的也算）。服务器空间有限，上云后才会按账号设上限。':
-    'Used space is for statistics only — uploads are not limited (photos / videos in the media library take disk space, including items still in Trash until purged). Server space is limited, so per-account caps will come once media lives in the cloud.',
   '只做统计，不限制上传': 'Statistics only — uploads are not limited',
   '{places} 个地点 · {visits} 次到访 · {photos} 张照片 · {videos} 段视频':
     '{places} places · {visits} visits · {photos} photos · {videos} videos',
-  '管理员备份包含服务器上所有账号的数据（数据库快照 + 可选缩略图 / 素材）。恢复会覆盖整库，请先确认。':
-    'The admin backup contains data of every account on the server (database snapshot plus optional thumbnails / media). Restoring replaces the whole database — please confirm first.',
+  '管理员备份包含服务器上所有账号的数据（可选缩略图 / 素材）。恢复会覆盖整个服务器的数据，请先确认。':
+    'The admin backup contains every account\'s data on the server (optional thumbnails / media). Restoring replaces all server data — please confirm first.',
   '导出我的数据': 'Export my data',
-  '导出只包含你自己的账号数据（地点 / 到访 / 笔记 / 媒体记录，可选缩略图，可选照片视频原片），不会包含其他账号的数据。这个 zip 可以在下面「从我的备份恢复」里恢复回你自己的账号。':
-    'The export contains only your own account data (places / visits / notes / media records, optional thumbnails, optional original photos and videos) and never other accounts\' data. You can restore this zip back into your own account with "Restore from my backup" below.',
+  '导出只包含你自己的账号数据（地点 / 到访 / 笔记 / 媒体记录，可选缩略图，可选照片视频文件），不会包含其他账号的数据。这个备份可以在下面「从我的备份恢复」里恢复回你自己的账号。':
+    'The export contains only your own account data (places / visits / notes / media records, optional thumbnails, optional photo and video files) and never other accounts\' data. You can restore this backup into your own account with "Restore from my backup" below.',
   '从我的备份恢复': 'Restore from my backup',
-  '选择你之前用「导出我的数据」下载的 zip（含 manifest.json / data.json），检查通过后可以把地点 / 到访 / 照片视频记录恢复回当前账号。恢复会替换当前账号的全部数据（其他账号不受影响）；恢复前会自动导出当前数据作为备份。秘密基地密码和天地图 Key 不随导出恢复，需要的话恢复后请重新设置。':
-    'Choose a zip previously downloaded via "Export my data" (contains manifest.json / data.json). After the check passes you can restore the places / visits / photo and video records back into your own account. Restoring replaces ALL data of your account (other accounts are untouched); the current data is exported automatically as a backup first. The secret-base password and Tianditu key are not part of the export — re-enter them in Settings if needed.',
-  '选择备份包（.zip）': 'Choose a backup zip',
+  '选择你之前用「导出我的数据」下载的备份文件，检查通过后可以把地点 / 到访 / 照片视频记录恢复回当前账号。恢复会替换当前账号的全部数据（其他账号不受影响）；恢复前会自动导出当前数据作为备份。秘密基地密码和天地图 Key 不随导出恢复，需要的话恢复后请重新设置。':
+    'Choose a backup file previously downloaded via "Export my data". After the check passes you can restore the places / visits / photo and video records back into your own account. Restoring replaces ALL data of your account (other accounts are untouched); the current data is exported automatically as a backup first. The secret-base password and Tianditu key are not part of the export — re-enter them in Settings if needed.',
   '检查失败：': 'Check failed: ',
   '导出时间': 'Exported at',
   '包含 {n} 个文件': '{n} files included',
   '不含（只恢复记录）': 'Not included (records only)',
-  '缺 {n} 个原片': 'missing {n} originals',
+  '缺 {n} 个素材文件': '{n} media files missing',
   '包含「家」设置（恢复后会跟着回来）': 'Includes the "Home" setting (it will be restored too)',
   '秘密基地密码 / 天地图 Key 不随导出恢复，需要的话请在设置里重新填写。':
     'The secret-base password and Tianditu key are not part of the export; re-enter them in Settings if needed.',
@@ -381,17 +383,15 @@ const dict: Dict = {
   '恢复失败：': 'Restore failed: ',
   '已恢复 {places} 个地点 / {visits} 次到访 / {media} 个媒体；恢复前自动备份：{name}':
     'Restored {places} places / {visits} visits / {media} media files; pre-restore backup: {name}',
-  '恢复只替换你自己的账号数据；其他账号不受影响。恢复前会自动把当前数据导出成一个 zip 放在服务器 data/backups 里，恢复后如需回退可以用它再恢复一次。':
-    'Restore only replaces your own account data; other accounts are untouched. Before restoring, the current data is exported to a zip under data/backups on the server — you can restore it again to roll back.',
+  '恢复只替换你自己的账号数据；其他账号不受影响。恢复前会自动备份当前数据，恢复后如需回退可以用它再恢复一次。':
+    'Restore only replaces your own account data; other accounts are untouched. The current data is backed up automatically before restoring; you can restore it again to roll back.',
   '包含缩略图 / 预览（推荐，体积小）': 'Include thumbnails / previews (recommended, small)',
-  '包含照片 / 视频原片（体积可能很大）': 'Include original photos / videos (may be large)',
-  '下载导出 zip': 'Download export zip',
-  '文件包含 manifest.json / data.json / README.txt，以及可选的缩略图与素材；文件名形如「My旅迹数据导出-你的名字-2026-11-06.zip」。素材多时打包会久一点。':
-    'The zip contains manifest.json / data.json / README.txt plus optional thumbnails and media; the file name looks like "My旅迹数据导出-your-name-2026-11-06.zip". Packing takes longer with many media files.',
+  '包含照片 / 视频文件（体积可能很大）': 'Include photo / video files (may be large)',
+  '下载导出包': 'Download export package',
+  '文件包含应用数据、说明文件，以及可选的缩略图与素材；素材多时打包会久一点。':
+    'The package contains app data, a readme, and optional thumbnails and media; packing takes longer with many media files.',
   '用户管理': 'User management',
   '账号、状态、已用空间、重置密码与邀请码': 'Accounts, status, used space, password resets and invite codes',
-  '每个账号的数据完全隔离；新用户通过下方「邀请码管理」生成的邀请码注册。这里可以禁用账号、重置登录密码、查看各账号的已用空间。':
-    'Every account\'s data is fully isolated; new users sign up with invite codes generated in "Invite codes" below. Here you can disable accounts, reset sign-in passwords and check each account\'s used space.',
   '操作': 'Actions',
   '加入': 'Joined',
   '正常': 'Active',
@@ -409,6 +409,56 @@ const dict: Dict = {
     'Tell the other person the new password afterwards; their signed-in sessions will not be signed out.',
   '只有管理员可以管理账号。': 'Only admins can manage accounts.',
 
+  // ── 云端存储配额 + 扩容申请（2026-11-08 D-310，用户要求：默认 1 GB，可申请扩容）──
+  '云端配额': 'Cloud quota',
+  '云端版每个账号有独立存储配额（默认 1 GB）；回收站里还没彻底删除的素材也占用配额。空间用满后新的上传会被拒绝，可以删除不需要的素材或申请扩容。':
+    'Each account has its own storage quota in cloud mode (1 GB by default); items still in Trash also count. When the quota is full, new uploads are rejected — delete unneeded media or request more space.',
+  '已用 {used} / 上限 {quota}': 'Used {used} / quota {quota}',
+  '空间已满：新的上传会被拒绝。请删除不需要的素材（回收站里的要彻底删除），或在下面申请扩容。':
+    'Storage full: new uploads are rejected. Delete unneeded media (purge Trash to free space), or request more space below.',
+  '扩容申请：待管理员审批': 'More space requested — awaiting admin approval',
+  '申请将配额提高到 {size}': 'Quota requested: {size}',
+  '取消申请': 'Cancel request',
+  '申请扩容': 'Request more space',
+  '希望的新配额（GB）': 'Requested new quota (GB)',
+  '理由（可选）': 'Reason (optional)',
+  '例如：旅行照片和视频比较多': 'e.g. lots of travel photos and videos',
+  '提交申请': 'Submit request',
+  '提交中…': 'Submitting…',
+  '已提交扩容申请，等待管理员审批': 'Request submitted — waiting for admin approval',
+  '请输入大于 0 的数字': 'Please enter a number greater than 0',
+  '申请的空间必须大于当前配额（{size}）': 'The requested space must be larger than the current quota ({size})',
+  '扩容申请已取消': 'Quota request cancelled',
+  '申请记录': 'Request history',
+  '待审批': 'Pending',
+  '已批准': 'Approved',
+  '已拒绝': 'Rejected',
+  '已取消': 'Cancelled',
+  '已超额': 'Over quota',
+  '调整配额': 'Adjust quota',
+  '配额（GB）': 'Quota (GB)',
+  '保存配额': 'Save quota',
+  '配额至少 1 GB': 'The quota must be at least 1 GB',
+  '已把 {name} 的配额调整为 {size}': 'Quota for {name} set to {size}',
+  '配额以 GB 为单位（整数）；回收站里还没彻底删除的素材也计入占用。':
+    'Quota is in whole GB; media still in Trash also counts toward usage.',
+  '已批准扩容到 {size}': 'Approved — quota raised to {size}',
+  '已拒绝该扩容申请': 'The quota request was rejected',
+  '扩容申请': 'Quota requests',
+  '{n} 条待审批': '{n} pending',
+  '暂无待审批': 'None pending',
+  '用户空间用满后可以在「设置 → 账号」提交扩容申请；批准后按申请值提高配额。如需其它额度，可在上方账号列表里直接调整。':
+    'Users can request more space under Settings → Account when their quota is full; approving raises the quota to the requested amount. To grant a different amount, adjust the quota directly in the account list above.',
+  '暂无待审批的扩容申请。': 'No pending quota requests.',
+  '申请将配额从 {current} 提高到 {requested}': 'Requests quota raised from {current} to {requested}',
+  '理由：': 'Reason: ',
+  '申请时间：': 'Requested at: ',
+  '批准提高到 {size}': 'Approve — raise to {size}',
+  '处理中…': 'Processing…',
+  '拒绝': 'Reject',
+  '每个账号的数据完全隔离；新用户通过下方「邀请码管理」生成的邀请码注册。这里可以禁用账号、重置登录密码、查看 / 调整各账号的存储配额，并审批扩容申请。':
+    'Every account\'s data is fully isolated; new users sign up with invite codes generated in "Invite codes" below. Here you can disable accounts, reset sign-in passwords, view / adjust each account\'s storage quota and approve quota requests.',
+
   // ── 设置 → 关于（多用户角色分层，M6 P2-4，D-205）──
   'Tread Horizon': 'Tread Horizon',
   '云端多用户 · 数据按账号隔离': 'Cloud multi-user · data isolated per account',
@@ -424,17 +474,17 @@ const dict: Dict = {
   '数据备份': 'Data backup',
   '管理员可在「备份与恢复」里导出全量备份 / 恢复；普通用户可在那里导出自己的数据。':
     'The admin can export a full backup / restore under "Backup & Restore"; regular users can export their own data there.',
-  '可在 设置 → 备份与恢复 里导出「我的数据」zip；需要恢复数据请联系管理员。':
-    'You can export a "My data" zip under Settings → Backup & Restore; contact the admin if you need to restore data.',
+  '可在 设置 → 备份与恢复 里导出「我的数据」；需要恢复数据请联系管理员。':
+    'You can export "My data" under Settings → Backup & Restore; contact the admin if you need to restore data.',
   '服务器信息（仅管理员可见）': 'Server info (admin only)',
   '全局数据量（所有账号）': 'Global data (all accounts)',
   '数据与备份说明（云端）': 'Data and backups (cloud)',
-  '云端模式的数据在服务器的数据目录与素材库中，按账号隔离存放；不要在服务器上手改。备份与恢复由管理员在服务器侧完成（每日快照 + 手动备份），普通用户请使用「导出我的数据」。':
-    'In cloud mode data lives in the server data directory and media library, isolated per account; do not edit it directly on the server. Backups and restores are handled by the admin on the server (daily snapshots + manual backups); regular users should use "Export my data".',
+  '云端数据按账号隔离保存在服务器上，请不要直接在服务器上修改。备份与恢复由管理员处理，普通用户请使用「导出我的数据」。':
+    'In cloud mode data is isolated per account on the server; do not edit it on the server. Backups and restores are handled by the admin; regular users should use "Export my data".',
   '换电脑 / 换浏览器不需要迁移数据：用同一个账号登录即可；界面偏好（主题 / 字体等）只存本机浏览器。':
     'Moving to a new PC / browser needs no data migration: just sign in with the same account. Interface preferences (theme / font, etc.) are stored only in the local browser.',
-  '。多用户模式下 Key 只保存在你自己的账号设置里（服务端），不会写日志、不会进入备份 / 导出 zip，也不会下发给其他账号； 请不要把 Key 发到聊天或截图里。':
-    ' In multi-user mode the key is stored only in your own account settings on the server; it is never written to logs, never included in backups / export zips, and never sent to other accounts. Please do not send the key in chats or screenshots.',
+  '。Key 只保存在你自己的账号设置里，其他账号看不到；请不要把 Key 发到聊天或截图里。':
+    'The key is stored only in your own account settings; no other account can see it. Please do not send the key in chats or screenshots.',
 
   // ── 设置 → 账号 → 头像（2026-11-07，D-224）──
   '头像': 'Avatar',
@@ -448,6 +498,28 @@ const dict: Dict = {
   '显示名称不能为空': 'Display name cannot be empty',
   '显示名称最多 40 个字': 'Display name can be at most 40 characters',
   '已保存': 'Saved',
+  '。Key 只保存在这台电脑上；请不要把 Key 发到聊天或截图里。':
+    'The key is stored only on this computer; please do not send it in chats or screenshots.',
+  '数据说明': 'About your data',
+  '旅行记录、到访、照片信息和应用设置都保存在本机数据目录里；缩略图等预览文件可以自动重建，不算正式数据。建议定期备份，恢复前应用也会自动保留最近的备份。':
+    'Places, visits, photo info and app settings are stored in the local data folder; thumbnails and other previews can be rebuilt automatically and are not counted as real data. Back up regularly — the app also keeps a recent backup automatically before each restore.',
+  '换电脑：把数据目录和素材库拷到新电脑，或使用「备份与恢复」里的完整备份（含素材）一次性带走。':
+    'Moving to a new PC: copy the data folder and the media library, or take a full backup (with media) from "Backup & restore" in one go.',
+  '确认程序已启动后刷新页面；如果仍然失败，请重新启动应用。':
+    'Make sure the app is running and refresh the page; if it still fails, restart the app.',
+  '请到 设置 → 天地图 Key 检查 Key 是否正确，并确认网络能访问天地图。':
+    'Check the key under Settings → Tianditu key, and make sure the network can reach Tianditu.',
+
+  '视频封面组件': 'Video cover component',
+
+  '应用更新': 'App updates',
+  '正在检查更新…': 'Checking for updates…',
+  '发现新版本 {v}': 'New version {v} available',
+  '查看更新': 'View update',
+  '已是最新版本': 'Up to date',
+  '无法检查更新（不影响使用）': 'Could not check for updates (the app still works)',
+  '再检查一次': 'Check again',
+
 };
 
 export default dict;

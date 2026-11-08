@@ -35,8 +35,11 @@ export function normalizeRegion(addr: Addr | null | undefined): RegionFields {
   };
 }
 
-/** 34 个省级行政区全称（D-263 从地址文本解析省份用；长名在前，避免前缀误匹配） */
-const PROVINCE_FULL_NAMES = [
+/**
+ * 34 个省级行政区全称（D-263 从地址文本解析省份用；长名在前，避免前缀误匹配）。
+ * 2026-11-08 D-284：也用于「地点编辑 → 地区」的省份候选（datalist）。
+ */
+export const PROVINCE_FULL_NAMES = [
   '内蒙古自治区',
   '广西壮族自治区',
   '宁夏回族自治区',
@@ -81,6 +84,29 @@ const PROVINCE_FULL_NAMES = [
 export function isChineseProvinceName(name?: string | null): boolean {
   const s = clean(name);
   return Boolean(s && PROVINCE_FULL_NAMES.includes(s));
+}
+
+/**
+ * 2026-11-08 D-283：港澳台三个省级行政区。
+ * 天地图逆地理对它们可能只返回省级（实测澳门：province=澳门特别行政区，city/county 都为空），
+ * 因此「city 为空」不一定是数据缺失，界面不能一律当成「未标注」。
+ */
+const HMT_PROVINCE_NAMES = ['香港特别行政区', '澳门特别行政区', '台湾省'];
+
+export function isHmtProvince(name?: string | null): boolean {
+  const s = clean(name);
+  return Boolean(s && HMT_PROVINCE_NAMES.includes(s));
+}
+
+/**
+ * 地点是否需要「补全地区 / 修复未标注」（2026-11-08 D-283）：
+ * - 省为空 → 需要；
+ * - 非港澳台且市为空 → 需要（多为主陆历史数据缺 city）；
+ * - 港澳台且市为空 → **不需要**（天地图对澳门等只返回省级，补全也拿不到市，属正常数据）。
+ */
+export function regionNeedsFill(p: { province?: string | null; city?: string | null }): boolean {
+  if (!p.province) return true;
+  return !p.city && !isHmtProvince(p.province);
 }
 
 /**

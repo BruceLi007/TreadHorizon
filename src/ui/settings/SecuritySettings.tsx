@@ -123,7 +123,7 @@ export default function SecuritySettings({ onChanged }: Props) {
           <h3 className="set-section-title">{t('秘密基地密码')}</h3>
         </div>
         <p className="set-section-desc">
-          {t('秘密基地在地图上照常可见（只用紫罗兰色飞镖区分），点开详情需要密码。密码只保存在本机 `data/config.json` 的加盐哈希里，不写浏览器存储、不加密数据库/素材库。')}
+          {t('秘密基地在地图上照常可见（只用紫罗兰色飞镖区分），点开详情需要密码。密码只保存在这台电脑上，不会上传。')}
         </p>
 
         {secretErr ? (
@@ -300,7 +300,7 @@ export default function SecuritySettings({ onChanged }: Props) {
             )}
 
             <p className="hint">
-              {t('密码只保存在本机（加盐哈希），不写进浏览器存储，也不会出现在日志里。')}
+              {t('密码只保存在这台电脑上，不会上传，也不会显示在任何地方。')}
             </p>
           </>
         )}

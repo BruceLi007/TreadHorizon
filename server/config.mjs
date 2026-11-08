@@ -91,8 +91,18 @@ export const CONFIG = {
   sessionDays: Number(env.SESSION_DAYS) > 0 ? Number(env.SESSION_DAYS) : 30,
   /** 云端 HTTPS 部署时置 1：会话 Cookie 加 Secure（本地 http 调试不要开） */
   cookieSecure: env.COOKIE_SECURE === '1',
-  /** 每用户默认存储配额（字节，默认 5 GiB，D-182 服务器 40G 盘 / 每人 5GB） */
-  defaultQuotaBytes: 5 * 1024 ** 3,
+  /**
+   * 每用户默认存储配额（2026-11-08 D-310，用户要求：云端版每人默认 1 GB，可以申请扩容）。
+   * - 只在 `AUTH_MODE=multi` 生效：上传按「已用空间 + 本文件 ≤ 配额」拦截；回收站里还没彻底
+   *   删除的素材也计入（反映磁盘真实占用）；
+   * - `local` 单机模式不受限（行为与以前一致）；
+   * - `.env.local` 里可用 `DEFAULT_QUOTA_GB` 调整默认值（例如 2 / 5），账号自己的
+   *   `user.quota_bytes > 0` 时优先用自己的值（管理员可在用户管理里调整）。
+   */
+  defaultQuotaBytes: (() => {
+    const gb = Number(env.DEFAULT_QUOTA_GB);
+    return Number.isFinite(gb) && gb > 0 ? Math.floor(gb * 1024 ** 3) : 1 * 1024 ** 3;
+  })(),
   /** 首个管理员（AUTH_MODE=multi 且库里没有用户时自动创建；没有则只提示不创建） */
   adminUsername: typeof env.ADMIN_USERNAME === 'string' ? env.ADMIN_USERNAME.trim() : '',
   adminPassword: typeof env.ADMIN_PASSWORD === 'string' ? env.ADMIN_PASSWORD : '',

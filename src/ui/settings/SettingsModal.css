@@ -1000,6 +1000,31 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
   color: var(--text-3);
 }
 
+/* 2026-11-08 D-320（用户要求）：关于页字段改成横向两列，减少右侧空白；
+   长路径 / 长句用 .about-span 独占整行。 */
+.about-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 40px;
+  margin: 2px 0 6px;
+}
+
+.about-fields .field-static {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.about-fields .about-span {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 900px) {
+  .about-fields {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
 /* ── 回收站嵌在设置窗口里：去掉原面板的定位/背景，随设置内容一起滚动 ── */
 .set-body .trash-panel-embedded {
   position: static;

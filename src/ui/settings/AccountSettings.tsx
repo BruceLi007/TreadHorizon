@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../lib/api';
-import type { AccountSummary, AuthUser } from '../../lib/types';
+import type { AccountSummary, AuthUser, QuotaOverview } from '../../lib/types';
 import { markerSrc, type MarkerColorPrefs } from '../../lib/markerColors';
 import { useLang, useT } from '../../i18n';
-import { formatBytes } from '../../lib/bytes';
+import { formatBytes, formatQuota } from '../../lib/bytes';
 import './AccountSettings.css';
 
 interface Props {
@@ -101,6 +101,93 @@ export default function AccountSettings({
     void loadSummary();
   }, [loadSummary]);
 
+  // ── 存储配额 + 扩容申请（2026-11-08 D-310：云端默认 1 GB，可申请扩容）──
+  const [quota, setQuota] = useState<QuotaOverview | null>(null);
+  const [quotaErr, setQuotaErr] = useState<string | null>(null);
+  const [reqOpen, setReqOpen] = useState(false);
+  const [reqGb, setReqGb] = useState('2');
+  const [reqReason, setReqReason] = useState('');
+  const [reqBusy, setReqBusy] = useState(false);
+  const [reqMsg, setReqMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const loadQuota = useCallback(async () => {
+    try {
+      setQuota(await api.quotaOverview());
+      setQuotaErr(null);
+    } catch (e: any) {
+      setQuota(null);
+      setQuotaErr(e?.message || String(e));
+    }
+  }, []);
+  useEffect(() => {
+    void loadQuota();
+  }, [loadQuota]);
+
+  const refreshQuota = async () => {
+    await Promise.all([loadQuota(), loadSummary()]);
+  };
+
+  const statusLabel = (s: string) =>
+    s === 'pending'
+      ? t('待审批')
+      : s === 'approved'
+        ? t('已批准')
+        : s === 'rejected'
+          ? t('已拒绝')
+          : t('已取消');
+
+  const openRequestForm = () => {
+    const curGb = (quota?.quotaBytes ?? 0) / 1024 ** 3;
+    setReqGb(String(Math.max(1, Math.ceil(curGb) + 1 || 2)));
+    setReqReason('');
+    setReqMsg(null);
+    setReqOpen(true);
+  };
+
+  const submitRequest = async () => {
+    if (reqBusy) return;
+    const gb = Number(reqGb);
+    if (!Number.isFinite(gb) || gb <= 0) {
+      setReqMsg({ ok: false, text: t('请输入大于 0 的数字') });
+      return;
+    }
+    const bytes = Math.round(gb * 1024 ** 3);
+    const current = quota?.quotaBytes ?? 0;
+    if (bytes <= current) {
+      setReqMsg({
+        ok: false,
+        text: t('申请的空间必须大于当前配额（{size}）', { size: formatQuota(current) }),
+      });
+      return;
+    }
+    setReqBusy(true);
+    setReqMsg(null);
+    try {
+      await api.submitQuotaRequest(bytes, reqReason.trim());
+      setReqOpen(false);
+      setReqMsg({ ok: true, text: t('已提交扩容申请，等待管理员审批') });
+      await refreshQuota();
+    } catch (e: any) {
+      setReqMsg({ ok: false, text: e?.message || String(e) });
+    } finally {
+      setReqBusy(false);
+    }
+  };
+
+  const cancelRequest = async (id: string) => {
+    setReqBusy(true);
+    setReqMsg(null);
+    try {
+      await api.cancelQuotaRequest(id);
+      setReqMsg({ ok: true, text: t('扩容申请已取消') });
+      await refreshQuota();
+    } catch (e: any) {
+      setReqMsg({ ok: false, text: e?.message || String(e) });
+    } finally {
+      setReqBusy(false);
+    }
+  };
+
   // ── 改密码 ──
   const [oldPwd, setOldPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
@@ -189,6 +276,12 @@ export default function AccountSettings({
       setAvatarBusy(false);
     }
   };
+
+  // 存储用量 / 配额百分比（D-310）
+  const usedBytes = quota?.usedBytes ?? summary?.usage.mediaBytes ?? 0;
+  const quotaBytes = quota?.quotaBytes ?? summary?.quotaBytes ?? 0;
+  const percent = quotaBytes > 0 ? Math.min(100, Math.round((usedBytes / quotaBytes) * 100)) : 0;
+  const overQuota = quotaBytes > 0 && usedBytes >= quotaBytes;
 
   return (
     <div className="set-pane">
@@ -326,7 +419,7 @@ export default function AccountSettings({
             ref={avatarInputRef}
             className="acc-avatar-input"
             type="file"
-            accept="image/*"
+            accept="image/*,.heic,.heif"
             disabled={avatarBusy}
             onChange={(e) => {
               const f = e.currentTarget.files?.[0];
@@ -345,19 +438,39 @@ export default function AccountSettings({
       <section className="set-section">
         <div className="set-section-head">
           <h3 className="set-section-title">{t('存储用量')}</h3>
+          <span className="acc-badge">{t('云端配额')}</span>
         </div>
         <p className="set-section-desc">
-          {t('已用空间只做统计、不限制上传（素材库里的照片 / 视频在磁盘上，每份素材都会占用容量，回收站里还没彻底删除的也算）。服务器空间有限，上云后才会按账号设上限。')}
+          {t('云端版每个账号有独立存储配额（默认 1 GB）；回收站里还没彻底删除的素材也占用配额。空间用满后新的上传会被拒绝，可以删除不需要的素材或申请扩容。')}
         </p>
         {summaryErr ? (
           <p className="hint err">{summaryErr}</p>
-        ) : !summary ? (
+        ) : !summary || !quota ? (
           <p className="hint">{t('读取中…')}</p>
         ) : (
           <>
-            <div className="acc-usage-total">
-              <b>{formatBytes(summary.usage.mediaBytes)}</b>
-              <span>{t('已用空间')}</span>
+            <div className="acc-quota-head">
+              <b>
+                {t('已用 {used} / 上限 {quota}', {
+                  used: formatBytes(usedBytes),
+                  quota: formatQuota(quotaBytes),
+                })}
+              </b>
+              <span className={overQuota ? 'acc-quota-percent is-over' : 'acc-quota-percent'}>
+                {percent}%
+              </span>
+            </div>
+            <div
+              className="acc-quota-bar"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={percent}
+            >
+              <i
+                className={overQuota ? 'is-over' : percent >= 85 ? 'is-warn' : ''}
+                style={{ width: `${percent}%` }}
+              />
             </div>
             <p className="hint">
               {t('{places} 个地点 · {visits} 次到访 · {photos} 张照片 · {videos} 段视频', {
@@ -367,6 +480,104 @@ export default function AccountSettings({
                 videos: summary.usage.videos,
               })}
             </p>
+            {overQuota && (
+              <p className="hint err">
+                {t(
+                  '空间已满：新的上传会被拒绝。请删除不需要的素材（回收站里的要彻底删除），或在下面申请扩容。'
+                )}
+              </p>
+            )}
+
+            {/* 扩容申请（2026-11-08 D-310） */}
+            {quota.pending ? (
+              <div className="acc-quota-pending">
+                <p className="acc-quota-pending-title">{t('扩容申请：待管理员审批')}</p>
+                <p className="hint">
+                  {t('申请将配额提高到 {size}', {
+                    size: formatQuota(quota.pending.requestedBytes),
+                  })}
+                  {quota.pending.reason ? ` · ${quota.pending.reason}` : ''}
+                </p>
+                <button
+                  className="text-btn"
+                  onClick={() => void cancelRequest(quota.pending!.id)}
+                  disabled={reqBusy}
+                >
+                  {t('取消申请')}
+                </button>
+              </div>
+            ) : !reqOpen ? (
+              <button className="primary" onClick={openRequestForm} disabled={reqBusy}>
+                {t('申请扩容')}
+              </button>
+            ) : (
+              <div className="acc-quota-form">
+                <label className="field">
+                  <span>{t('希望的新配额（GB）')}</span>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={reqGb}
+                    disabled={reqBusy}
+                    onChange={(e) => {
+                      setReqGb(e.target.value);
+                      setReqMsg(null);
+                    }}
+                  />
+                </label>
+                <label className="field">
+                  <span>{t('理由（可选）')}</span>
+                  <input
+                    value={reqReason}
+                    maxLength={200}
+                    disabled={reqBusy}
+                    placeholder={t('例如：旅行照片和视频比较多')}
+                    onChange={(e) => {
+                      setReqReason(e.target.value);
+                      setReqMsg(null);
+                    }}
+                  />
+                </label>
+                <div className="acc-quota-form-actions">
+                  <button className="primary" onClick={() => void submitRequest()} disabled={reqBusy}>
+                    {reqBusy ? t('提交中…') : t('提交申请')}
+                  </button>
+                  <button
+                    className="text-btn"
+                    onClick={() => {
+                      setReqOpen(false);
+                      setReqMsg(null);
+                    }}
+                    disabled={reqBusy}
+                  >
+                    {t('取消')}
+                  </button>
+                </div>
+              </div>
+            )}
+            {reqMsg && <p className={reqMsg.ok ? 'hint acc-ok' : 'hint err'}>{reqMsg.text}</p>}
+
+            {quota.history.some((h) => h.status !== 'pending') && (
+              <div className="acc-quota-history">
+                <p className="acc-quota-history-title">{t('申请记录')}</p>
+                {quota.history
+                  .filter((h) => h.status !== 'pending')
+                  .slice(0, 5)
+                  .map((h) => (
+                    <div className="acc-quota-history-row" key={h.id}>
+                      <span>
+                        {t('申请将配额提高到 {size}', { size: formatQuota(h.requestedBytes) })}
+                      </span>
+                      <span className={`acc-quota-status is-${h.status}`}>
+                        {statusLabel(h.status)}
+                      </span>
+                      {h.adminNote && <span className="hint">{h.adminNote}</span>}
+                      <span className="hint">{fmtDate(h.createdAt, lang)}</span>
+                    </div>
+                  ))}
+              </div>
+            )}
           </>
         )}
       </section>
@@ -376,7 +587,7 @@ export default function AccountSettings({
           <h3 className="set-section-title">{t('修改登录密码')}</h3>
         </div>
         <p className="set-section-desc">
-          {t('修改后请用新密码登录；登录密码只以 scrypt 加盐哈希保存在服务端，任何人都看不到原文。')}
+          {t('修改后请用新密码登录；密码会加密保存，任何人都看不到原文。')}
         </p>
 
         <label className="field">

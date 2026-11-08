@@ -16,7 +16,7 @@ export default function TrashSettings({ onChanged }: Props) {
           <h3 className="set-section-title">{t('回收站')}</h3>
         </div>
         <p className="set-section-desc">
-          {t('删除的地点 / 到访 / 照片视频先放在这里，不会立刻释放空间；「彻底删除」（单条 / 所选 / 清空） 才会删 B 库文件 + 缓存并释放空间。A 原件永远不动。')}
+          {t('删除的地点 / 到访 / 照片视频先放在这里，不会立刻释放空间；「彻底删除」（单条 / 所选 / 清空）才会真正删除并释放空间。你电脑上的原文件不会被删除。')}
         </p>
       </section>
       <TrashPanel embedded onClose={() => {}} onChanged={onChanged} />

@@ -166,17 +166,9 @@ export default function TdtSettings({ multi = false }: { multi?: boolean }) {
           >
             www.tianditu.gov.cn
           </a>
-          {multi ? (
-            <>
-              {t('。多用户模式下 Key 只保存在你自己的账号设置里（服务端），不会写日志、不会进入备份 / 导出 zip，也不会下发给其他账号； 请不要把 Key 发到聊天或截图里。')}
-            </>
-          ) : (
-            <>
-              {t('。Key 只保存在本机 ')}
-              <code>data/config.json</code>
-              {t('，不会写日志、不会进入备份 zip； 请不要把 Key 发到聊天或截图里。')}
-            </>
-          )}
+          {multi
+            ? t('。Key 只保存在你自己的账号设置里，其他账号看不到；请不要把 Key 发到聊天或截图里。')
+            : t('。Key 只保存在这台电脑上；请不要把 Key 发到聊天或截图里。')}
         </p>
 
         {/* 2026-11-07 用户要求（D-222）：设置页也放一个申请教程 PDF 入口 */}

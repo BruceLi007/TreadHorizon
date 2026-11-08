@@ -29,6 +29,12 @@ export const THEME_LEVEL_LABEL: Record<ThemeLevel, string> = {
  * 以及各选项预览用的 `--font-opt-*`。
  * 系统自带字体只写字体族名；OFL 下载字体是 public/fonts/ 里本地 @font-face 加载的
  * （随仓库发布，许可见 public/fonts/LICENSES.md）。
+ *
+ * **2026-11-08 D-298（用户提供 6 款猫啃网下载字体）**：新增 猫啃什锦黑 / 荆南波波黑 /
+ * 游趣体 / 铁蒺藜体 / 呆萌手写体 / 字魂扁桃体，均为 SIL OFL 1.1，随仓库发布；
+ * 下载字体从 2 款变为 8 款（设置里共 12 档：8 款 OFL + 4 款系统字体）。
+ * **2026-11-08 D-299（用户要求「嗷呜碎瘾黑彻底删除」）**：删除 嗷呜碎瘾黑 →
+ * 现在下载字体 **7 款**（设置里共 **11 档**：7 款 OFL + 4 款系统字体）。
  */
 export type AppFont =
   | 'yahei'
@@ -36,7 +42,12 @@ export type AppFont =
   | 'heiti'
   | 'kaiti'
   | 'miao-goupa'
-  | 'aowu-suiyin';
+  | 'maoken-shijin'
+  | 'jingnan-bobohei'
+  | 'childfun-sans'
+  | 'tiejili'
+  | 'dymon-shouxieti'
+  | 'zihun-biantaoti';
 
 export interface FontOption {
   id: AppFont;
@@ -48,7 +59,14 @@ export interface FontOption {
  *  （旧偏好 tm-font='system' 或已删除字体，读的时候校验不通过、自动回落到默认字体）。 */
 export const APP_FONTS: FontOption[] = [
   { id: 'miao-goupa', label: '喵咛狗爬黑' },
-  { id: 'aowu-suiyin', label: '嗷呜碎瘾黑' },
+  // 2026-11-08 D-298：用户提供、猫啃网下载的 6 款 SIL OFL 1.1 字体
+  // 2026-11-08 D-299：嗷呜碎瘾黑按用户要求彻底删除；现为 7 款下载字体 + 4 款系统字体
+  { id: 'maoken-shijin', label: '猫啃什锦黑' },
+  { id: 'jingnan-bobohei', label: '荆南波波黑' },
+  { id: 'childfun-sans', label: '游趣体' },
+  { id: 'tiejili', label: '铁蒺藜体' },
+  { id: 'dymon-shouxieti', label: '呆萌手写体' },
+  { id: 'zihun-biantaoti', label: '字魂扁桃体' },
   { id: 'yahei', label: '微软雅黑' },
   { id: 'songti', label: '宋体' },
   { id: 'heiti', label: '黑体' },
@@ -85,9 +103,10 @@ export const isMediaCols = (v: number | null | undefined): v is MediaCols =>
  *
  * 只缩放「界面文字」：styles.css 里全站 font-size 都写成
  * `calc(Npx * var(--fs-scale))`，由 `html[data-fontsize='sm|md|lg']` 设系数
- * （0.9 / 1 / 1.1）。图片、图标、地图、布局盒子比例都不变；
- * 顶栏 6 键（宽度受 632px 轨道约束）不参与缩放。
- * 默认「中」= 改动前大小；偏好只存本机浏览器 `tm-font-size`（不写 data/、不进备份）。
+ * （1.0 / 1.2 / 1.4；D-299 用户要求中档再大一个字号、大档再大两个字号，此前为 1.0 / 1.1 / 1.2）。
+ * 图片、图标、地图、布局盒子比例都不变；
+ * 顶栏 6 键（宽度受 632px 轨道约束）宽度固定、文字跟随缩放。
+ * 默认「大」= 2026-11-08 D-282 用户要求（此前默认「中」）；偏好只存本机浏览器 `tm-font-size`（不写 data/、不进备份）。
  */
 export type FontSize = 'sm' | 'md' | 'lg';
 
@@ -100,7 +119,7 @@ export const FONT_SIZE_LABEL: Record<FontSize, string> = {
   lg: '大',
 };
 
-export const DEFAULT_FONT_SIZE: FontSize = 'md';
+export const DEFAULT_FONT_SIZE: FontSize = 'lg';
 
 export const isFontSize = (v: string | null | undefined): v is FontSize =>
   v === 'sm' || v === 'md' || v === 'lg';
@@ -122,7 +141,11 @@ export const FONT_WEIGHT_LABEL: Record<FontWeight, string> = {
   bold: '加粗',
 };
 
-export const DEFAULT_FONT_WEIGHT: FontWeight = 'normal';
+/**
+ * 默认界面字重（2026-11-08 D-282 用户要求：默认改为「加粗」；
+ * 之前 2026-11-06 起默认是「常规」）。
+ */
+export const DEFAULT_FONT_WEIGHT: FontWeight = 'bold';
 
 export const isFontWeight = (v: string | null | undefined): v is FontWeight =>
   v === 'normal' || v === 'bold';

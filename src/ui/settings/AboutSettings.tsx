@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import type { AccountSummary, AuthUser } from '../../lib/types';
+import type { AccountSummary, AuthUser, UpdateCheckResult } from '../../lib/types';
 import { formatBytes } from '../../lib/bytes';
 import { tr, useT } from '../../i18n';
 
@@ -38,6 +38,22 @@ export default function AboutSettings({ multi = false, isAdmin = false, currentU
   const [h, setH] = useState<Health | null>(null);
   const [sum, setSum] = useState<AccountSummary | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // 2026-11-08 D-319：本地模式「检查更新」（只提示，不自动更新；云端由服务器更新后刷新即新版，不做提示）
+  const [update, setUpdate] = useState<UpdateCheckResult | null>(null);
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const [updateFailed, setUpdateFailed] = useState(false);
+
+  const runUpdateCheck = async () => {
+    setUpdateBusy(true);
+    setUpdateFailed(false);
+    try {
+      setUpdate(await api.checkUpdate());
+    } catch {
+      setUpdateFailed(true);
+    } finally {
+      setUpdateBusy(false);
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -63,13 +79,20 @@ export default function AboutSettings({ multi = false, isAdmin = false, currentU
     };
   }, [multi]);
 
+  // 2026-11-08 D-319：本地模式打开关于页时静默检查一次（失败不打扰，只显示无法检查）
+  useEffect(() => {
+    if (multi) return;
+    void runUpdateCheck();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [multi]);
+
   const s = (multi && isAdmin ? h?.globalStats : h?.stats) ?? (multi ? h?.stats : h?.stats) ?? {};
   const own = h?.stats ?? {};
   const modeText = !h
     ? '—'
     : h.mode === 'dev'
-      ? t('开发模式（npm run dev）')
-      : t('正式模式（npm start / node server/index.mjs）');
+      ? t('开发模式')
+      : t('正式模式');
 
   return (
     <div className="set-pane">
@@ -82,7 +105,7 @@ export default function AboutSettings({ multi = false, isAdmin = false, currentU
               <span className="set-section-tag">{t('本地运行 · 无账号 · 无云')}</span>
             </div>
             <p className="set-section-desc">
-              {t('一个纯本地的个人旅行足迹地图：数据在 SQLite，照片/视频在本地素材库，地图用天地图。 A 原件永远不被 app 读取或修改；B 素材库是上传时生成的副本。')}
+              {t('一个纯本地的个人旅行足迹地图：数据保存在本机，照片 / 视频放在本地素材库，地图使用天地图。')}
             </p>
 
             {err && <p className="hint err">{err}</p>}
@@ -109,36 +132,76 @@ export default function AboutSettings({ multi = false, isAdmin = false, currentU
                   </div>
                 </div>
 
-                <div className="field-static">
-                  <span>{t('应用版本')}</span>
-                  <div className="value mono">{h.version || '—'}</div>
-                </div>
-                <div className="field-static">
-                  <span>{t('运行模式')}</span>
-                  <div className="value">{modeText}</div>
-                </div>
-                <div className="field-static">
-                  <span>{t('数据目录')}</span>
-                  <div className="value mono" style={{ wordBreak: 'break-all' }}>
-                    {h.dataDir}
+                <div className="about-fields">
+                  <div className="field-static">
+                    <span>{t('应用版本')}</span>
+                    <div className="value mono">{h.version || '—'}</div>
                   </div>
-                </div>
-                <div className="field-static">
-                  <span>{t('素材库 B')}</span>
-                  <div className="value mono" style={{ wordBreak: 'break-all' }}>
-                    {h.mediaRoot}
+                  <div className="field-static">
+                    <span>{t('运行模式')}</span>
+                    <div className="value">{modeText}</div>
                   </div>
-                </div>
-                <div className="field-static">
-                  <span>{t('天地图 key')}</span>
-                  <div className="value">
-                    {h.hasTk ? t('已配置') : t('未配置（地图可能加载不出来）')}
+                  <div className="field-static about-span">
+                    <span>{t('应用更新')}</span>
+                    <div className="value">
+                      {updateBusy ? (
+                        t('正在检查更新…')
+                      ) : updateFailed || (update && !update.ok && !update.disabled) ? (
+                        t('无法检查更新（不影响使用）')
+                      ) : update?.hasUpdate ? (
+                        <>
+                          <b>{t('发现新版本 {v}', { v: update.latestVersion || '' })}</b>
+                          {update.releaseUrl ? (
+                            <a
+                              href={update.releaseUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ marginLeft: 8 }}
+                            >
+                              {t('查看更新')}
+                            </a>
+                          ) : null}
+                        </>
+                      ) : update?.ok ? (
+                        t('已是最新版本')
+                      ) : (
+                        t('无法检查更新（不影响使用）')
+                      )}
+                      {!updateBusy && (
+                        <button
+                          type="button"
+                          className="ghost"
+                          style={{ marginLeft: 10 }}
+                          onClick={() => void runUpdateCheck()}
+                        >
+                          {t('再检查一次')}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="field-static">
-                  <span>{t('视频封面（ffmpeg）')}</span>
-                  <div className="value">
-                    {h.ffmpeg ? t('可用') : t('不可用（视频仍可播放）')}
+                  <div className="field-static">
+                    <span>{t('天地图 key')}</span>
+                    <div className="value">
+                      {h.hasTk ? t('已配置') : t('未配置（地图可能加载不出来）')}
+                    </div>
+                  </div>
+                  <div className="field-static">
+                    <span>{t('视频封面生成')}</span>
+                    <div className="value">
+                      {h.ffmpeg ? t('可用') : t('不可用（视频仍可播放）')}
+                    </div>
+                  </div>
+                  <div className="field-static about-span">
+                    <span>{t('数据位置')}</span>
+                    <div className="value mono" style={{ wordBreak: 'break-all' }}>
+                      {h.dataDir}
+                    </div>
+                  </div>
+                  <div className="field-static about-span">
+                    <span>{t('素材库位置')}</span>
+                    <div className="value mono" style={{ wordBreak: 'break-all' }}>
+                      {h.mediaRoot}
+                    </div>
                   </div>
                 </div>
               </>
@@ -147,44 +210,13 @@ export default function AboutSettings({ multi = false, isAdmin = false, currentU
 
           <section className="set-section">
             <div className="set-section-head">
-              <h3 className="set-section-title">{t('数据文件说明')}</h3>
+              <h3 className="set-section-title">{t('数据说明')}</h3>
             </div>
-            <div className="field-static">
-              <span>{t('数据库 / 配置')}</span>
-              <div className="value">
-                <span className="mono">data/travel.db</span>
-                {t('、')}
-                <span className="mono">data/config.json</span>
-                {t('（唯一元数据；请定期手动备份）')}
-              </div>
-            </div>
-            <div className="field-static">
-              <span>{t('缩略图缓存')}</span>
-              <div className="value">
-                <span className="mono">data/thumbs/</span>
-                {t('（可重建，不算数据）')}
-              </div>
-            </div>
-            <div className="field-static">
-              <span>{t('恢复前自动备份')}</span>
-              <div className="value">
-                <span className="mono">data/backups/</span>
-                {t('（保留最近 5 份 pre-restore zip）')}
-              </div>
-            </div>
-            <div className="field-static">
-              <span>{t('导出 / 检查临时文件')}</span>
-              <div className="value">
-                <span className="mono">data/tmp/</span>
-                {t('（自动清理）')}
-              </div>
-            </div>
+            <p className="set-section-desc">
+              {t('旅行记录、到访、照片信息和应用设置都保存在本机数据目录里；缩略图等预览文件可以自动重建，不算正式数据。建议定期备份，恢复前应用也会自动保留最近的备份。')}
+            </p>
             <p className="hint">
-              {t('换电脑：拷贝 ')}
-              <span className="mono">data/</span>
-              {t(' + 素材库 B + ')}
-              <span className="mono">.env.local</span>
-              {t('； 或使用「备份与恢复」里的完整备份（含素材）一次性带走。')}
+              {t('换电脑：把数据目录和素材库拷到新电脑，或使用「备份与恢复」里的完整备份（含素材）一次性带走。')}
             </p>
           </section>
         </>
@@ -224,46 +256,48 @@ export default function AboutSettings({ multi = false, isAdmin = false, currentU
                   </div>
                 </div>
 
-                <div className="field-static">
-                  <span>{t('应用版本')}</span>
-                  <div className="value mono">{h.version || '—'}</div>
-                </div>
-                <div className="field-static">
-                  <span>{t('账号')}</span>
-                  <div className="value">
-                    {currentUser ? `${currentUser.displayName}（@${currentUser.username}）` : '—'}
-                    {/* 2026-11-07（D-216）：角色是中文文案，不能套 .mono（等宽字体会回退成宋体，字体不对）；
-                        复用账号页的角色小标签样式，保持界面字体一致。 */}
-                    <span className="acc-role-tag">
-                      {isAdmin ? t('管理员') : t('普通用户')}
-                    </span>
-                  </div>
-                </div>
-                {sum && (
+                <div className="about-fields">
                   <div className="field-static">
-                    <span>{t('存储用量')}</span>
+                    <span>{t('应用版本')}</span>
+                    <div className="value mono">{h.version || '—'}</div>
+                  </div>
+                  <div className="field-static">
+                    <span>{t('账号')}</span>
                     <div className="value">
-                      {formatBytes(sum.usage.mediaBytes)}
-                      <span className="muted" style={{ marginLeft: 8 }}>
-                        {t('只做统计，不限制上传')}
+                      {currentUser ? `${currentUser.displayName}（@${currentUser.username}）` : '—'}
+                      {/* 2026-11-07（D-216）：角色是中文文案，不能套 .mono（等宽字体会回退成宋体，字体不对）；
+                          复用账号页的角色小标签样式，保持界面字体一致。 */}
+                      <span className="acc-role-tag">
+                        {isAdmin ? t('管理员') : t('普通用户')}
                       </span>
                     </div>
                   </div>
-                )}
-                <div className="field-static">
-                  <span>{t('天地图 Key')}</span>
-                  <div className="value">
-                    {h.hasTk
-                      ? t('已配置（你账号自己的 Key）')
-                      : t('未配置：请到 设置 → 天地图 Key 填写（每个账号一份）')}
+                  <div className="field-static">
+                    <span>{t('天地图 Key')}</span>
+                    <div className="value">
+                      {h.hasTk
+                        ? t('已配置（你账号自己的 Key）')
+                        : t('未配置：请到 设置 → 天地图 Key 填写（每个账号一份）')}
+                    </div>
                   </div>
-                </div>
-                <div className="field-static">
-                  <span>{t('数据备份')}</span>
-                  <div className="value">
-                    {isAdmin
-                      ? t('管理员可在「备份与恢复」里导出全量备份 / 恢复；普通用户可在那里导出自己的数据。')
-                      : t('可在 设置 → 备份与恢复 里导出「我的数据」zip；需要恢复数据请联系管理员。')}
+                  {sum && (
+                    <div className="field-static">
+                      <span>{t('存储用量')}</span>
+                      <div className="value">
+                        {formatBytes(sum.usage.mediaBytes)}
+                        <span className="muted" style={{ marginLeft: 8 }}>
+                          {t('只做统计，不限制上传')}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="field-static about-span">
+                    <span>{t('数据备份')}</span>
+                    <div className="value">
+                      {isAdmin
+                        ? t('管理员可在「备份与恢复」里导出全量备份 / 恢复；普通用户可在那里导出自己的数据。')
+                        : t('可在 设置 → 备份与恢复 里导出「我的数据」；需要恢复数据请联系管理员。')}
+                    </div>
                   </div>
                 </div>
               </>
@@ -275,37 +309,39 @@ export default function AboutSettings({ multi = false, isAdmin = false, currentU
               <div className="set-section-head">
                 <h3 className="set-section-title">{t('服务器信息（仅管理员可见）')}</h3>
               </div>
-              <div className="field-static">
-                <span>{t('运行模式')}</span>
-                <div className="value">{modeText}</div>
-              </div>
-              <div className="field-static">
-                <span>{t('数据目录')}</span>
-                <div className="value mono" style={{ wordBreak: 'break-all' }}>
-                  {h.dataDir || '—'}
+              <div className="about-fields">
+                <div className="field-static">
+                  <span>{t('运行模式')}</span>
+                  <div className="value">{modeText}</div>
                 </div>
-              </div>
-              <div className="field-static">
-                <span>{t('素材库 B')}</span>
-                <div className="value mono" style={{ wordBreak: 'break-all' }}>
-                  {h.mediaRoot || '—'}
+                <div className="field-static">
+                  <span>{t('视频封面生成')}</span>
+                  <div className="value">
+                    {h.ffmpeg ? t('可用') : t('不可用（视频仍可播放）')}
+                  </div>
                 </div>
-              </div>
-              <div className="field-static">
-                <span>{t('视频封面（ffmpeg）')}</span>
-                <div className="value">
-                  {h.ffmpeg ? t('可用') : t('不可用（视频仍可播放）')}
+                <div className="field-static about-span">
+                  <span>{t('数据位置')}</span>
+                  <div className="value mono" style={{ wordBreak: 'break-all' }}>
+                    {h.dataDir || '—'}
+                  </div>
                 </div>
-              </div>
-              <div className="field-static">
-                <span>{t('全局数据量（所有账号）')}</span>
-                <div className="value">
-                  {t('{places} 个地点 · {visits} 次到访 · {photos} 张照片 · {videos} 段视频', {
-                    places: s.places ?? 0,
-                    visits: s.visits ?? 0,
-                    photos: s.photos ?? 0,
-                    videos: s.videos ?? 0,
-                  })}
+                <div className="field-static about-span">
+                  <span>{t('素材库位置')}</span>
+                  <div className="value mono" style={{ wordBreak: 'break-all' }}>
+                    {h.mediaRoot || '—'}
+                  </div>
+                </div>
+                <div className="field-static about-span">
+                  <span>{t('全局数据量（所有账号）')}</span>
+                  <div className="value">
+                    {t('{places} 个地点 · {visits} 次到访 · {photos} 张照片 · {videos} 段视频', {
+                      places: s.places ?? 0,
+                      visits: s.visits ?? 0,
+                      photos: s.photos ?? 0,
+                      videos: s.videos ?? 0,
+                    })}
+                  </div>
                 </div>
               </div>
             </section>
@@ -316,7 +352,7 @@ export default function AboutSettings({ multi = false, isAdmin = false, currentU
               <h3 className="set-section-title">{t('数据与备份说明（云端）')}</h3>
             </div>
             <p className="set-section-desc">
-              {t('云端模式的数据在服务器的数据目录与素材库中，按账号隔离存放；不要在服务器上手改。备份与恢复由管理员在服务器侧完成（每日快照 + 手动备份），普通用户请使用「导出我的数据」。')}
+              {t('云端数据按账号隔离保存在服务器上，请不要直接在服务器上修改。备份与恢复由管理员处理，普通用户请使用「导出我的数据」。')}
             </p>
             <p className="hint">
               {t('换电脑 / 换浏览器不需要迁移数据：用同一个账号登录即可；界面偏好（主题 / 字体等）只存本机浏览器。')}
