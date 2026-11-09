@@ -3,6 +3,7 @@ import { api } from '../../lib/api';
 import type { AccountSummary, AuthUser, UpdateCheckResult } from '../../lib/types';
 import { formatBytes } from '../../lib/bytes';
 import { tr, useT } from '../../i18n';
+import ConfirmDialog from '../ConfirmDialog';
 
 interface Health {
   ok: boolean;
@@ -22,6 +23,16 @@ interface Props {
   multi?: boolean;
   isAdmin?: boolean;
   currentUser?: AuthUser | null;
+  /** 应用更新检查结果（2026-11-09 D-327）：由 App 统一持有，顶栏 / 设置导航红点与关于页共用同一份状态 */
+  updateCheck?: UpdateCheckResult | null;
+  /** 正在检查更新（打开设置时 App 会刷新一次） */
+  updateChecking?: boolean;
+  /** 「再检查一次」 */
+  onCheckUpdate?: () => void;
+  /** 用户已忽略的版本号（本机 localStorage；只影响红点，不隐藏关于页的版本信息） */
+  ignoredUpdateVersion?: string;
+  onIgnoreUpdate?: (version: string) => void;
+  onRestoreUpdateReminder?: () => void;
 }
 
 /**
@@ -33,27 +44,23 @@ interface Props {
  *   与导出入口提示，**不下发服务器绝对路径、ffmpeg、全局数据量**；
  *   管理员额外看到服务器目录 / 素材库 / ffmpeg / 全局数据量 / 运行模式。
  */
-export default function AboutSettings({ multi = false, isAdmin = false, currentUser = null }: Props) {
+export default function AboutSettings({
+  multi = false,
+  isAdmin = false,
+  currentUser = null,
+  updateCheck = null,
+  updateChecking = false,
+  onCheckUpdate,
+  ignoredUpdateVersion = '',
+  onIgnoreUpdate,
+  onRestoreUpdateReminder,
+}: Props) {
   const t = useT();
   const [h, setH] = useState<Health | null>(null);
   const [sum, setSum] = useState<AccountSummary | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  // 2026-11-08 D-319：本地模式「检查更新」（只提示，不自动更新；云端由服务器更新后刷新即新版，不做提示）
-  const [update, setUpdate] = useState<UpdateCheckResult | null>(null);
-  const [updateBusy, setUpdateBusy] = useState(false);
-  const [updateFailed, setUpdateFailed] = useState(false);
-
-  const runUpdateCheck = async () => {
-    setUpdateBusy(true);
-    setUpdateFailed(false);
-    try {
-      setUpdate(await api.checkUpdate());
-    } catch {
-      setUpdateFailed(true);
-    } finally {
-      setUpdateBusy(false);
-    }
-  };
+  /** 2026-11-09 D-330：本地版手动升级前多一步确认（提醒升级会中断正在上传的文件） */
+  const [confirmUpgrade, setConfirmUpgrade] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -77,13 +84,6 @@ export default function AboutSettings({ multi = false, isAdmin = false, currentU
     return () => {
       alive = false;
     };
-  }, [multi]);
-
-  // 2026-11-08 D-319：本地模式打开关于页时静默检查一次（失败不打扰，只显示无法检查）
-  useEffect(() => {
-    if (multi) return;
-    void runUpdateCheck();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [multi]);
 
   const s = (multi && isAdmin ? h?.globalStats : h?.stats) ?? (multi ? h?.stats : h?.stats) ?? {};
@@ -144,35 +144,66 @@ export default function AboutSettings({ multi = false, isAdmin = false, currentU
                   <div className="field-static about-span">
                     <span>{t('应用更新')}</span>
                     <div className="value">
-                      {updateBusy ? (
+                      {updateChecking ? (
                         t('正在检查更新…')
-                      ) : updateFailed || (update && !update.ok && !update.disabled) ? (
-                        t('无法检查更新（不影响使用）')
-                      ) : update?.hasUpdate ? (
+                      ) : updateCheck?.hasUpdate ? (
                         <>
-                          <b>{t('发现新版本 {v}', { v: update.latestVersion || '' })}</b>
-                          {update.releaseUrl ? (
+                          <b>{t('发现新版本 {v}', { v: updateCheck.latestVersion || '' })}</b>
+                          {updateCheck.releaseUrl ? (
                             <a
-                              href={update.releaseUrl}
+                              href={updateCheck.releaseUrl}
                               target="_blank"
                               rel="noreferrer"
                               style={{ marginLeft: 8 }}
+                              onClick={(e) => {
+                                // 2026-11-09 D-330：本地版手动升级前先确认，提醒上传会中断的风险
+                                e.preventDefault();
+                                setConfirmUpgrade(true);
+                              }}
                             >
                               {t('查看更新')}
                             </a>
                           ) : null}
+                          {updateCheck.latestVersion === ignoredUpdateVersion ? (
+                            <>
+                              <span className="muted" style={{ marginLeft: 8 }}>
+                                {t('已忽略此版本提醒')}
+                              </span>
+                              <button
+                                type="button"
+                                className="ghost"
+                                style={{ marginLeft: 10 }}
+                                onClick={() => onRestoreUpdateReminder?.()}
+                              >
+                                {t('恢复提醒')}
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              className="ghost"
+                              style={{ marginLeft: 10 }}
+                              onClick={() => {
+                                if (updateCheck.latestVersion) {
+                                  onIgnoreUpdate?.(updateCheck.latestVersion);
+                                }
+                              }}
+                            >
+                              {t('不再提醒这个版本')}
+                            </button>
+                          )}
                         </>
-                      ) : update?.ok ? (
+                      ) : updateCheck?.ok ? (
                         t('已是最新版本')
                       ) : (
                         t('无法检查更新（不影响使用）')
                       )}
-                      {!updateBusy && (
+                      {!updateChecking && (
                         <button
                           type="button"
                           className="ghost"
                           style={{ marginLeft: 10 }}
-                          onClick={() => void runUpdateCheck()}
+                          onClick={() => onCheckUpdate?.()}
                         >
                           {t('再检查一次')}
                         </button>
@@ -360,6 +391,23 @@ export default function AboutSettings({ multi = false, isAdmin = false, currentU
           </section>
         </>
       )}
+
+      {confirmUpgrade && updateCheck?.releaseUrl ? (
+        <ConfirmDialog
+          title={t('升级前确认')}
+          confirmText={t('前往查看')}
+          onConfirm={() => {
+            const url = updateCheck.releaseUrl;
+            setConfirmUpgrade(false);
+            if (url) window.open(url, '_blank', 'noopener,noreferrer');
+          }}
+          onCancel={() => setConfirmUpgrade(false)}
+        >
+          <p className="hint" style={{ margin: 0 }}>
+            {t('升级需要关闭并重新启动程序；如果正在上传文件，升级会导致上传中断、失败，需要重新上传。建议先确认上传队列为空，并做好备份。')}
+          </p>
+        </ConfirmDialog>
+      ) : null}
     </div>
   );
 }

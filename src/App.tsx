@@ -43,6 +43,7 @@ import { normalizeRegion, regionFromText, isChineseProvinceName, regionNeedsFill
 import { isInsideChina, loadChinaBounds } from './lib/chinaBounds';
 import {
   HOME_COLOR_KEY,
+  homeMarkerHex,
   homeMarkerSrc,
   readHomeColor,
   type HomeColor,
@@ -50,9 +51,15 @@ import {
 import {
   readMarkerColors,
   saveMarkerColors,
+  markerHex,
   markerSrc,
   type MarkerColorPrefs,
 } from './lib/markerColors';
+import {
+  readIgnoredUpdateVersion,
+  saveIgnoredUpdateVersion,
+  updateReminder,
+} from './lib/updateInfo';
 import {
   I18nContext,
   isLang,
@@ -62,7 +69,7 @@ import {
   tr,
   type Lang,
 } from './i18n';
-import type { Addr, BackupStatus, Place, PlaceDetail, Poi, ProvinceLight, UploadItem } from './lib/types';
+import type { Addr, BackupStatus, Place, PlaceDetail, Poi, ProvinceLight, UpdateCheckResult, UploadItem } from './lib/types';
 
 export interface DraftState {
   lng: number;
@@ -278,6 +285,11 @@ export default function App() {
   const [trashCount, setTrashCount] = useState(0);
   /** 备份提醒（F-SYS-05）：启动时取一次；设置页关闭 / 恢复 / 导出后刷新 */
   const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null);
+  /** 应用更新提醒（2026-11-09 D-327）：本地模式启动 / 打开设置时静默检查；有新版本时顶栏「设置」+ 设置导航「关于」显示红点 */
+  const [updateCheck, setUpdateCheck] = useState<UpdateCheckResult | null>(null);
+  const [updateChecking, setUpdateChecking] = useState(false);
+  const [ignoredUpdateVersion, setIgnoredUpdateVersion] =
+    useState<string>(readIgnoredUpdateVersion);
   const [busy, setBusy] = useState<string | null>(null);
 
   // 统计模式（F-STA / D-60）：主地图切省份点亮，右侧统计面板；默认全量、不跟随时间轴
@@ -336,6 +348,13 @@ export default function App() {
    * multi 且 user=null = 需要先登录，整页显示登录 / 邀请码注册页。
    */
   const [authMe, setAuthMe] = useState<AuthMe | null>(null);
+  /**
+   * 2026-11-09 D-335：只读样板会话（云端版「浏览样板展示（只读）」入口）——
+   * 服务端对写请求一律 403，前端据此隐藏所有写入口（添加足迹 / 编辑 / 上传 / 删除 / 批量 / 备份恢复等）。
+   */
+  const readOnly = authMe?.user?.readOnly === true;
+  /** 只读样板标识旁的「退出」按钮忙状态 */
+  const [readonlyExitBusy, setReadonlyExitBusy] = useState(false);
   /** multi 模式已登录、但当前账号还没填自己的天地图 Key → 全屏「配置 Key」引导页（P2-4，D-205） */
   const [needTdtKey, setNeedTdtKey] = useState(false);
   /**
@@ -475,6 +494,31 @@ export default function App() {
     }
   }, []);
 
+  /** 应用更新检查（2026-11-09 D-327）：失败静默；关于页 / 顶栏 / 设置导航共用这一份状态 */
+  const refreshUpdateCheck = useCallback(async () => {
+    setUpdateChecking(true);
+    try {
+      setUpdateCheck(await api.checkUpdate());
+    } catch {
+      setUpdateCheck(null);
+    } finally {
+      setUpdateChecking(false);
+    }
+  }, []);
+
+  /** 「不再提醒这个版本」：只存本机浏览器（不写 data/、不进备份） */
+  const ignoreUpdateVersion = useCallback((version: string) => {
+    saveIgnoredUpdateVersion(version);
+    setIgnoredUpdateVersion(version);
+  }, []);
+
+  /** 恢复当前版本提醒 */
+  const restoreUpdateReminder = useCallback(() => {
+    saveIgnoredUpdateVersion(null);
+    setIgnoredUpdateVersion('');
+    void refreshUpdateCheck();
+  }, [refreshUpdateCheck]);
+
   // ── 主题：监听系统外观（仅「跟随系统」时会用到）──
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
@@ -601,6 +645,8 @@ export default function App() {
         const me = await api.authMe();
         setAuthMe(me);
         if (me.mode === 'multi' && !me.user) return;
+        // 2026-11-09 D-335：只读样板会话不需要回收站 / 秘密基地状态 / 备份提醒（也不显示这些入口）
+        const readOnlySession = me.mode === 'multi' && me.user?.readOnly === true;
         const cfg = await api.config();
         if (Number(cfg.maxUploadBytes) > 0) setMaxUploadBytes(Number(cfg.maxUploadBytes));
         if (!cfg.tdtTk) {
@@ -638,9 +684,13 @@ export default function App() {
         setHomePlace(hp);
         const tl = await api.timeline();
         if (tl.first && tl.last) setTlMeta({ first: tl.first, last: tl.last, dates: tl.dates });
-        void refreshTrashCount();
-        void refreshSecretStatus();
-        void refreshBackupStatus();
+        if (!readOnlySession) {
+          void refreshTrashCount();
+          void refreshSecretStatus();
+          void refreshBackupStatus();
+        }
+        // D-327：本地版启动后静默查一次更新（multi 云端按 D-319 不提示）
+        if (me.mode !== 'multi') void refreshUpdateCheck();
         setBoot('ready');
       } catch (e: any) {
         setBootError(e?.message || String(e));
@@ -747,6 +797,14 @@ export default function App() {
    */
   const openPlaceById = useCallback(
     async (id: string, opts?: { fly?: boolean; source?: DetailSource }) => {
+      // 2026-11-09 D-335：只读样板访客不能打开秘密基地（服务端也会隐藏它的详情 / 照片 / 原图）
+      if (readOnly) {
+        const known = places.find((x) => x.id === id);
+        if (known?.secret === 1) {
+          say(tr('秘密基地内容不对访客展示'));
+          return;
+        }
+      }
       let p: PlaceDetail | null = null;
       try {
         p = await api.place(id);
@@ -757,8 +815,15 @@ export default function App() {
         say(tr('地点不存在或已删除'));
         return;
       }
+      if (p.secret && readOnly) {
+        say(tr('秘密基地内容不对访客展示'));
+        return;
+      }
       const source = opts?.source ?? (myTrailOpen ? 'trail' : 'map');
-      if (p.secret && secretStatus.configured && !secretUnlocked) {
+      // 2026-11-09 D-332（用户选择方案 B）：云端版（multi）秘密基地一律用登录密码解锁
+      // （不再依赖旧的独立秘密基地密码设置）；本地版仍按「是否设置过秘密基地密码」决定是否上锁。
+      const secretGateOn = authMe?.mode === 'multi' || secretStatus.configured;
+      if (p.secret && secretGateOn && !secretUnlocked) {
         // 密码验证通过后再按同一条来路继续打开（D-290）
         setSecretTarget({ id: p.id, name: p.name, source, cluster });
         return;
@@ -776,7 +841,7 @@ export default function App() {
         mapApi.current?.flyTo(p.lng, p.lat, Math.max(13, Number(mapApi.current.getZoom()) || 13));
       }
     },
-    [closePanels, exitAdd, myTrailOpen, cluster, secretStatus.configured, secretUnlocked, say]
+    [closePanels, exitAdd, myTrailOpen, cluster, secretStatus.configured, secretUnlocked, authMe?.mode, say, readOnly, places]
   );
 
   const selectPlace = useCallback(
@@ -825,6 +890,19 @@ export default function App() {
       say(tr('地点不存在或已删除'));
     }
   }, [secretTarget, closePanels, exitAdd, myTrailOpen, cluster, say]);
+
+  /**
+   * 2026-11-09 D-331（用户反馈）：秘密基地密码被设置 / 修改 / 重置后：
+   * - 清掉当前会话的「已解锁」状态 → 再打开秘密基地需要重新输入新密码；
+   * - 如果当前正打开的是秘密基地详情，直接关掉（避免改密后旧详情还开着）。
+   */
+  const onSecretPasswordChanged = useCallback(() => {
+    setSecretUnlocked(false);
+    if (detail?.secret === 1) {
+      setDetail(null);
+      setSelectedId(null);
+    }
+  }, [detail?.secret]);
 
   /** 定位应用完成（滚动 + 高亮播完）后清掉 focus：稳定引用，避免面板里的应用 effect 被重复触发（D-290） */
   const clearMyTrailFocus = useCallback(() => setMyTrailFocus(null), []);
@@ -915,6 +993,7 @@ export default function App() {
    * 再点一次按钮 / Esc / 面板取消 = 退出。
    */
   const openAdd = useCallback(() => {
+    if (readOnly) return; // 2026-11-09 D-335：只读样板会话不能添加足迹
     if (adding || pinMode) {
       exitAdd();
       return;
@@ -929,7 +1008,7 @@ export default function App() {
     setDetail(null);
     // 预取省界数据（约 40KB）：第一次在地图上打点时立刻能判断「国内 / 国外」
     void loadChinaBounds();
-  }, [adding, pinMode, closePanels, exitAdd]);
+  }, [adding, pinMode, closePanels, exitAdd, readOnly]);
 
   /**
    * 补全「未标注」地区（2026-11-04）：找出没有省/市（或 city 为空）的活地点，
@@ -937,6 +1016,7 @@ export default function App() {
    * 用于修复历史上「保存时逆地理还没回来」留下的空省市区。
    */
   const fillMissingRegions = useCallback(async () => {
+    if (readOnly) return; // 2026-11-09 D-335：只读样板会话不能批量写回地区
     try {
       const all = await api.places();
       // 2026-11-08 D-283：港澳台（如澳门）逆地理只有省级、city 为空属正常，不再计入「未标注」目标
@@ -972,11 +1052,12 @@ export default function App() {
     } catch (e: any) {
       say(tr('补全地区失败：{msg}', { msg: e?.message || e }));
     }
-  }, [refreshPlaces, say]);
+  }, [refreshPlaces, say, readOnly]);
 
   // ── 地图点选（F-PLC-09，2026-11-04 并入「+ 添加足迹」）──
   const startPinDraft = useCallback(
     async (lng: number, lat: number) => {
+      if (readOnly) return; // 2026-11-09 D-335：只读样板会话不能打点
       const z = Number(mapApi.current?.getZoom() || 0);
       // D-156：打点门槛由 z≥10（街区级）放宽到 z≥8（城市级）；
       // 2026-11-06 用户再放宽到 z≥6（能看到省 / 地级范围即可打点）
@@ -1008,7 +1089,7 @@ export default function App() {
       });
       refreshAddr(lng, lat);
     },
-    [refreshAddr, say]
+    [refreshAddr, say, readOnly]
   );
 
   // 「添加足迹」点选状态下按 Esc 退出：
@@ -1080,6 +1161,7 @@ export default function App() {
   // 顶栏搜索里点「添加为足迹」
   const addFromPoi = useCallback(
     (poi: Poi) => {
+      if (readOnly) return; // 2026-11-09 D-335：只读样板会话不能添加足迹
       setAdding(true);
       setDetail(null);
       setSelectedId(null);
@@ -1087,7 +1169,7 @@ export default function App() {
       setPhotoWall(null);
       pickPoi(poi);
     },
-    [pickPoi]
+    [pickPoi, readOnly]
   );
 
   const onDraftMoved = useCallback(
@@ -1108,6 +1190,7 @@ export default function App() {
 
   const saveDraft = useCallback(async () => {
     if (!draft || saving) return;
+    if (readOnly) return; // 2026-11-09 D-335：只读样板会话不能保存足迹
     // 2026-11-06 用户要求：国外坐标不落库（点击 / 拖拽已有拦截，这里再兜底一次）
     // 2026-11-07 D-264：与 pickPoi 同规则——地址 / 逆地理能给出中国省份的（沿海港口、离岛等）放行。
     await loadChinaBounds();
@@ -1162,11 +1245,23 @@ export default function App() {
     } finally {
       setSaving(false);
     }
-  }, [draft, saving, refreshPlaces, say]);
+  }, [draft, saving, readOnly, refreshPlaces, say]);
 
   // ── 上传队列（F-MED-10）：串行上传、逐文件进度、取消、失败重试 ──
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const uploadsRef = useRef<UploadItem[]>([]);
+  // 2026-11-09 D-330（用户要求）：有未完成的上传任务时，刷新 / 关闭页面弹浏览器原生确认。
+  // 浏览器不允许自定义文案（统一显示「离开此网站？」之类），确认离开会中止正在上传的文件（暂无断点续传）。
+  const uploadsActive = uploads.some((u) => u.status === 'queued' || u.status === 'uploading');
+  useEffect(() => {
+    if (!uploadsActive) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [uploadsActive]);
   const uploadingRef = useRef(false);
   const abortRef = useRef<null | (() => void)>(null);
   const uploadRefreshTimer = useRef<number | null>(null);
@@ -1280,6 +1375,7 @@ export default function App() {
   const enqueueUploads = useCallback(
     (visitId: string, files: File[]) => {
       if (!files.length) return;
+      if (readOnly) return; // 2026-11-09 D-335：只读样板会话不能上传
       clearUploadAutoClose();
       // D-248：超过单文件上限的文件直接跳过并提示（服务端也会兜底，但前端先拦省得白传）
       const accepted = files.filter((f) => f.size <= maxUploadBytes);
@@ -1303,7 +1399,7 @@ export default function App() {
       commitUploads([...uploadsRef.current, ...items]);
       void processUploadQueue();
     },
-    [commitUploads, processUploadQueue, maxUploadBytes, say, clearUploadAutoClose]
+    [commitUploads, processUploadQueue, maxUploadBytes, say, readOnly, clearUploadAutoClose]
   );
 
   const cancelUpload = useCallback(
@@ -1397,6 +1493,28 @@ export default function App() {
           threshold: backupStatus.thresholdDays,
         });
 
+  // ── 更新提醒（2026-11-09 D-327，用户要求）──
+  // 有新版本时：顶栏「设置」按钮 + 设置导航「关于」分类显示红点；
+  // 用户点「不再提醒这个版本」后，仅对这个版本隐藏（存本机浏览器）。
+  const updateAvailable = updateReminder(updateCheck, ignoredUpdateVersion);
+  const latestVersion = updateCheck?.latestVersion || '';
+  const updateDotText = t('发现新版本 {v}', { v: latestVersion });
+  const settingsDot = backupDue || updateAvailable;
+  const settingsDotText =
+    backupDue && updateAvailable
+      ? t('该备份了：{text} · 发现新版本 {v}', { text: backupDueText, v: latestVersion })
+      : backupDue
+        ? t('该备份了：{text}', { text: backupDueText })
+        : updateDotText;
+  const settingsDotTitle =
+    backupDue && updateAvailable
+      ? t('设置 · 该备份了：{text} · 发现新版本 {v}', { text: backupDueText, v: latestVersion })
+      : backupDue
+        ? t('设置 · 该备份了：{text}', { text: backupDueText })
+        : updateAvailable
+          ? t('设置 · 发现新版本 {v}', { v: latestVersion })
+          : t('设置');
+
   const lightboxVisit = detail?.visits.find((v) => v.id === lightbox?.visitId);
   const lightboxItems = lightboxVisit?.media ?? [];
   /** 右侧抽屉（My旅迹 / 统计 / 地点 / 添加足迹 / 聚合簇 / 合并）打开时，抽屉下移让开顶部大按钮组（D-125） */
@@ -1409,6 +1527,7 @@ export default function App() {
 
   /** 点头像 / 名称都打开 设置 → 账号（D-224：头像上传移到设置里，顶栏只负责展示） */
   const openAccountSettings = () => {
+    if (readOnly) return; // 2026-11-09 D-335：只读样板会话没有账号页
     setTopAction(null);
     closePanels();
     exitAdd();
@@ -1418,11 +1537,28 @@ export default function App() {
     void refreshTrashCount();
   };
 
+  /** 只读样板会话「退出」：清会话 Cookie 后整页 reload 回登录页（2026-11-09 D-335） */
+  const exitReadOnly = async () => {
+    if (readonlyExitBusy) return;
+    setReadonlyExitBusy(true);
+    try {
+      await api.logout();
+    } catch {
+      /* 退出请求失败也刷新；会话过期后同样回登录页 */
+    } finally {
+      window.location.reload();
+    }
+  };
+
   // 多用户模式且未登录：整页显示登录 / 邀请码注册页（本地模式不会走到这里）
   if (authMe?.mode === 'multi' && !authMe.user) {
     return (
       <I18nContext.Provider value={i18n}>
-        <LoginPage onLoggedIn={() => window.location.reload()} slogan={slogan} />
+        <LoginPage
+          onLoggedIn={() => window.location.reload()}
+          slogan={slogan}
+          demo={authMe?.demo}
+        />
       </I18nContext.Provider>
     );
   }
@@ -1443,6 +1579,7 @@ export default function App() {
             !keySetupClosed ? (
               <KeySetupPage
                 mode={authMe?.mode === 'multi' ? 'multi' : 'local'}
+                readOnlySession={readOnly}
                 onDone={() => window.location.reload()}
                 onClose={() => setKeySetupClosed(true)}
               />
@@ -1544,6 +1681,64 @@ export default function App() {
 
         {boot === 'ready' && (
           <div className="hud">
+            {/* 2026-11-09 D-333（云端版用户要求）：头像 + 名称从「+ 添加足迹」上方移到
+                HUD 行右上角，**右缘与大按钮组（.actions）右缘对齐**（见 styles.css .hud-user）。
+                点头像 / 名称都打开 设置 → 账号。 */}
+            {topbarUser && !readOnly && (
+              <div className="hud-user">
+                <div className="hud-avatar-wrap">
+                  <button
+                    type="button"
+                    className="hud-avatar"
+                    onClick={openAccountSettings}
+                    aria-label={t('更换头像')}
+                  >
+                    {topbarUser.avatarUpdatedAt ? (
+                      <img
+                        className="hud-avatar-photo"
+                        src={api.avatarUrl(topbarUser.avatarUpdatedAt)}
+                        alt={t('用户头像')}
+                      />
+                    ) : (
+                      <img
+                        className="hud-avatar-marker"
+                        src={markerSrc('visited', markerColors)}
+                        alt=""
+                        aria-hidden="true"
+                      />
+                    )}
+                  </button>
+                  <span className="hud-avatar-tip" role="tooltip">
+                    {t('更换头像')}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="hud-username"
+                  title={t('打开设置 · 账号')}
+                  onClick={openAccountSettings}
+                >
+                  {topbarUser.displayName || topbarUser.username}
+                </button>
+              </div>
+            )}
+
+            {/* 2026-11-09 D-335：只读样板会话标识 + 退出（访客在右上角看到自己处于只读模式） */}
+            {readOnly && (
+              <div className="readonly-chip" role="status">
+                <span className="readonly-chip-dot" aria-hidden="true" />
+                <span className="readonly-chip-text">{t('样板展示 · 只读')}</span>
+                <button
+                  type="button"
+                  className="readonly-chip-exit"
+                  onClick={() => void exitReadOnly()}
+                  disabled={readonlyExitBusy}
+                >
+                  {readonlyExitBusy ? t('退出中…') : t('退出')}
+                </button>
+              </div>
+            )}
+
             {/* 左侧：搜索图标（点开向左展开搜索）+ 独立的「+ 添加足迹」按钮（和大按钮组反色，D-130） */}
             <div className="hud-tools">
               <div className="hud-search" ref={hudSearchRef}>
@@ -1571,6 +1766,7 @@ export default function App() {
                   <div className="hud-search-panel">
                     <SearchBox
                       autoFocus
+                      readOnly={readOnly}
                       onPickPlace={openPlaceOnMap}
                       onFlyTo={(lng, lat, zoom) => mapApi.current?.flyTo(lng, lat, zoom ?? 13)}
                       onAddPoi={addFromPoi}
@@ -1579,66 +1775,26 @@ export default function App() {
                   </div>
                 )}
               </div>
-              <div className="hud-add-wrap">
-                <button
-                  type="button"
-                  className={pinMode ? 'hud-add on' : 'hud-add'}
-                  onClick={() => {
-                    setHudSearch(false);
-                    openAdd();
-                  }}
-                  title={
-                    pinMode
-                      ? t('退出添加足迹（Esc）')
-                      : t('添加足迹（搜地名定位，或直接在地图上点选）')
-                  }
-                  aria-pressed={pinMode}
-                >
-                  {t('+ 添加足迹')}
-                </button>
-
-                {/* 2026-11-07 D-224（用户指定，修订）：头像 + 名称放在「+ 添加足迹」上方、
-                    与主题标语同一水平线、左缘与「+ 添加足迹」对齐；没传过头像时默认用
-                    「去过」标记（透明底）；点头像 / 名称都打开 设置 → 账号。 */}
-                {topbarUser && (
-                  <div className="hud-user">
-                    <div className="hud-avatar-wrap">
-                      <button
-                        type="button"
-                        className="hud-avatar"
-                        onClick={openAccountSettings}
-                        aria-label={t('更换头像')}
-                      >
-                        {topbarUser.avatarUpdatedAt ? (
-                          <img
-                            className="hud-avatar-photo"
-                            src={api.avatarUrl(topbarUser.avatarUpdatedAt)}
-                            alt={t('用户头像')}
-                          />
-                        ) : (
-                          <img
-                            className="hud-avatar-marker"
-                            src={markerSrc('visited', markerColors)}
-                            alt=""
-                            aria-hidden="true"
-                          />
-                        )}
-                      </button>
-                      <span className="hud-avatar-tip" role="tooltip">
-                        {t('更换头像')}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      className="hud-username"
-                      title={t('打开设置 · 账号')}
-                      onClick={openAccountSettings}
-                    >
-                      {topbarUser.displayName || topbarUser.username}
-                    </button>
-                  </div>
-                )}
-              </div>
+              {!readOnly && (
+                <div className="hud-add-wrap">
+                  <button
+                    type="button"
+                    className={pinMode ? 'hud-add on' : 'hud-add'}
+                    onClick={() => {
+                      setHudSearch(false);
+                      openAdd();
+                    }}
+                    title={
+                      pinMode
+                        ? t('退出添加足迹（Esc）')
+                        : t('添加足迹（搜地名定位，或直接在地图上点选）')
+                    }
+                    aria-pressed={pinMode}
+                  >
+                    {t('+ 添加足迹')}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="actions" ref={actionsRef}>
@@ -1756,21 +1912,25 @@ export default function App() {
               exitAdd();
               // 2026-11-07 D-260：顶栏红点 = 备份待办时，打开设置直接落在「备份与恢复」，
               // 让红点「按级」可追溯（顶栏红点 → 设置导航红点 → 备份页红色提醒条）。
-              setSettingsInitialTab(backupDue ? 'backup' : undefined);
+              // 2026-11-09 D-327：升级提醒同理——只有新版本时落到「关于」；两者都有时备份优先。
+              // 2026-11-09 D-335：只读样板会话没有备份分类，直接停在默认分类。
+              setSettingsInitialTab(
+                readOnly ? undefined : backupDue ? 'backup' : updateAvailable ? 'about' : undefined
+              );
               setSettingsOpen(true);
-              void refreshBackupStatus();
-              void refreshTrashCount();
+              if (!readOnly) {
+                void refreshBackupStatus();
+                void refreshTrashCount();
+              }
+              // D-327：打开设置时再查一次更新（服务端有 6h 缓存，开销很小）
+              if (authMe?.mode !== 'multi') void refreshUpdateCheck();
             }}
-            title={backupDue ? t('设置 · 该备份了：{text}', { text: backupDueText }) : t('设置')}
+            title={settingsDotTitle}
             aria-pressed={settingsOpen}
           >
             {t('设置')}
-            {backupDue && (
-              <span
-                className="backup-dot"
-                title={t('该备份了：{text}', { text: backupDueText })}
-                aria-label={t('该备份了：{text}', { text: backupDueText })}
-              />
+            {settingsDot && (
+              <span className="backup-dot" title={settingsDotText} aria-label={settingsDotText} />
             )}
           </button>
             </div>
@@ -1778,9 +1938,10 @@ export default function App() {
         )}
       </header>
 
-      {boot === 'ready' && places.length === 0 && !adding && !range && !statsOpen && (
+      {boot === 'ready' && places.length === 0 && !adding && !range && !statsOpen && !readOnly && (
         // 空地图引导（2026-11-07 P2 验收反馈）：只保留一个按钮，
         // 不再有「你还没有留下任何足迹」小字、也不再有长方形底色。
+        // 2026-11-09 D-335：只读样板会话没有「添加第一个地方」
         <div className="map-empty">
           <button className="primary" onClick={openAdd}>
             {t('添加第一个地方')}
@@ -1807,6 +1968,7 @@ export default function App() {
         <Sidebar
           detail={detail}
           entry={detailSource}
+          readOnly={readOnly}
           onBack={closeDetail}
           onLocateInMyTrail={locateInMyTrail}
           onClose={closeDetail}
@@ -1823,6 +1985,10 @@ export default function App() {
           onOpenLightbox={(visitId, index) => setLightbox({ visitId, index })}
           onTrashed={() => say(tr('已移到回收站 · 可在顶栏恢复'))}
           secretConfigured={secretStatus.configured}
+          /* 2026-11-09 D-325：地点编辑里的「设为秘密基地 / 设为家」按钮背景
+             跟随 设置 → 通用 → 图标配色 里当前生效的标记颜色 */
+          secretMarkerColor={markerHex('secret', markerColors)}
+          homeMarkerColor={homeMarkerHex(homeColor)}
           homeDistanceKm={
             detail.home === 1 || !homePlace
               ? null
@@ -1890,6 +2056,7 @@ export default function App() {
           places={places}
           range={range}
           tab={myTrailTab}
+          readOnly={readOnly}
           /* D-290：从详情面包屑跳进来时，展开定位到该省 / 市 / 地点并高亮 */
           focus={myTrailFocus}
           onFocusApplied={clearMyTrailFocus}
@@ -1907,9 +2074,9 @@ export default function App() {
             mapApi.current?.flyTo(p.lng, p.lat, 13);
             void openPlaceById(p.id, { source: 'trail' });
           }}
-          onAddVisit={addVisitForPlace}
+          onAddVisit={readOnly ? undefined : addVisitForPlace}
           onRefresh={refreshPlaces}
-          onFillRegions={fillMissingRegions}
+          onFillRegions={readOnly ? undefined : fillMissingRegions}
           onClearRange={() => setRange(null)}
           onChanged={async () => {
             await refreshPlaces();
@@ -1925,6 +2092,7 @@ export default function App() {
       {settingsOpen && (
         <SettingsModal
           initialTab={settingsInitialTab}
+          readOnly={readOnly}
           onClose={() => {
             setSettingsOpen(false);
             setSettingsInitialTab(undefined);
@@ -1969,9 +2137,26 @@ export default function App() {
             say(tr('已从备份恢复 · 地图和清单已刷新'));
           }}
           onBackupStatus={setBackupStatus}
+          // 2026-11-09 D-331（用户反馈）：设置 / 修改 / 重置秘密基地密码后，当前会话的
+          // 「已解锁」状态立即失效，再打开秘密基地需要重新输入新密码。
+          onSecretPasswordChanged={onSecretPasswordChanged}
           // 2026-11-07 D-260：把顶栏「设置」红点延续到设置导航的分类上（目前只有备份提醒），
           // 用户点进设置后能一眼看到待办在哪个分类，再点进去就是具体提醒。
-          navDots={backupDue ? { backup: t('该备份了：{text}', { text: backupDueText }) } : undefined}
+          // 2026-11-09 D-327：更新提醒同样挂到「关于」分类。
+          navDots={
+            backupDue || updateAvailable
+              ? {
+                  ...(backupDue ? { backup: t('该备份了：{text}', { text: backupDueText }) } : {}),
+                  ...(updateAvailable ? { about: updateDotText } : {}),
+                }
+              : undefined
+          }
+          updateCheck={updateCheck}
+          updateChecking={updateChecking}
+          onCheckUpdate={refreshUpdateCheck}
+          ignoredUpdateVersion={ignoredUpdateVersion}
+          onIgnoreUpdate={ignoreUpdateVersion}
+          onRestoreUpdateReminder={restoreUpdateReminder}
           trashCount={trashCount}
           theme={theme}
           effectiveTheme={effectiveTheme}
@@ -2002,21 +2187,27 @@ export default function App() {
       {statsOpen && (
         <StatsPanel
           homeKey={homePlace ? `${homePlace.id}:${homePlace.lng}:${homePlace.lat}` : ''}
+          readOnly={readOnly}
           onClose={() => setStatsOpen(false)}
-          onOpenBackup={() => {
-            setStatsOpen(false);
-            // 2026-11-07 D-260：统计面板「去备份」直接落在「备份与恢复」分类
-            setSettingsInitialTab('backup');
-            setSettingsOpen(true);
-            void refreshBackupStatus();
-            void refreshTrashCount();
-          }}
+          onOpenBackup={
+            readOnly
+              ? undefined
+              : () => {
+                  setStatsOpen(false);
+                  // 2026-11-07 D-260：统计面板「去备份」直接落在「备份与恢复」分类
+                  setSettingsInitialTab('backup');
+                  setSettingsOpen(true);
+                  void refreshBackupStatus();
+                  void refreshTrashCount();
+                }
+          }
         />
       )}
 
       {photoWall && (
         <PhotoWall
           onClose={() => setPhotoWall(null)}
+          readOnly={readOnly}
           onPick={(placeId) => {
             setPhotoWall(null);
             void openPlaceById(placeId, { fly: true });
@@ -2032,6 +2223,7 @@ export default function App() {
       {secretTarget && (
         <SecretPrompt
           title={secretTarget.name}
+          mode={authMe?.mode === 'multi' ? 'multi' : 'local'}
           onSuccess={onSecretUnlocked}
           onCancel={() => setSecretTarget(null)}
         />

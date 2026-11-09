@@ -1,7 +1,7 @@
 {
   "name": "tread-horizon",
   "private": true,
-  "version": "0.2.4",
+  "version": "0.2.5",
   "type": "module",
   "description": "Tread Horizon · 个人旅行足迹地图 —— 步履踏向山海天地，在天地图上记录去过的地方和照片",
   "license": "MIT",
@@ -11,6 +11,7 @@
     "build": "vite build",
     "build:markers": "node scripts/build-marker-colors.mjs",
     "build:login-cursor": "node scripts/build-login-cursor.mjs",
+    "build:starter-photos": "node scripts/build-starter-photos.mjs",
     "start": "npm run build && node server/index.mjs",
     "serve": "node server/index.mjs",
     "check": "node scripts/check-tk.mjs",

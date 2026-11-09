@@ -135,6 +135,7 @@ const expectStatus = async (label, expected, resultOrPromise) => {
 const buildEnv = ({ port, dataDir, mediaRoot, authMode, adminUsername, adminPassword }) => {
   const env = {
     ...process.env,
+    STARTER_DATA: '0',
     PORT: String(port),
     DATA_DIR: dataDir,
     MEDIA_ROOT: mediaRoot,

@@ -136,6 +136,24 @@ export async function checkForUpdate() {
     return { ok: false, disabled: true, currentVersion };
   }
 
+  // 测试 / 验收用（2026-11-09 D-327）：模拟「GitHub 上已经有新版本」，
+  // 例如 UPDATE_FAKE_LATEST=0.2.5 起一个隔离实例，就能看到顶栏 / 设置导航的红点。
+  // 只在环境变量存在且是 x.y.z 时生效；正常使用不会设置它，行为完全不变。
+  const fakeLatest = String(process.env.UPDATE_FAKE_LATEST || '')
+    .trim()
+    .replace(/^v/i, '');
+  if (/^\d+\.\d+\.\d+$/.test(fakeLatest)) {
+    return {
+      ok: true,
+      currentVersion,
+      latestVersion: fakeLatest,
+      hasUpdate: isNewer(fakeLatest, currentVersion),
+      releaseUrl: `https://github.com/${repoOf()}/tags`,
+      publishedAt: null,
+      checkedAt: new Date().toISOString(),
+    };
+  }
+
   const now = Date.now();
   if (cache && now - cache.at < (cache.data.ok ? CACHE_TTL_OK : CACHE_TTL_FAIL)) {
     return { ...cache.data, currentVersion };

@@ -31,6 +31,8 @@ interface Props {
   focus?: MyTrailFocus | null;
   /** D-290：定位应用完成（滚动 + 高亮播完）后通知父级清掉 focus，避免切 tab 回来重复高亮 */
   onFocusApplied?: () => void;
+  /** 2026-11-09 D-335：只读样板会话——隐藏「选择 / 批量移到回收站 / + 到访」等写入口 */
+  readOnly?: boolean;
 }
 
 const NA = '未标注';
@@ -128,6 +130,7 @@ export default function VisitedPanel({
   secretFilter = 'all',
   focus = null,
   onFocusApplied,
+  readOnly = false,
 }: Props) {
   const t = useT();
   const tp = useTp();
@@ -461,7 +464,7 @@ export default function VisitedPanel({
             />
           </div>
           <div className="head-tools">
-            {totalPlaces > 0 && (
+            {totalPlaces > 0 && !readOnly && (
               <button
                 type="button"
                 className={
@@ -672,7 +675,7 @@ export default function VisitedPanel({
         ))}
       </div>
 
-      {selectMode && (
+      {!readOnly && selectMode && (
         <div className="mytrail-bulkbar">
           <span className="mytrail-bulk-count">{t('已选 {n} 项', { n: selectedCount })}</span>
           <button type="button" className="text-btn sm" onClick={toggleAllVisible}>
@@ -694,7 +697,7 @@ export default function VisitedPanel({
         </div>
       )}
 
-      {confirmBulk && (
+      {!readOnly && confirmBulk && (
         <ConfirmDialog
           title={t('删除选中的 {n} 个地点？', { n: selectedCount })}
           danger

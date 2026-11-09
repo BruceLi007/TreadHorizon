@@ -11,6 +11,8 @@ interface Props {
   autoFocus?: boolean;
   /** 收起搜索栏（按 Esc / 选中「我的足迹」时通知父级收起，D-130） */
   onClose?: () => void;
+  /** 2026-11-09 D-335：只读样板会话隐藏「+ 添加为足迹」（搜索照常可用） */
+  readOnly?: boolean;
 }
 
 const parseLngLat = (s: string) => {
@@ -24,7 +26,7 @@ const parseLngLat = (s: string) => {
  * 顶栏全局搜索（F-BRW-02）
  * 结果分两组：我的足迹（本地 name / 到访笔记）+ 地图地点（天地图 POI 前 5 条）。
  */
-export default function SearchBox({ onPickPlace, onFlyTo, onAddPoi, autoFocus = false, onClose }: Props) {
+export default function SearchBox({ onPickPlace, onFlyTo, onAddPoi, autoFocus = false, onClose, readOnly = false }: Props) {
   const t = useT();
   const tp = useTp();
   const [q, setQ] = useState('');
@@ -152,7 +154,7 @@ export default function SearchBox({ onPickPlace, onFlyTo, onAddPoi, autoFocus = 
                       </span>
                       <span className="sr-meta">{p.address || '—'}</span>
                     </button>
-                    {isPending && (
+                    {isPending && !readOnly && (
                       <button
                         className="sr-add"
                         onClick={() => {

@@ -96,10 +96,20 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
   gap: 6px;
   margin-bottom: 14px;
   user-select: none;
+  /* 2026-11-09 D-335 修复：把品牌标题限制在卡片内容宽度内——
+     默认「大」字号（--fs-scale 1.4 → 36.4px）下部分宽字体（荆南波波黑 / 铁蒺藜体）
+     会把「Tread Horizon」挤成两行且换行后左对齐。container-type 让子元素可用 cqw 单位。 */
+  container-type: inline-size;
 }
 
 .login-brand-name {
   font-size: calc(26px * var(--fs-scale));
+  /* 自适应：不超过容器宽度的 9.4%（400px 卡片内容宽 338px → 约 31.8px），
+     保证所有内置 UI 字体（含最宽的荆南波波黑）都能单行放下；旧浏览器忽略本行用上面的兜底 */
+  font-size: min(calc(26px * var(--fs-scale)), 9.4cqw);
+  width: 100%;
+  text-align: center;
+  white-space: nowrap;
   font-weight: 700;
   letter-spacing: 0.16em;
   margin-right: -0.16em; /* 抵消字距，视觉居中 */
@@ -676,3 +686,48 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
     display: none;
   }
 }
+
+/* 2026-11-09 D-335：只读样板展示入口（登录卡里的主按钮 + 说明） */
+.login-demo {
+  margin: 2px 0 12px;
+}
+
+.login-demo-btn {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: #111;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  font-size: 14.5px;
+  cursor: pointer;
+  transition: filter 0.14s ease, transform 0.14s ease;
+}
+
+.login-demo-btn:hover:not(:disabled) {
+  filter: brightness(1.25);
+  transform: translateY(-1px);
+}
+
+.login-demo-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.login-demo-note {
+  margin: 7px 2px 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-3, #6b7280);
+}
+
+/* 深色 / 纯黑主题下反色，保持主按钮观感 */
+html[data-theme='dark'] .login-demo-btn,
+html[data-theme='black'] .login-demo-btn {
+  background: #f4f4f4;
+  color: #111;
+}
+

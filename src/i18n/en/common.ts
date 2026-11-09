@@ -156,6 +156,10 @@ const dict: Dict = {
   '照片墙': 'Photo wall',
   '设置 · 该备份了：{text}': 'Settings · backup due: {text}',
   '该备份了：{text}': 'Backup due: {text}',
+  '设置 · 发现新版本 {v}': 'Settings · new version {v} available',
+  '设置 · 该备份了：{text} · 发现新版本 {v}':
+    'Settings · backup due: {text} · new version {v} available',
+  '该备份了：{text} · 发现新版本 {v}': 'Backup due: {text} · new version {v} available',
   '添加第一个地方': 'Add your first place',
 
   // ── App：备份提醒 / 恢复 / 合并 / 隐私 / 删除 toast ──
@@ -208,6 +212,15 @@ const dict: Dict = {
   '请填写地图Key': 'Enter your map key',
   '配置天地图 Key': 'Set your Tianditu key',
 
+  // ── 2026-11-09 D-335：云端只读样板展示（登录页入口 / 顶栏只读标识 / 秘密基地对访客隐藏）──
+  '浏览样板展示（只读）': 'Browse the demo (read-only)',
+  '无需密码，只能浏览；维护者请用下方账号密码登录。':
+    'No password needed — browse only. Maintainers: sign in with the account below.',
+  '进入样板展示中…': 'Entering the demo…',
+  '样板展示 · 只读': 'Demo · Read-only',
+  '退出': 'Exit',
+  '秘密基地内容不对访客展示': 'Secret spot content is hidden from visitors.',
+
   // ── 通知 / 提示（M6 P2-1）──
   '当前没有登录账号。': 'No account is currently signed in.',
 
@@ -221,6 +234,11 @@ const dict: Dict = {
   '天地图 Key（32 位）': 'Tianditu key (32 characters)',
   '保存并继续': 'Save and continue',
   'Key 只保存在你自己的账号下，其他账号看不到。': 'The key is stored only under your own account; no other account can see it.',
+  // 2026-11-09 D-335：只读样板访客的 Key 只存本次会话
+  '这是只读样板展示：填你自己的天地图 Key 才能加载地图（每个访客各用各的）。':
+    'This is a read-only demo: enter your own Tianditu key to load the map (each visitor uses their own).',
+  'Key 只保存在本次浏览会话里，不会保存到展示账号。':
+    'The key is stored only in this browsing session, not in the demo account.',
 
   // ── 天地图 Key 申请教程 PDF（2026-11-07，D-222）──
   '不知道怎么申请？': 'Not sure how to apply? ',

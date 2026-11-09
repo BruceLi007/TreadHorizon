@@ -106,6 +106,28 @@ export const CONFIG = {
   /** 首个管理员（AUTH_MODE=multi 且库里没有用户时自动创建；没有则只提示不创建） */
   adminUsername: typeof env.ADMIN_USERNAME === 'string' ? env.ADMIN_USERNAME.trim() : '',
   adminPassword: typeof env.ADMIN_PASSWORD === 'string' ? env.ADMIN_PASSWORD : '',
+  /**
+   * 首次初始化示例足迹（2026-11-09）：本地版启动 / 云端版首次登录时，若该作用域还是空库，
+   * 自动生成 34 个省级行政区省会的示例数据（各 1 次到访 + 1 张卡通贴照片）。
+   * 默认开启；.env.local 里 `STARTER_DATA=0` 可关闭（已有数据的库 / 账号只补标记、不会写入）。
+   */
+  starterData: env.STARTER_DATA !== '0',
+  /**
+   * 秘密基地的初始密码（2026-11-09 D-328 / D-329）：首次初始化时自动设置。
+   * 默认 12345678；`.env.local` 的 `STARTER_SECRET_PASSWORD` 可覆盖（云端部署建议改掉）。
+   * 设置 → 安全 页面会显示「（初始密码为…）」提示，用户可自行修改 / 重置。
+   */
+  starterSecretPassword: (() => {
+    const p = String(env.STARTER_SECRET_PASSWORD || '').trim();
+    return p || '12345678';
+  })(),
+  /**
+   * 只读样板展示（2026-11-09 D-335，用户要求「把云端版当样板展示窗口」）：
+   * 配置 DEMO_USERNAME 后（仅 AUTH_MODE=multi 生效），登录页出现「浏览样板展示（只读）」入口：
+   * 访客无需密码即可创建该账号的**只读会话**（不能打点 / 上传 / 删除 / 改密码）；
+   * 账号本人仍可用密码正常登录维护展示内容。留空 = 关闭（默认，local 模式完全不受影响）。
+   */
+  demoUsername: typeof env.DEMO_USERNAME === 'string' ? env.DEMO_USERNAME.trim() : '',
   tdtTk: localTdtTk || envTdtTk,
   dataDir,
   thumbDir,

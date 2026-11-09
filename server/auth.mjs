@@ -205,13 +205,22 @@ export function bootstrapAdmin() {
 
 const sessionTtlMs = () => Math.max(1, CONFIG.sessionDays) * 24 * 60 * 60 * 1000;
 
-export function createSession(userId, { ip = '', ua = '' } = {}) {
+export function createSession(userId, { ip = '', ua = '', readOnly = false } = {}) {
   const token = randomBytes(32).toString('base64url');
   const expiresAt = now() + sessionTtlMs();
   db.prepare(
-    `INSERT INTO session (token_hash, user_id, expires_at, ip, ua, created_at, last_seen_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(sha256(token), userId, expiresAt, String(ip || '').slice(0, 64), String(ua || '').slice(0, 300), now(), now());
+    `INSERT INTO session (token_hash, user_id, expires_at, ip, ua, created_at, last_seen_at, readonly)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    sha256(token),
+    userId,
+    expiresAt,
+    String(ip || '').slice(0, 64),
+    String(ua || '').slice(0, 300),
+    now(),
+    now(),
+    readOnly ? 1 : 0
+  );
   return { token, expiresAt };
 }
 
@@ -287,7 +296,41 @@ export function userFromRequest(req) {
   } else {
     db.prepare('UPDATE session SET last_seen_at = ? WHERE token_hash = ?').run(now(), hash);
   }
-  return publicUser(user);
+  const userObject = publicUser(user);
+  // 2026-11-09 D-335：只读样板会话（登录页「浏览样板展示（只读）」创建）——前端据此隐藏所有写入口
+  userObject.readOnly = Number(session.readonly) === 1;
+  return userObject;
+}
+
+/**
+ * 当前请求的会话元信息（2026-11-09 D-335）：
+ * 只读样板访客的天地图 Key 存在会话行里（`session.tdt_key`），不写账号、访客之间不互相覆盖。
+ * 返回 { readonly, tdt_key } 或 null（未登录 / local 模式）。
+ */
+export function sessionMeta(req) {
+  if (!isMulti()) return null;
+  const token = readCookie(req);
+  if (!token) return null;
+  const row = db
+    .prepare('SELECT readonly, tdt_key FROM session WHERE token_hash = ?')
+    .get(sha256(token));
+  return row ?? null;
+}
+
+/** 只读样板会话自己的天地图 Key（已 trim；没有则空串） */
+export function sessionTdtKey(req) {
+  return String(sessionMeta(req)?.tdt_key ?? '').trim();
+}
+
+/** 保存只读样板会话的天地图 Key（仅该会话可见，不进账号设置） */
+export function saveSessionTdtKey(req, key) {
+  const token = readCookie(req);
+  if (!token) return false;
+  return (
+    db
+      .prepare('UPDATE session SET tdt_key = ? WHERE token_hash = ?')
+      .run(String(key ?? '').trim(), sha256(token)).changes > 0
+  );
 }
 
 // ── 登录限速（内存即可：单进程、几百个账号） ────────────────

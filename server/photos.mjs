@@ -68,10 +68,13 @@ export function parsePhotosQuery(q = {}) {
 }
 
 /** 构造 WHERE 与参数（媒体 / 到访 / 地点三层都要 alive）
- *  ownerId 非空（multi）时三层都加 user_id 过滤；为空（local）不加，保持旧行为。 */
-function buildWhere(parsed, ownerId = null) {
+ *  ownerId 非空（multi）时三层都加 user_id 过滤；为空（local）不加，保持旧行为。
+ *  hideSecret=true（2026-11-09 D-335：只读样板访客）时排除秘密基地的媒体——
+ *  样板账号里的秘密基地对访客不可见（看不到里面的照片 / 视频）。 */
+function buildWhere(parsed, ownerId = null, hideSecret = false) {
   const where = ['m.deleted_at IS NULL', 'v.deleted_at IS NULL', 'p.deleted_at IS NULL'];
   const params = [];
+  if (hideSecret) where.push('p.secret = 0');
   if (parsed.from) {
     where.push('v.date >= ?');
     params.push(parsed.from);
@@ -103,8 +106,8 @@ function buildWhere(parsed, ownerId = null) {
   return { sql: where.join(' AND '), params };
 }
 
-export function buildPhotos(parsed, ownerId = null) {
-  const { sql, params } = buildWhere(parsed, ownerId);
+export function buildPhotos(parsed, ownerId = null, { hideSecret = false } = {}) {
+  const { sql, params } = buildWhere(parsed, ownerId, hideSecret);
 
   const total = Number(
     db

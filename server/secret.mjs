@@ -106,6 +106,19 @@ function clearPassword(ownerId = null) {
   clearFailures(ownerId);
 }
 
+/**
+ * 首次初始化时直接设置秘密基地密码（2026-11-09 D-328，供 server/starter.mjs 种子使用）。
+ * 不需要旧密码；正常「修改 / 清除」仍走 setSecretPassword（校验旧密码），
+ * 设置页「重置密码」走 setSecretPassword({ reset: true })。密码只存 scrypt 哈希。
+ */
+export function setInitialSecretPassword(password, ownerId = null) {
+  const p = String(password ?? '');
+  if (!p || p.length > MAX_PASSWORD_LEN) {
+    throw new Error('初始秘密基地密码无效（需 1~128 位）');
+  }
+  writePassword(p, ownerId);
+}
+
 export function isSecretConfigured(ownerId = null) {
   return Boolean(storedSecret(ownerId));
 }

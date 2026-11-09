@@ -22,6 +22,8 @@ interface Props {
   focus?: MyTrailFocus | null;
   /** D-290：定位应用完成（滚动 + 高亮播完）后通知父级清掉 focus，避免切 tab 回来重复高亮 */
   onFocusApplied?: () => void;
+  /** 2026-11-09 D-335：只读样板会话——隐藏「选择 / 批量操作 / 转为去过 / 删除」等写入口 */
+  readOnly?: boolean;
 }
 
 const NA = '未标注';
@@ -137,6 +139,7 @@ export default function WishlistPanel({
   onCount,
   focus = null,
   onFocusApplied,
+  readOnly = false,
 }: Props) {
   const t = useT();
   const tp = useTp();
@@ -416,7 +419,7 @@ export default function WishlistPanel({
           {countyLabel(p, t) ? countyLabel(p, t) + ' · ' : ''}
           {createdLabel(p) ? t('加入 {date}', { date: createdLabel(p) }) : ''}
         </span>
-        {!selectMode && (
+        {!selectMode && !readOnly && (
           <span className="place-row-actions" onClick={(e) => e.stopPropagation()}>
             <button className="text-btn" onClick={() => toVisited(p)} disabled={busy === p.id}>
               {t('转为去过')}
@@ -451,7 +454,7 @@ export default function WishlistPanel({
         <div className="mytrail-embedded-head">
           <span className="mytrail-hint">{t('按省 / 市分组')}</span>
           <div className="head-tools">
-            {items.length > 0 && (
+            {items.length > 0 && !readOnly && (
               <button
                 type="button"
                 className={
@@ -631,7 +634,7 @@ export default function WishlistPanel({
         {err && <p className="hint err pad">{err}</p>}
       </div>
 
-      {selectMode && (
+      {!readOnly && selectMode && (
         <div className="mytrail-bulkbar">
           <span className="mytrail-bulk-count">{t('已选 {n} 项', { n: selectedCount })}</span>
           <button type="button" className="text-btn sm" onClick={toggleAllVisible}>
@@ -661,7 +664,7 @@ export default function WishlistPanel({
         </div>
       )}
 
-      {confirmBulk && (
+      {!readOnly && confirmBulk && (
         <ConfirmDialog
           title={t('删除选中的 {n} 个地点？', { n: selectedCount })}
           danger

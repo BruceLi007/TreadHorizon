@@ -12,6 +12,8 @@ import { collectFolderDrop } from '../lib/folderDrop';
 import { fmtKm } from '../lib/geo';
 import { normalizeRegion, regionFromText, PROVINCE_FULL_NAMES } from '../lib/region';
 import { useT, useTp } from '../i18n';
+import { DEFAULT_HOME_COLOR, homeMarkerHex } from '../lib/homeIcon';
+import { MARKER_DEFAULT_HEX, readableTextOn } from '../lib/markerColors';
 import type { MediaItem, PlaceDetail, UploadItem, Visit } from '../lib/types';
 import type { MediaCols } from './settings/types';
 import { MEDIA_COLS } from './settings/types';
@@ -56,11 +58,21 @@ interface Props {
   onMerge: (detail: PlaceDetail) => void;
   /** F-PLC-11：是否已设置秘密基地密码（App 传入；未设置时开启秘密基地会先提示去设置） */
   secretConfigured?: boolean;
+  /** 2026-11-09 D-325：当前「秘密基地」标记配色（hex）——「设为秘密基地」按钮背景跟随它 */
+  secretMarkerColor?: string;
+  /** 2026-11-09 D-325：当前「家」标记配色（hex）——「设为家」按钮背景跟随它 */
+  homeMarkerColor?: string;
   /** 到访照片每行张数（2026-11-04，D-116）：2 / 3 / 4 / 5；由 App 持有并写 localStorage */
   mediaCols: MediaCols;
   onMediaColsChange: (n: MediaCols) => void;
   /** 离家距离（km，2026-11-06 用户需求）：由 App 按「家」地点坐标算好；未设家 / 地点本身是家时为 null */
   homeDistanceKm?: number | null;
+  /**
+   * 2026-11-09 D-335：只读样板会话——隐藏编辑 / 删除 / 合并 / 设为秘密基地 / 设为家 / 添加到访 /
+   * 上传 / 移动 / 删除素材 / 拖拽上传等全部写入口；只保留浏览（照片灯箱、地区面包屑、照片列数）。
+   * 服务端对只读会话的写请求一律 403，这里只是不展示入口。
+   */
+  readOnly?: boolean;
 }
 
 const fmtDuration = (s?: number | null) => {
@@ -79,10 +91,12 @@ const splitCompanions = (s: string) =>
 /** 「今天」YYYY-MM-DD（新建到访的默认日期，与 + 添加一次到访 一致） */
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-/** 相册里的一格：缩略图 / 视频封面帧 + 悬停操作（封面 / 移动 / 删除） */
+/** 相册里的一格：缩略图 / 视频封面帧 + 悬停操作（封面 / 移动 / 删除）
+ *  2026-11-09 D-335：只读样板会话（readOnly）不显示悬停操作，只保留点击看大图。 */
 function MediaTile({
   m,
   cover,
+  readOnly = false,
   onClick,
   onCover,
   onMove,
@@ -91,6 +105,7 @@ function MediaTile({
 }: {
   m: MediaItem;
   cover: boolean;
+  readOnly?: boolean;
   onClick: () => void;
   onCover: () => void;
   onMove: () => void;
@@ -112,7 +127,8 @@ function MediaTile({
         {m.kind === 'video' && dur && <span className="dur">{dur}</span>}
         {cover && <span className="cover-flag">{t('封面')}</span>}
       </button>
-      <div className="tile-actions">
+      {!readOnly && (
+        <div className="tile-actions">
         <button
           type="button"
           title={t('设为封面')}
@@ -186,6 +202,7 @@ function MediaTile({
           <CloseIcon size={12} />
         </button>
       </div>
+      )}
     </div>
   );
 }
@@ -309,9 +326,12 @@ export default function Sidebar({
   onTrashed,
   onMerge,
   secretConfigured = false,
+  secretMarkerColor = MARKER_DEFAULT_HEX.secret,
+  homeMarkerColor = homeMarkerHex(DEFAULT_HOME_COLOR),
   mediaCols,
   onMediaColsChange,
   homeDistanceKm = null,
+  readOnly = false,
 }: Props) {
   const t = useT();
   const tp = useTp();
@@ -854,13 +874,28 @@ export default function Sidebar({
     }
   };
 
+  // 2026-11-09 D-325（用户要求）：地点编辑里的「设为秘密基地 / 设为家」按钮，
+  // 背景色跟随 设置 → 通用 → 图标配色 里当前生效的标记颜色（秘密基地品红 / 家青色等）。
+  // 12 色相明暗不同，文字色按 WCAG 对比度自动取深墨或白色；开启状态再加一圈内白描边区分。
+  const chipOnRing = { boxShadow: 'inset 0 0 0 2px rgba(255, 255, 255, 0.5)' };
+  const secretChipStyle = {
+    background: secretMarkerColor,
+    borderColor: secretMarkerColor,
+    color: readableTextOn(secretMarkerColor),
+  };
+  const homeChipStyle = {
+    background: homeMarkerColor,
+    borderColor: homeMarkerColor,
+    color: readableTextOn(homeMarkerColor),
+  };
+
   return (
     <aside
       className="panel"
-      onDragEnter={onPanelDragEnter}
-      onDragOver={onPanelDragOver}
-      onDragLeave={onPanelDragLeave}
-      onDrop={(e) => void onPanelDrop(e)}
+      onDragEnter={readOnly ? undefined : onPanelDragEnter}
+      onDragOver={readOnly ? undefined : onPanelDragOver}
+      onDragLeave={readOnly ? undefined : onPanelDragLeave}
+      onDrop={readOnly ? undefined : (e) => void onPanelDrop(e)}
     >
       {/* D-246：拖文件夹到侧栏的提示 / 处理中状态（覆盖层不接收鼠标事件，避免挡住 drop） */}
       {(folderDropActive || folderDropBusy) && (
@@ -918,7 +953,7 @@ export default function Sidebar({
           {!editingPlace && detail.home === 1 && <span className="home-tag">{t('家')}</span>}
         </div>
         <div className="head-actions">
-          {!editingPlace && (
+          {!editingPlace && !readOnly && (
             <>
               <button className="text-btn" onClick={startPlaceEdit}>
                 {t('编辑')}
@@ -972,6 +1007,7 @@ export default function Sidebar({
               <button
                 type="button"
                 className={secretOn ? 'chip sec-on' : 'chip'}
+                style={secretOn ? { ...secretChipStyle, ...chipOnRing } : secretChipStyle}
                 onClick={toggleSecret}
                 disabled={saving}
                 title={
@@ -985,6 +1021,7 @@ export default function Sidebar({
               <button
                 type="button"
                 className={homeOn ? 'chip home-on' : 'chip'}
+                style={homeOn ? { ...homeChipStyle, ...chipOnRing } : homeChipStyle}
                 onClick={toggleHome}
                 disabled={saving}
                 title={t('家：全库唯一，地图上用青绿房子图标，功能和普通地点一样')}
@@ -1184,6 +1221,8 @@ export default function Sidebar({
                 {err && <p className="hint err">{err}</p>}
               </div>
               <div className="panel-foot column">
+                {!readOnly && (
+                  <>
                 <button className="primary full" onClick={convertToVisited} disabled={saving}>
                   {saving ? t('处理中…') : t('转为去过')}
                 </button>
@@ -1214,6 +1253,8 @@ export default function Sidebar({
                   >
                     {t('从想去清单删除')}
                   </button>
+                )}
+                  </>
                 )}
               </div>
             </>
@@ -1248,7 +1289,7 @@ export default function Sidebar({
                       {v.title && <span className="vtitle">{v.title}</span>}
                       {v.rating ? <span className="rate">{'★'.repeat(v.rating)}</span> : null}
                       <span className="n">{v.media.length}</span>
-                      {editingVisit !== v.id && (
+                      {editingVisit !== v.id && !readOnly && (
                       <div className="visit-actions">
                         <button
                           className="text-btn"
@@ -1323,27 +1364,31 @@ export default function Sidebar({
                     )}
 
                     <div className="grid">
-                      {/* 「+ 添加素材」格始终放在第一格（2026-11-07 D-245，用户要求），照片依次排在后面 */}
-                      <div className="tile-wrap">
-                        <button
-                          type="button"
-                          className="tile tile-add"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            startPickForVisit(v.id);
-                          }}
-                          title={t('给这次到访（{date}）添加素材（图片 / 视频）', { date: v.date })}
-                        >
-                          <span className="tile-add-plus" aria-hidden="true">
-                            +
-                          </span>
-                          <span className="tile-add-label">{t('添加素材')}</span>
-                        </button>
-                      </div>
+                      {/* 「+ 添加素材」格始终放在第一格（2026-11-07 D-245，用户要求），照片依次排在后面
+                          2026-11-09 D-335：只读样板访客不显示上传格 */}
+                      {!readOnly && (
+                        <div className="tile-wrap">
+                          <button
+                            type="button"
+                            className="tile tile-add"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startPickForVisit(v.id);
+                            }}
+                            title={t('给这次到访（{date}）添加素材（图片 / 视频）', { date: v.date })}
+                          >
+                            <span className="tile-add-plus" aria-hidden="true">
+                              +
+                            </span>
+                            <span className="tile-add-label">{t('添加素材')}</span>
+                          </button>
+                        </div>
+                      )}
                       {v.media.map((m, i) => (
                         <MediaTile
                           key={m.id}
                           m={m}
+                          readOnly={readOnly}
                           cover={detail.cover_id === m.id}
                           onClick={() => onOpenLightbox(v.id, i)}
                           onCover={() => setCover(m)}
@@ -1392,7 +1437,7 @@ export default function Sidebar({
           </div>
           )}
 
-          {detail.kind !== 'wishlist' && (
+          {detail.kind !== 'wishlist' && !readOnly && (
           <div className="panel-foot column">
             {uploads.length > 0 && !queueClosed && (
               <div className="upload-queue">

@@ -140,6 +140,7 @@ const run = async () => {
       cwd: ROOT,
       env: {
         ...process.env,
+        STARTER_DATA: '0',
         PORT: String(PORT),
         DATA_DIR: dataDir,
         MEDIA_ROOT: mediaRoot,

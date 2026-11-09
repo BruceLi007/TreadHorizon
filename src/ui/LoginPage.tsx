@@ -16,6 +16,12 @@ interface Props {
   onLoggedIn: () => void;
   /** 主题标语（设置 → 通用 → 主题，只存本机）；null = i18n 默认文案，空串 = 不显示（D-269） */
   slogan?: string | null;
+  /**
+   * 只读样板展示入口（2026-11-09 D-335，用户要求「云端版当样板展示窗口」）：
+   * App 从 /api/auth/me 拿到；enabled 时登录卡显示「浏览样板展示（只读）」按钮，
+   * 访客无需密码进入只读会话（不能打点 / 上传 / 删除；维护者仍用下方账号密码登录）。
+   */
+  demo?: { enabled: boolean; displayName?: string };
 }
 
 /**
@@ -24,7 +30,7 @@ interface Props {
  * 只在 `AUTH_MODE=multi`（云端多用户）且未登录时显示；本地模式（默认）不会走到这里。
  * 登录成功后服务端下发 HttpOnly + SameSite=Lax 会话 Cookie，前端不需要保存 token。
  */
-export default function LoginPage({ onLoggedIn, slogan }: Props) {
+export default function LoginPage({ onLoggedIn, slogan, demo }: Props) {
   const t = useT();
   const [mode, setMode] = useState<Mode>('login');
   /** 2026-11-08（用户要求）：登录卡默认折叠在左下角按钮里，点「开始记录我的旅迹」才弹出 */
@@ -37,6 +43,9 @@ export default function LoginPage({ onLoggedIn, slogan }: Props) {
   const [inviteCode, setInviteCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  /** 只读样板展示入口（D-335） */
+  const [demoBusy, setDemoBusy] = useState(false);
+  const [demoError, setDemoError] = useState('');
 
   // 打开卡片后再聚焦第一个输入框（折叠状态下不能靠 autoFocus 抢焦点）
   useEffect(() => {
@@ -55,6 +64,21 @@ export default function LoginPage({ onLoggedIn, slogan }: Props) {
     if (next === mode) return;
     setMode(next);
     setError('');
+    setDemoError('');
+  };
+
+  /** 浏览样板展示（D-335）：无需密码进入只读会话；成功后按登录同一套流程 reload */
+  const enterDemo = async () => {
+    if (demoBusy || busy) return;
+    setDemoError('');
+    setDemoBusy(true);
+    try {
+      await api.demoLogin();
+      onLoggedIn();
+    } catch (err: any) {
+      setDemoError(err?.message || String(err));
+      setDemoBusy(false);
+    }
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -137,6 +161,28 @@ export default function LoginPage({ onLoggedIn, slogan }: Props) {
             ? t('登录你的账号，继续记录足迹。')
             : t('用一个邀请码创建账号，数据只有你自己能看到。')}
         </p>
+
+        {/* 2026-11-09 D-335（用户要求）：云端版只读样板展示入口——访客无需密码，进入后只能浏览 */}
+        {mode === 'login' && demo?.enabled && (
+          <div className="login-demo">
+            <button
+              type="button"
+              className="login-demo-btn"
+              onClick={() => void enterDemo()}
+              disabled={demoBusy || busy}
+            >
+              {demoBusy ? t('进入样板展示中…') : t('浏览样板展示（只读）')}
+            </button>
+            <p className="login-demo-note">
+              {t('无需密码，只能浏览；维护者请用下方账号密码登录。')}
+            </p>
+            {demoError && (
+              <div className="login-error" role="alert">
+                {demoError}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="login-tabs">
           <Segmented<Mode>

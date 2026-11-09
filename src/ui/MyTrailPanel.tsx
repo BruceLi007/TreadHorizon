@@ -53,6 +53,11 @@ interface Props {
   focus?: MyTrailFocus | null;
   /** D-290：定位应用完成（滚动 + 高亮播完）后通知 App 清掉 focus，避免切 tab 回来重复高亮 */
   onFocusApplied?: () => void;
+  /**
+   * 2026-11-09 D-335：只读样板会话——隐藏「选择 / 批量操作 / + 到访 / 补全地区」等写入口，
+   * 只保留浏览（省 → 市 → 地点、搜索、排序、折叠）。
+   */
+  readOnly?: boolean;
 }
 
 /**
@@ -76,6 +81,7 @@ export default function MyTrailPanel({
   parked = false,
   focus = null,
   onFocusApplied,
+  readOnly = false,
 }: Props) {
   const t = useT();
   const tabs: { id: MyTrailTab; label: string }[] = [
@@ -163,7 +169,7 @@ export default function MyTrailPanel({
                 value={secretFilter}
                 onChange={setSecretFilter}
               />
-              {missingRegion > 0 && onFillRegions && (
+              {missingRegion > 0 && onFillRegions && !readOnly && (
                 <button
                   type="button"
                   className="mytrail-fixregion"
@@ -177,6 +183,7 @@ export default function MyTrailPanel({
             </div>
             <VisitedPanel
               embedded
+              readOnly={readOnly}
               places={places}
               range={range}
               focus={focus?.kind === 'visited' ? focus : null}
@@ -185,7 +192,7 @@ export default function MyTrailPanel({
               secretFilter={secretFilter}
               onClose={onClose}
               onPick={onPick}
-              onAddVisit={onAddVisit}
+              onAddVisit={readOnly ? undefined : onAddVisit}
               onRefresh={onRefresh}
               onClearRange={onClearRange}
             />
@@ -193,6 +200,7 @@ export default function MyTrailPanel({
         ) : (
           <WishlistPanel
             embedded
+            readOnly={readOnly}
             focus={focus?.kind === 'wishlist' ? focus : null}
             onFocusApplied={onFocusApplied}
             onClose={onClose}

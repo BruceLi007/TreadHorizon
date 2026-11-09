@@ -247,6 +247,8 @@ interface Props {
    * 让「离家最远」不用关掉统计面板就能刷新。
    */
   homeKey?: string;
+  /** 2026-11-09 D-335：只读样板会话不显示备份提醒行（访客不需要备份） */
+  readOnly?: boolean;
 }
 
 /**
@@ -257,7 +259,7 @@ interface Props {
  * 时间趋势按用户拍板做成「年度横向条 + 地点数点」（纯 CSS/div 自绘，不引图表库）。
  * 离家距离（2026-11-06 D-199）：按到「家」的直线距离排行，服务端算距离、前端只排序展示。
  */
-export default function StatsPanel({ onClose, onOpenBackup, homeKey = '' }: Props) {
+export default function StatsPanel({ onClose, onOpenBackup, homeKey = '', readOnly = false }: Props) {
   const t = useT();
   const tp = useTp();
   const [tab, setTab] = useState<Tab>('time');
@@ -381,7 +383,9 @@ export default function StatsPanel({ onClose, onOpenBackup, homeKey = '' }: Prop
   }, [provTick]);
 
   // 备份提醒（F-SYS-05）：失败静默隐藏，统计面板其他功能不受影响
+  // 2026-11-09 D-335：只读样板访客不请求备份状态、不显示备份提醒行
   useEffect(() => {
+    if (readOnly) return;
     let alive = true;
     api
       .backupStatus()
@@ -394,7 +398,7 @@ export default function StatsPanel({ onClose, onOpenBackup, homeKey = '' }: Prop
     return () => {
       alive = false;
     };
-  }, []);
+  }, [readOnly]);
 
   const effMetrics = useMemo<MetricKey[]>(() => {
     const allowed = AVAILABLE_METRICS[tab];

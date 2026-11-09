@@ -119,5 +119,39 @@ export function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+/** 相对亮度（WCAG 定义），用于给自定义配色的色块挑可读文字色 */
+function relativeLuminance(hex: string): number {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex).trim());
+  if (!m) return 0;
+  const n = parseInt(m[1], 16);
+  const channel = (v: number) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const r = channel((n >> 16) & 255);
+  const g = channel((n >> 8) & 255);
+  const b = channel(n & 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * 在给定底色（标记配色 hex）上可读性最好的文字颜色（2026-11-09，D-325）。
+ * 地点编辑里的「设为秘密基地 / 设为家」按钮背景会跟随用户选的标记配色，
+ * 12 种色相明暗不一（青 / 品红偏亮用深墨字，靛蓝 / 紫罗兰偏暗用白字），
+ * 这里按 WCAG 对比度在「深墨」和「白色」里取对比度更高的一个。
+ */
+export function readableTextOn(hex: string): string {
+  const ink = '#0b1220';
+  const white = '#ffffff';
+  const contrast = (a: string, b: string) => {
+    const la = relativeLuminance(a);
+    const lb = relativeLuminance(b);
+    const hi = Math.max(la, lb);
+    const lo = Math.min(la, lb);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+  return contrast(hex, ink) >= contrast(hex, white) ? ink : white;
+}
+
 /** 色条顺序（设置页按十二色相环从左到右渲染） */
 export const MARKER_COLOR_CHOICES = MARKER_COLOR_OPTIONS;

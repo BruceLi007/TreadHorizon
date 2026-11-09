@@ -86,7 +86,13 @@ export const api = {
     ),
   config: () =>
     fetch('/api/config').then((r) =>
-      json<{ tdtTk: string; home: HomePoint | null; maxUploadBytes: number }>(r)
+      json<{
+        tdtTk: string;
+        home: HomePoint | null;
+        maxUploadBytes: number;
+        /** 2026-11-09 D-329：秘密基地初始密码（设置 → 安全 提示用；用户可自行修改） */
+        starterSecretPassword?: string;
+      }>(r)
     ),
 
   /**
@@ -411,6 +417,17 @@ export const api = {
       body: JSON.stringify({ password }),
     }).then((r) => json<{ ok: boolean; configured?: boolean }>(r)),
 
+  /**
+   * 云端版秘密基地解锁（2026-11-09 D-332，多用户模式）：
+   * 验证当前账号的登录密码（云端版不再使用单独的「秘密基地密码」）。
+   */
+  unlockSecretWithAccountPassword: (password: string) =>
+    fetch('/api/secret/unlock', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password }),
+    }).then((r) => json<{ ok: boolean }>(r)),
+
   // ── M6 P2-1：账号 / 会话 / 邀请码（2026-11-06，D-200） ──
 
   /** 当前模式 + 登录用户；启动时先调它，multi 且 user=null → 显示登录页 */
@@ -424,6 +441,13 @@ export const api = {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username, password }),
     }).then((r) => json<AuthSessionResult>(r)),
+
+  /**
+   * 浏览样板展示（2026-11-09 D-335）：无需密码，服务端创建「只读会话」。
+   * 成功后整页 reload 重新走启动流程；该会话只能看、不能改任何数据。
+   */
+  demoLogin: () =>
+    fetch('/api/auth/demo', { method: 'POST' }).then((r) => json<AuthSessionResult>(r)),
 
   /** 邀请码注册（成功后直接登录） */
   register: (body: {

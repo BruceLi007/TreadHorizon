@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import type { BackupStatus } from '../../lib/types';
+import type { BackupStatus, UpdateCheckResult } from '../../lib/types';
 import type { AppFont, FontSize, FontWeight, Slogan, Theme, ThemeLevel } from './types';
 import type { HomeColor } from '../../lib/homeIcon';
 import type { MarkerColorPrefs } from '../../lib/markerColors';
@@ -28,6 +28,11 @@ interface Props {
   onRestored: () => void;
   /** 备份状态变化（导出 / 稍后提醒 / 改阈值）同步给 App，顶栏红点即时更新 */
   onBackupStatus?: (s: BackupStatus) => void;
+  /**
+   * 2026-11-09 D-331（用户反馈）：秘密基地密码被设置 / 修改 / 重置后通知 App，
+   * 清掉当前会话的「已解锁」状态——改完密码后再打开秘密基地需要重新输入新密码。
+   */
+  onSecretPasswordChanged?: () => void;
   /** 回收站数量：显示在左下角「回收站」入口旁的小角标 */
   trashCount?: number;
   theme: Theme;
@@ -71,6 +76,22 @@ interface Props {
    * 让用户点进设置后能按级找到红点对应的待办；后续其它待办也可复用。
    */
   navDots?: Partial<Record<TabId, string>>;
+  /** 应用更新检查结果（2026-11-09 D-327）：关于页展示 + 设置导航「关于」红点，由 App 统一持有 */
+  updateCheck?: UpdateCheckResult | null;
+  /** 正在检查更新 */
+  updateChecking?: boolean;
+  /** 「再检查一次」按钮 / 打开关于页时刷新 */
+  onCheckUpdate?: () => void;
+  /** 用户已忽略的版本号（本机 localStorage） */
+  ignoredUpdateVersion?: string;
+  onIgnoreUpdate?: (version: string) => void;
+  onRestoreUpdateReminder?: () => void;
+  /**
+   * 只读样板会话（2026-11-09 D-335，云端「浏览样板展示（只读）」入口）：
+   * 只保留「通用 / 天地图 Key / 关于」三个分类；隐藏备份恢复 / 素材库 / 回收站 / 安全 / 账号。
+   * 服务端对只读会话的写请求一律 403，这里只是不展示入口（退出登录在顶栏「只读」标识旁）。
+   */
+  readOnly?: boolean;
 }
 
 export type TabId =
@@ -237,6 +258,7 @@ export default function SettingsModal({
   onChanged,
   onRestored,
   onBackupStatus,
+  onSecretPasswordChanged,
   trashCount = 0,
   theme,
   effectiveTheme,
@@ -261,6 +283,13 @@ export default function SettingsModal({
   onProfileChanged,
   initialTab,
   navDots,
+  updateCheck = null,
+  updateChecking = false,
+  onCheckUpdate,
+  ignoredUpdateVersion = '',
+  onIgnoreUpdate,
+  onRestoreUpdateReminder,
+  readOnly = false,
 }: Props) {
   const t = useT();
   const [tab, setTab] = useState<TabId>(initialTab ?? 'general');
@@ -274,15 +303,22 @@ export default function SettingsModal({
   // 普通用户只读（LibrarySettings 内部分流），路径 / 重新关联 / 切换路径仍仅管理员。
   const multi = authMode === 'multi';
   const isAdmin = currentUser?.role === 'admin';
+  // 2026-11-09 D-335：只读样板会话只保留「通用 / 天地图 Key / 关于」——
+  // 备份恢复、素材库、回收站、安全、账号都涉及写操作或会暴露隐藏内容，直接不展示。
+  const mainTabs = readOnly
+    ? MAIN_TABS.filter((item) => item.id === 'general' || item.id === 'tdt')
+    : MAIN_TABS;
   // 2026-11-07 用户要求（D-221 修订）：回收站放回分类列表、位于「关于」上面；multi 下「账号」固定到左下角单独显示。
-  const tabs = multi
-    ? [
-        ...MAIN_TABS,
-        ...(isAdmin ? [USERS_TAB] : []),
-        TRASH_TAB,
-        ABOUT_TAB,
-      ]
-    : [...MAIN_TABS, TRASH_TAB, ABOUT_TAB];
+  const tabs = readOnly
+    ? [...mainTabs, ABOUT_TAB]
+    : multi
+      ? [
+          ...mainTabs,
+          ...(isAdmin ? [USERS_TAB] : []),
+          TRASH_TAB,
+          ABOUT_TAB,
+        ]
+      : [...mainTabs, TRASH_TAB, ABOUT_TAB];
   // 普通用户的「素材库」分类说明改成只读信息（不给「路径、重新关联」的暗示）
   const tabsShown =
     multi && !isAdmin
@@ -291,8 +327,9 @@ export default function SettingsModal({
         )
       : tabs;
   // 账号不在上面的分类列表里（固定在左下角），但标题栏仍要能显示它的名称 / 说明
-  const allTabs = multi ? [...tabsShown, ACCOUNT_TAB] : tabsShown;
-  const current = allTabs.find((item) => item.id === tab) ?? allTabs[0];
+  const allTabs = multi && !readOnly ? [...tabsShown, ACCOUNT_TAB] : tabsShown;
+  const activeTab: TabId = allTabs.some((item) => item.id === tab) ? tab : allTabs[0].id;
+  const current = allTabs.find((item) => item.id === activeTab) ?? allTabs[0];
 
   // Esc 关闭 + 打开期间锁住 body 滚动
   useEffect(() => {
@@ -375,7 +412,7 @@ export default function SettingsModal({
               <button
                 key={item.id}
                 type="button"
-                className={item.id === tab ? 'set-nav-item on' : 'set-nav-item'}
+                className={item.id === activeTab ? 'set-nav-item on' : 'set-nav-item'}
                 onClick={() => setTab(item.id)}
                 aria-current={item.id === tab ? 'page' : undefined}
               >
@@ -401,14 +438,15 @@ export default function SettingsModal({
             ))}
           </nav>
 
-          {/* 2026-11-07 用户要求（D-221）：多用户模式下「账号」固定在设置左下角单独显示 */}
-          {multi && (
+          {/* 2026-11-07 用户要求（D-221）：多用户模式下「账号」固定在设置左下角单独显示
+              （2026-11-09 D-335：只读样板会话不显示账号分类，退出登录走顶栏只读标识） */}
+          {multi && !readOnly && (
             <div className="set-nav-bottom">
               <button
                 type="button"
-                className={tab === 'account' ? 'set-nav-item on' : 'set-nav-item'}
+                className={activeTab === 'account' ? 'set-nav-item on' : 'set-nav-item'}
                 onClick={() => setTab('account')}
-                aria-current={tab === 'account' ? 'page' : undefined}
+                aria-current={activeTab === 'account' ? 'page' : undefined}
               >
                 <NavIcon id="account" />
                 <span>{t(ACCOUNT_TAB.label)}</span>
@@ -434,7 +472,7 @@ export default function SettingsModal({
           </header>
 
           <div className="set-body">
-            {tab === 'general' && (
+            {activeTab === 'general' && (
               <GeneralSettings
                 theme={theme}
                 effectiveTheme={effectiveTheme}
@@ -455,7 +493,7 @@ export default function SettingsModal({
                 onMarkerColors={onMarkerColors}
               />
             )}
-            {tab === 'backup' && (
+            {activeTab === 'backup' && (
               <BackupSettings
                 onRestored={onRestored}
                 onBackupStatus={onBackupStatus}
@@ -463,13 +501,19 @@ export default function SettingsModal({
                 isAdmin={isAdmin}
               />
             )}
-            {tab === 'library' && (
+            {activeTab === 'library' && (
               <LibrarySettings onChanged={onChanged} multi={multi} isAdmin={isAdmin} />
             )}
-            {tab === 'trash' && <TrashSettings onChanged={onChanged} />}
-            {tab === 'tdt' && <TdtSettings multi={multi} />}
-            {tab === 'security' && <SecuritySettings onChanged={onChanged} />}
-            {tab === 'account' &&
+            {activeTab === 'trash' && <TrashSettings onChanged={onChanged} />}
+            {activeTab === 'tdt' && <TdtSettings multi={multi} />}
+            {activeTab === 'security' && (
+              <SecuritySettings
+                onChanged={onChanged}
+                onPasswordChanged={onSecretPasswordChanged}
+                multi={multi}
+              />
+            )}
+            {activeTab === 'account' &&
               (currentUser ? (
                 <AccountSettings
                   user={currentUser}
@@ -480,14 +524,24 @@ export default function SettingsModal({
               ) : (
                 <p className="hint">{t('当前没有登录账号。')}</p>
               ))}
-            {tab === 'users' &&
+            {activeTab === 'users' &&
               (currentUser && isAdmin ? (
                 <UserManagementSettings currentUser={currentUser} />
               ) : (
                 <p className="hint">{t('只有管理员可以管理账号。')}</p>
               ))}
-            {tab === 'about' && (
-              <AboutSettings multi={multi} isAdmin={isAdmin} currentUser={currentUser} />
+            {activeTab === 'about' && (
+              <AboutSettings
+                multi={multi}
+                isAdmin={isAdmin}
+                currentUser={currentUser}
+                updateCheck={updateCheck}
+                updateChecking={updateChecking}
+                onCheckUpdate={onCheckUpdate}
+                ignoredUpdateVersion={ignoredUpdateVersion}
+                onIgnoreUpdate={onIgnoreUpdate}
+                onRestoreUpdateReminder={onRestoreUpdateReminder}
+              />
             )}
           </div>
         </section>

@@ -27,27 +27,26 @@
 
 ## 能做什么
 
+<p align="center"><img src="assets/readme/v2/00-overview.webp" width="900" alt="Tread Horizon 主界面：地图上的足迹总览"></p>
+
+
 ### 在地图上打点，记录足迹
 
 - **搜索打点**：搜地名 → 地图飞过去 → 落下足迹；也可以直接在地图上点选位置，拖动飞镖微调
 
-<p align="center"><img src="assets/readme/02-search-and-add.webp" width="900" alt="搜索地点与添加足迹"></p>
+<p align="center"><img src="assets/readme/v2/02-search-and-add.webp" width="900" alt="搜地名打点：确认足迹（地址 / 坐标 / 日期 / 类型）"></p>
 
 
 - **四种标记**：去过（绿）、想去（红）、家（小房子）、秘密基地（紫，打开详情需要密码）；**标记会动**：静置时轻轻呼吸，悬停会轻跳，点击时压扁回弹并在地面荡开一圈涟漪；**自动聚合**：地点多的时候，地图上会按类型抱成一簇，点一下展开该区域的地点列表
 
-<p align="center"><img src="assets/readme/03-marker-color-palette.webp" width="900" alt="地图标记的图标配色"></p>
-
-
-<p align="center"><img src="assets/readme/04-map-markers.webp" width="900" alt="地图上的四种标记（去过 / 想去 / 家 / 秘密基地）"></p>
-
-
-<p align="center"><img src="assets/readme/05-secret-base.webp" width="900" alt="秘密基地：密码解锁"></p>
+<p align="center"><img src="assets/readme/v2/03-map-markers.webp" width="900" alt="地图上的四种标记：去过 / 想去 / 家 / 秘密基地"></p>
+<p align="center"><img src="assets/readme/v2/04-marker-cluster.webp" width="900" alt="地点自动聚合：点开一簇查看地点列表"></p>
+<p align="center"><img src="assets/readme/v2/05-secret-base.webp" width="900" alt="秘密基地：输入密码才能查看详情"></p>
 
 
 - **家**：地图上唯一一个「家」标记，不参与聚合，点顶栏「家」一键飞回去
 
-<p align="center"><img src="assets/readme/06-home.webp" width="900" alt="顶栏「家」一键飞回家"></p>
+<p align="center"><img src="assets/readme/v2/06-home.webp" width="900" alt="顶栏「家」一键飞回家"></p>
 
 
 - **不会点歪**：地图缩得太远时不允许打点；暂不支持记录国外坐标
@@ -55,78 +54,136 @@
 ### 照片和视频，一次传好
 
 - **记录结构**：地点 → 到访（日期 / 标题 / 笔记 / 评分 / 同行人）→ 照片、视频；**上传省心**：拖进侧栏或点选即可，支持批量；每个文件显示进度，可取消，失败能重试；**大文件也能传**：单个文件默认上限 8GB（`.env.local` 里可用 `MAX_UPLOAD_GB` 调整）；**自动查重**：同一张图再传一次会跳过，不重复占空间；**视频也有封面**：自动截取封面帧并显示时长（装好 ffmpeg 才有；没装视频照样能播放）；**iPhone 的 HEIC / HEIF 照片直接传**：服务端自动转码生成缩略图与灯箱预览，原始 `.heic` 文件仍原样保存在素材库（点「查看原图」时浏览器本身不能直接渲染 HEIC，属浏览器限制）
+
+<p align="center"><img src="assets/readme/v2/07-visit-detail.webp" width="900" alt="到访详情：日期 / 标题 / 同行人 / 照片"></p>
+<p align="center"><img src="assets/readme/v2/08-upload-queue.webp" width="900" alt="上传队列：逐文件进度 / 完成状态"></p>
+
 - **拖文件夹上传**：把整个文件夹拖进侧栏 → 自动按文件夹名新建一次到访，并批量上传里面的图片 / 视频（日期默认今天，之后可编辑）
-<p align="center"><img src="assets/readme/07-visit-and-photos.webp" width="900" alt="到访详情与照片 / 视频上传"></p>
 
 - **归档整齐**：上传时复制一份到素材库，按「省 / 市 / 区县 / 日期_地点名」自动分好文件夹；电脑里的原片不会被移动
+
+<p align="center"><img src="assets/readme/v2/09-archive-library.webp" width="900" alt="素材库：按「省 / 市 / 区县 / 日期_地点名」自动归档"></p>
+
 
 ### 看照片的体验
 
 - **相册网格**：地点侧栏的照片每行可切换 2 / 3 / 4 / 5 张
-- **灯箱**：左右翻页、缩放，底部有一条缩略图胶片带——点一下就切，翻页时会自动滚到当前那张
-- **照片墙**：全屏按年份浏览、无限滚动、年份快捷筛选，每行可切 4 / 6 / 8 / 10 张
-- **双向跳转**：照片墙里点「在地图中查看」直接飞到对应地点；地点灯箱里也能跳回照片墙定位
-- **可调大小**：照片墙窗口右下角可以拖动缩放，会记住上次的大小
-<p align="center"><img src="assets/readme/08-photo-wall.webp" width="900" alt="照片墙：按年份浏览全部照片"></p>
 
-<p align="center"><img src="assets/readme/09-lightbox.webp" width="900" alt="灯箱：大图预览与底部缩略图胶片带"></p>
+<p align="center"><img src="assets/readme/v2/10-photo-grid.webp" width="900" alt="相册网格：地点照片每行可切换 2 / 3 / 4 / 5 张"></p>
+
+- **灯箱**：左右翻页、缩放，底部有一条缩略图胶片带——点一下就切，翻页时会自动滚到当前那张
+
+<p align="center"><img src="assets/readme/v2/11-lightbox.webp" width="900" alt="灯箱：大图预览 + 底部缩略图胶片带"></p>
+
+- **照片墙**：全屏按年份浏览、无限滚动、年份快捷筛选，每行可切 4 / 6 / 8 / 10 张
+
+<p align="center"><img src="assets/readme/v2/12-photo-wall.webp" width="900" alt="照片墙：按年份 → 月份浏览全部照片"></p>
+
+- **双向跳转**：照片墙里点「在地图中查看」直接飞到对应地点；地点灯箱里也能跳回照片墙定位
+
+<p align="center"><img src="assets/readme/v2/13-photo-wall-jump.webp" width="900" alt="照片墙「在地图中查看」直达对应地点"></p>
+
+- **可调大小**：照片墙窗口右下角可以拖动缩放，会记住上次的大小
+
+<p align="center"><img src="assets/readme/v2/14-photo-wall-resize.webp" width="900" alt="照片墙窗口可拖动缩放"></p>
 
 
 ### My旅迹：所有去过 / 想去的地方
 
 - **树形整理**：「去过」按 省 → 市 → 地点 分组，地点行显示次数、照片数、视频数、最近到访时间
-- **想去清单**：想以后去的地方单独一份，可以随时「转为去过」
-- **一键展开 / 收起**、按最近 / 最早到访排序、按名称或省市搜索；**和时间轴联动**：框选一段时间后，My旅迹会显示「这段时间去过几次 · 共几次」
-<p align="center"><img src="assets/readme/10-my-trail-visited.webp" width="900" alt="My旅迹：按省市整理的「去过」"></p>
 
-<p align="center"><img src="assets/readme/11-my-trail-list.webp" width="900" alt="My旅迹：想去清单与列表操作"></p>
+<p align="center"><img src="assets/readme/v2/15-my-trail-visited.webp" width="900" alt="My旅迹：按省 → 市 → 地点整理的「去过」"></p>
+
+- **想去清单**：想以后去的地方单独一份，可以随时「转为去过」
+
+<p align="center"><img src="assets/readme/v2/16-my-trail-wishlist.webp" width="900" alt="My旅迹：想去清单（可转为去过）"></p>
+
+- **一键展开 / 收起**、按最近 / 最早到访排序、按名称或省市搜索；**和时间轴联动**：框选一段时间后，My旅迹会显示「这段时间去过几次 · 共几次」
 
 
 ### 时间轴：看「什么时候去过哪」
 
 - **双手柄框选**：拖动底部时间轴的两个手柄，地图、清单、统计一起跟着变
-- **自动回放**：按 天 / 周 / 月 / 季度 / 年 步长播放足迹动画；也可以 `‹` `›` 手动步进
-- **跳过空白**：可只走有记录的时间段；一个按钮回到「全部」
-<p align="center"><img src="assets/readme/12-timeline-range.webp" width="900" alt="时间轴：双手柄框选时间范围"></p>
 
-<p align="center"><img src="assets/readme/13-timeline-play.webp" width="900" alt="时间轴：区间筛选与播放"></p>
+<p align="center"><img src="assets/readme/v2/17-timeline-range.webp" width="900" alt="时间轴：双手柄框选时间范围"></p>
+
+- **自动回放**：按 天 / 周 / 月 / 季度 / 年 步长播放足迹动画；也可以 `‹` `›` 手动步进
+
+<p align="center"><img src="assets/readme/v2/18-timeline-play.webp" width="900" alt="时间轴：按步长自动回放足迹"></p>
+
+- **跳过空白**：可只走有记录的时间段；一个按钮回到「全部」
 
 
 ### 统计：回顾你的旅行
 
 - **省份点亮**：去过的省份在地图上按到访次数分 4 档点亮（橙色），一眼看出走过哪片山河
-<p align="center"><img src="assets/readme/14-stats-provinces.webp" width="900" alt="统计：省份点亮"></p>
+
+<p align="center"><img src="assets/readme/v2/19-stats-provinces.webp" width="900" alt="统计：省份点亮"></p>
+
 
 - **总览数字**：省份 / 城市 / 地点 / 到访 / 照片 / 视频 六个数字
+
+<p align="center"><img src="assets/readme/v2/20-stats-trend.webp" width="900" alt="统计：总览数字与时间趋势"></p>
+
 - **时间趋势**：按年 / 季 / 月看访问走势
 - **地区分布**和**地点排行**：哪个省去得最多、哪些地方反复去
-<p align="center"><img src="assets/readme/15-stats-distribution.webp" width="900" alt="统计：地区分布与地点排行"></p>
+
+<p align="center"><img src="assets/readme/v2/21-stats-region.webp" width="900" alt="统计：地区分布"></p>
+<p align="center"><img src="assets/readme/v2/22-stats-ranking.webp" width="900" alt="统计：地点排行"></p>
+
 
 - **离家距离**：离家最远的地点，以及按距离排序的「离家距离」榜
-<p align="center"><img src="assets/readme/16-stats-distance.webp" width="900" alt="统计：离家距离排行"></p>
+
+<p align="center"><img src="assets/readme/v2/23-stats-distance.webp" width="900" alt="统计：离家距离排行"></p>
 
 
 ### 用着顺手
 
 - **中英文**：设置里一键切换，立即生效
+
+<p align="center"><img src="assets/readme/v2/24-settings-general.webp" width="900" alt="设置 → 通用：语言与顶栏标语"></p>
+
 - **字体**：11 档界面字体（7 款随仓库附带的 SIL OFL 字体 + 4 款系统字体）、字号 3 档、字重 2 档
+
+<p align="center"><img src="assets/readme/v2/26-settings-fonts.webp" width="900" alt="设置 → 通用：界面字体 / 字号 / 字重"></p>
+
 - **外观**：纯白 / 浅色 / 深色 / 纯黑 4 档明暗，也可以跟随系统
+
+<p align="center"><img src="assets/readme/v2/25-settings-look.webp" width="900" alt="设置 → 通用：外观明暗与图标配色"></p>
+
 - **主题标语**：顶栏那句标语可以自己改
 - **图标配色**：家 / 去过 / 想去 / 秘密基地 四种地图图标都能换颜色
-<p align="center"><img src="assets/readme/17-settings-icon-colors.webp" width="900" alt="设置：地图图标配色"></p>
 
 
 ### 整理与清理
 
 - **回收站**：删除先进回收站，误删可恢复；确认不要了再「彻底删除」，才会真正释放素材空间
+
+<p align="center"><img src="assets/readme/v2/27-trash.webp" width="900" alt="回收站：已删除的地点 / 到访 / 照片"></p>
+
 - **合并重复地点**：不小心把同一个地方记成两个？选两条合并即可
+
+<p align="center"><img src="assets/readme/v2/28-merge-places.webp" width="900" alt="合并重复地点"></p>
+
 - **素材管理**：移动、删除、设为封面、一键打开素材所在文件夹
+
+<p align="center"><img src="assets/readme/v2/29-media-actions.webp" width="900" alt="素材管理：设为封面 / 移动 / 打开文件夹 / 删除"></p>
+
 
 ### 备份与迁移
 
 - **导出备份**：元数据必选，缩略图 / 照片视频可选；后台打包，有进度，可取消；大包不占页面内存
+
+<p align="center"><img src="assets/readme/v2/31-backup-export.webp" width="900" alt="导出备份：应用数据 / 缩略图 / 素材可选"></p>
+
 - **从备份恢复**：先「检查备份包」看摘要 → 二次确认 → 自动把当前数据备份一份 → 再恢复；含素材会做内容校验
+
+<p align="center"><img src="assets/readme/v2/32-backup-restore.webp" width="900" alt="从备份恢复：先检查备份包再恢复"></p>
+
 - **备份提醒**：可设 7 / 14 / 30 / 60 / 90 天提醒
+
+<p align="center"><img src="assets/readme/v2/30-backup-reminder.webp" width="900" alt="备份提醒：提醒阈值与待备份提示"></p>
+
 - **换电脑**：拷走 `data/` + 素材库 + `.env.local` 即可
 
 ###

@@ -670,6 +670,8 @@ html:is([data-theme='light'], [data-theme='white']) .brand-logo-svg {
   margin-left: auto;
   margin-right: 46px;
   transform: translateY(58px);
+  /* 2026-11-09 D-333：头像 + 名称改为相对整个 HUD 行定位（右缘与大按钮组 `.actions` 右缘对齐） */
+  position: relative;
 }
 
 .hud-tools {
@@ -1334,6 +1336,13 @@ html:is([data-theme='light'], [data-theme='white']) .folder-drop-overlay {
   height: 30px;
   padding: 0 10px;
   font-size: calc(12px * var(--fs-scale));
+  /* 2026-11-09 D-325：背景 / 描边 / 文字色由 TSX 按「设置 → 图标配色」当前生效色动态写入 inline style */
+  transition: filter 140ms ease, box-shadow 140ms ease;
+}
+
+/* 「设为秘密基地 / 设为家」：悬停微微提亮（颜色本身来自标记配色，不在这里写死） */
+.place-edit .pe-toggles .chip:hover:not(:disabled) {
+  filter: brightness(1.06);
 }
 
 /* ── 2026-11-08 D-284（用户要求）：地点编辑 → 地区手动编辑（省 / 市 / 区县）──
@@ -4124,13 +4133,17 @@ html:is([data-theme='dark'], [data-theme='black']) .hud-search-panel .searchbox 
    2) 去掉「边框线条」：搜索框 / 搜索结果 / 抽屉 / 统计面板 / 时间轴 / 选中的到访卡都不画线；
    3) 选中键上下各突出一点（见上方 .ghost.on 高度调整）。 */
 /* 2026-11-07 D-224（用户指定，同日修订）：「头像 + 名称」放在「+ 添加足迹」上方；
-   左缘与「+ 添加足迹」按钮左对齐、垂直中心与主题标语同一水平线（标语中心 ≈ 40px）；
+   2026-11-09 D-333（云端版用户要求）：「头像 + 名称」移到 HUD 行右上角，
+   **右缘与大按钮组 `.actions` 右缘对齐**（`.hud` 是 flex 行、`.actions` 是最右子项，
+   所以 `right: 0` = 与大按钮组右对齐）；垂直位置保持原来的「标语同一水平线」附近。
    没传过头像时用「去过」标记（透明底）；点头像 / 名称都打开 设置 → 账号。
    尺寸：头像 38px、名称 15px、两者间距 12px（用户要求放大 + 加大间距）。 */
 .hud-user {
   position: absolute;
-  left: 0;
-  bottom: calc(100% + 20px);
+  right: 0;
+  /* 原来相对「+ 添加足迹」(34px 高) 是 bottom: 100% + 20px；改挂到 40px 高的 .hud 后
+     用 +17px 保持同样的垂直中心位置。 */
+  bottom: calc(100% + 17px);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -4299,7 +4312,7 @@ html:is([data-theme='light'], [data-theme='white']) .hud-username {
 
 @media (max-width: 1419px) {
   /* 2026-11-07 D-224：窄屏隐藏头像 + 名称，避免顶到浏览器边缘；
-     宽屏下头像是绝对定位在「+ 添加足迹」上方、与主题标语同一水平线 */
+     2026-11-09 D-333：宽屏下头像 + 名称改为右缘与大按钮组右缘对齐（见上方 .hud-user）。 */
   .hud-user {
     display: none;
   }
@@ -4656,5 +4669,69 @@ button:focus-visible {
 
 .mytrail-select-btn.on {
   color: var(--accent);
+}
+
+/* 2026-11-09 D-335：云端只读样板展示标识（顶栏右上角，位置与 `.hud-user` 一致，
+   右缘与大按钮组对齐；替代头像 / 用户名，附「退出」按钮） */
+.readonly-chip {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 17px);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 6px 0 11px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-panel) 86%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-2) 22%, transparent);
+  box-shadow: 0 6px 18px rgba(10, 20, 30, 0.12);
+  backdrop-filter: blur(6px);
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-2);
+  white-space: nowrap;
+  z-index: 5;
+}
+
+.readonly-chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f59e0b;
+  flex: none;
+}
+
+.readonly-chip-exit {
+  height: 22px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--text-2);
+  color: var(--bg-panel);
+  font: inherit;
+  font-size: calc(11.5px * var(--fs-scale));
+  line-height: 1;
+  cursor: pointer;
+}
+
+.readonly-chip-exit:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+.readonly-chip-exit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* 窄屏：隐藏只读文案、只留小圆点 + 退出（保留退出入口；比头像 / 用户名更常驻） */
+@media (max-width: 860px) {
+  .readonly-chip {
+    padding: 0 5px 0 8px;
+    gap: 6px;
+  }
+
+  .readonly-chip-text {
+    display: none;
+  }
 }
 

@@ -507,12 +507,22 @@ export interface AuthUser {
   lastLoginAt?: number | null;
   /** 头像更新时间（2026-11-07 D-224；0 / 缺省 = 没上传过头像，顶栏显示首字母占位） */
   avatarUpdatedAt?: number;
+  /**
+   * 2026-11-09 D-335：只读样板会话（云端版「浏览样板展示（只读）」入口）。
+   * true = 服务端强制只读：不能打点 / 上传 / 删除 / 改密码；前端据此隐藏所有写入口。
+   */
+  readOnly?: boolean;
 }
 
 /** GET /api/auth/me：模式 + 当前用户（未登录 / local 模式为 null） */
 export interface AuthMe {
   mode: AuthMode;
   user: AuthUser | null;
+  /**
+   * 只读样板展示入口（2026-11-09 D-335）：云端配置了 DEMO_USERNAME 时出现，登录页显示
+   * 「浏览样板展示（只读）」按钮；未开放为 undefined。
+   */
+  demo?: { enabled: boolean; displayName?: string };
 }
 
 /** 登录 / 邀请码注册成功后的返回 */

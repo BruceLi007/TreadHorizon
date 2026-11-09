@@ -23,6 +23,7 @@ import {
   findUsableInvite,
   findUserByUsername,
   getUserSetting,
+  getUserById,
   listInvites,
   listUsersWithUsage,
   loginKey,
@@ -36,8 +37,10 @@ import {
   resetPassword,
   revokeInvite,
   sameOrigin,
+  saveSessionTdtKey,
   saveUserSetting,
   sessionCookie,
+  sessionTdtKey,
   updateOwnDisplayName,
   updateUserByAdmin,
   userFromRequest,
@@ -101,6 +104,8 @@ import {
   storeUserRestoreToken,
 } from './user-restore.mjs';
 import { ZipError } from './zip.mjs';
+// 首次初始化示例足迹（2026-11-09）：local 启动时 / multi 首次登录注册后生成 34 省省会示例数据
+import { ensureStarterData } from './starter.mjs';
 
 const MIME = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp',
@@ -129,6 +134,32 @@ app.addHook('preHandler', async (req, reply) => {
   const user = userFromRequest(req); // local 模式直接返回 null，不查库
   req.authUser = user;
   if (CONFIG.authMode !== 'multi') return;
+
+  // 2026-11-09 D-335（用户要求：云端版当「只读样板展示窗口」）：只读样板会话在服务端强制只读。
+  // 除「退出登录 / 登录切换账号 / 会话级天地图 Key」外，所有非 GET/HEAD 请求一律 403；
+  // GET 里再屏蔽回收站 / 数据导出 / 素材库路径等会暴露隐藏内容或服务器信息的接口。
+  // 前端只负责隐藏入口，这里才是真正的兜底（防止绕过前端直接调 API 改数据）。
+  if (user?.readOnly) {
+    const WRITE_ALLOW = new Set([
+      '/api/auth/login',
+      '/api/auth/register',
+      '/api/auth/logout',
+      '/api/auth/demo',
+      '/api/config/tdt-key',
+    ]);
+    if (req.method !== 'GET' && req.method !== 'HEAD' && !WRITE_ALLOW.has(path)) {
+      return reply.code(403).send({ error: '样板展示为只读：不能修改数据' });
+    }
+    if (
+      req.method === 'GET' &&
+      (path === '/api/account/export' ||
+        path === '/api/library' ||
+        path.startsWith('/api/library/'))
+    ) {
+      return reply.code(403).send({ error: '样板展示为只读：不能访问该内容' });
+    }
+  }
+
   if (path === '/api/health' || path.startsWith('/api/auth/')) return;
   if (!user) return reply.code(401).send({ error: '请先登录' });
   if (req.method !== 'GET' && req.method !== 'HEAD' && !sameOrigin(req)) {
@@ -219,6 +250,8 @@ function requireAdminInMulti(req, reply) {
  */
 function tdtKeyFor(req) {
   if (CONFIG.authMode !== 'multi') return CONFIG.tdtTk;
+  // 2026-11-09 D-335：只读样板访客用「会话级」天地图 Key（每个访客填自己的，不写账号、不互相覆盖）
+  if (req.authUser?.readOnly) return sessionTdtKey(req);
   const st = getUserSetting(req.authUser?.id || null);
   return typeof st?.tdt_tk === 'string' ? st.tdt_tk.trim() : '';
 }
@@ -446,11 +479,24 @@ app.get('/api/health', async (req) => {
 // 没填时前端显示「配置天地图 Key」引导页；home 一律 null —— 家是 place.home=1 的地点。
 app.get('/api/config', async (req) => {
   if (CONFIG.authMode !== 'multi') {
-    return { tdtTk: CONFIG.tdtTk, home: CONFIG.home, maxUploadBytes: CONFIG.maxUploadBytes };
+    return {
+      tdtTk: CONFIG.tdtTk,
+      home: CONFIG.home,
+      maxUploadBytes: CONFIG.maxUploadBytes,
+      // 2026-11-09 D-329：设置 → 安全 显示「（初始密码为…）」提示用
+      starterSecretPassword: CONFIG.starterSecretPassword,
+    };
   }
   const st = getUserSetting(ownerOf(req));
   const ownTk = typeof st?.tdt_tk === 'string' ? st.tdt_tk.trim() : '';
-  return { tdtTk: ownTk, home: null, maxUploadBytes: CONFIG.maxUploadBytes };
+  return {
+    // 2026-11-09 D-335：只读样板访客返回「本次会话」自己的 Key（存在 session.tdt_key）；
+    // 账号本人的 Key 不会下发给访客，访客之间也互不覆盖。
+    tdtTk: req.authUser?.readOnly ? sessionTdtKey(req) : ownTk,
+    home: null,
+    maxUploadBytes: CONFIG.maxUploadBytes,
+    starterSecretPassword: CONFIG.starterSecretPassword,
+  };
 });
 
 // 设置页写入天地图 Key（F-SYS-02 / M5）：只校验并保存，绝不回显 key、绝不写日志。
@@ -464,6 +510,14 @@ app.post('/api/config/tdt-key', async (req, reply) => {
     return reply.code(400).send({ error: '天地图 Key 必须是 32 位字母或数字' });
   }
   if (CONFIG.authMode === 'multi') {
+    // 2026-11-09 D-335：只读样板访客的 Key 只存本次会话（不落 demo 账号 → 访客之间不互相覆盖，
+    // 地图 / 搜索 / 逆地理都用访客自己的 Key，不消耗账号本人的额度）。
+    if (req.authUser?.readOnly) {
+      if (!saveSessionTdtKey(req, key)) {
+        return reply.code(500).send({ error: '保存天地图 Key 失败，请稍后重试' });
+      }
+      return { ok: true, hasTk: true };
+    }
     const owner = ownerOf(req);
     try {
       saveUserSetting(owner, { tdt_tk: key });
@@ -554,8 +608,65 @@ function requireAdmin(req, reply) {
   return user;
 }
 
+/**
+ * 只读样板展示的入口信息（2026-11-09 D-335，用户要求「云端版当样板展示窗口」）：
+ * 仅 AUTH_MODE=multi + 配置了 DEMO_USERNAME、且该账号存在 / 启用 / 是普通用户时开放。
+ * 返回给登录页决定是否显示「浏览样板展示（只读）」按钮；不泄露密码。
+ */
+function demoShowcaseInfo() {
+  if (CONFIG.authMode !== 'multi' || !CONFIG.demoUsername) return undefined;
+  const row = findUserByUsername(CONFIG.demoUsername);
+  if (!row || row.status !== 'active' || row.role !== 'user') return undefined;
+  return { enabled: true, displayName: row.display_name || row.username };
+}
+
 /** 当前模式与登录用户（前端启动时先调它决定是否显示登录页） */
-app.get('/api/auth/me', async (req) => ({ mode: CONFIG.authMode, user: userFromRequest(req) }));
+app.get('/api/auth/me', async (req) => ({
+  mode: CONFIG.authMode,
+  user: userFromRequest(req),
+  demo: demoShowcaseInfo(),
+}));
+
+/**
+ * 只读样板展示入口（2026-11-09 D-335）：访客点「浏览样板展示（只读）」→ 无需密码创建只读会话。
+ * - 该会话在 preHandler 里被强制只读（打点 / 上传 / 删除 / 改密码等一律 403）；
+ * - 样板账号本人仍可用用户名 + 密码正常登录维护展示内容（只读标记只在这条会话上）；
+ * - 入口按 IP 限速，避免被刷会话表。
+ */
+const demoLoginHits = new Map(); // ip -> { count, first }
+const DEMO_LOGIN_WINDOW_MS = 10 * 60 * 1000;
+const DEMO_LOGIN_MAX = 30;
+app.post('/api/auth/demo', async (req, reply) => {
+  if (CONFIG.authMode !== 'multi' || !CONFIG.demoUsername) {
+    return reply.code(404).send({ error: '样板展示暂未开放' });
+  }
+  if (!sameOrigin(req)) return reply.code(403).send({ error: '请求来源不合法' });
+  const ip = String(req.ip || req.headers['x-forwarded-for'] || 'unknown');
+  const t = now();
+  const rec = demoLoginHits.get(ip);
+  if (!rec || t - rec.first > DEMO_LOGIN_WINDOW_MS) {
+    demoLoginHits.set(ip, { count: 1, first: t });
+  } else if (rec.count >= DEMO_LOGIN_MAX) {
+    return reply.code(429).send({ error: '进入样板展示过于频繁，请稍后再试' });
+  } else {
+    rec.count += 1;
+  }
+  const row = findUserByUsername(CONFIG.demoUsername);
+  if (!row || row.status !== 'active') {
+    return reply.code(404).send({ error: '样板展示暂未开放' });
+  }
+  if (row.role !== 'user') {
+    return reply.code(500).send({ error: '样板展示账号配置有误（不能是管理员）' });
+  }
+  const { token, expiresAt } = createSession(row.id, {
+    ip: req.ip,
+    ua: req.headers['user-agent'],
+    readOnly: true,
+  });
+  return reply
+    .header('set-cookie', sessionCookie(token, expiresAt))
+    .send({ ok: true, user: { ...publicUser(row), readOnly: true } });
+});
 
 /** 登录：按「IP + 用户名」限速；成功后下发 HttpOnly 会话 Cookie */
 app.post('/api/auth/login', async (req, reply) => {
@@ -584,6 +695,13 @@ app.post('/api/auth/login', async (req, reply) => {
     ua: req.headers['user-agent'],
   });
   db.prepare('UPDATE user SET last_login_at = ? WHERE id = ?').run(now(), row.id);
+  // 首次登录：如果该账号还没有任何地点，生成 34 省省会示例足迹（失败只记日志，不影响登录）
+  try {
+    const starter = await ensureStarterData({ owner: row.id });
+    if (starter?.seeded) console.log(`[starter] 已生成 ${starter.places} 条示例足迹`);
+  } catch (e) {
+    console.error('[starter] 示例数据生成失败（不影响登录）：', e?.message || e);
+  }
   return reply
     .header('set-cookie', sessionCookie(token, expiresAt))
     .send({ ok: true, user: publicUser({ ...row, last_login_at: now() }) });
@@ -616,6 +734,13 @@ app.post('/api/auth/register', async (req, reply) => {
       ua: req.headers['user-agent'],
     });
     db.prepare('UPDATE user SET last_login_at = ? WHERE id = ?').run(now(), user.id);
+    // 邀请码注册后同样是「首次登录」：空账号生成 34 省省会示例足迹（失败只记日志）
+    try {
+      const starter = await ensureStarterData({ owner: user.id });
+      if (starter?.seeded) console.log(`[starter] 已生成 ${starter.places} 条示例足迹`);
+    } catch (e) {
+      console.error('[starter] 示例数据生成失败（不影响注册）：', e?.message || e);
+    }
     return reply
       .header('set-cookie', sessionCookie(token, expiresAt))
       .send({ ok: true, user: publicUser({ ...user, last_login_at: now() }) });
@@ -1153,7 +1278,10 @@ app.get('/api/stats/provinces', async (req) => provinceLight(ownerOf(req)));
 app.get('/api/photos', async (req, reply) => {
   const parsed = parsePhotosQuery(req.query || {});
   if (parsed.error) return reply.code(400).send({ error: parsed.error });
-  return buildPhotos(parsed.value, ownerOf(req));
+  // 2026-11-09 D-335：只读样板访客的照片墙不含秘密基地的照片 / 视频
+  return buildPhotos(parsed.value, ownerOf(req), {
+    hideSecret: Boolean(req.authUser?.readOnly),
+  });
 });
 
 /** 随行人员聚合（F-BRW-06） */
@@ -1170,6 +1298,39 @@ app.post('/api/secret/password', async (req, reply) => {
 app.post('/api/secret/verify', async (req, reply) => {
   const r = verifySecret(req.body || {}, ownerOf(req));
   return reply.code(r.status).send(r.body);
+});
+
+/**
+ * 云端版秘密基地解锁（2026-11-09 D-332，用户选择方案 B）：
+ * 多用户模式下不再使用单独的「秘密基地密码」，改为验证**当前账号的登录密码**
+ * （打开秘密基地详情前重新输入一次登录密码，本次会话内解锁）。
+ * - 只在 AUTH_MODE=multi 生效；local 继续用 /api/secret/verify 的独立密码；
+ * - 复用登录失败限速（按 IP + 账号计数，60 秒内 8 次错误返回 429）；
+ * - 只回 ok / 错误，不泄露任何地点信息。
+ */
+app.post('/api/secret/unlock', async (req, reply) => {
+  if (CONFIG.authMode !== 'multi') {
+    return reply.code(400).send({ error: '本地模式请用秘密基地密码验证' });
+  }
+  const user = requireAuth(req, reply);
+  if (!user) return;
+  if (!sameOrigin(req)) return reply.code(403).send({ error: '请求来源不合法' });
+  const key = `secret-unlock:${req.ip}:${user.id}`;
+  const wait = loginLockRemaining(key);
+  if (wait > 0) {
+    return reply
+      .code(429)
+      .send({ error: `尝试次数过多，请 ${Math.ceil(wait / 60000)} 分钟后再试` });
+  }
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  if (!password) return reply.code(400).send({ error: '请输入登录密码' });
+  const row = getUserById(user.id);
+  if (!row || !verifyPassword(row, password)) {
+    recordLoginFailure(key);
+    return reply.code(403).send({ error: '登录密码不正确' });
+  }
+  clearLoginFailures(key);
+  return { ok: true };
 });
 
 app.post('/api/places', async (req, reply) => {
@@ -1207,6 +1368,11 @@ app.post('/api/places', async (req, reply) => {
 app.get('/api/places/:id', async (req, reply) => {
   const owner = ownerOf(req);
   const p = getPlace(req.params.id, owner);
+  // 2026-11-09 D-335：只读样板访客看不到秘密基地的详情 / 到访 / 照片（服务端 404，
+  // 前端也会隐藏入口；即使直接调接口也拿不到内容）
+  if (p && req.authUser?.readOnly && Number(p.secret) === 1) {
+    return reply.code(404).send({ error: 'not found' });
+  }
   return p || reply.code(404).send({ error: 'not found' });
 });
 
@@ -1613,9 +1779,28 @@ function deleteMediaFiles(mediaRows, owner = null) {
   return out;
 }
 
-app.get('/api/trash', async (req) => listTrash(ownerOf(req)));
+// 2026-11-09 D-335：只读样板访客看不到回收站（可能是删掉的私密内容），直接返回空；
+// 前端也不显示回收站入口（设置分类里已隐藏）。
+const EMPTY_TRASH = {
+  items: [],
+  total: 0,
+  placeCount: 0,
+  visitCount: 0,
+  mediaCount: 0,
+  mediaTotal: 0,
+  bytes: 0,
+  cache_bytes: 0,
+  size: 0,
+};
+app.get('/api/trash', async (req) =>
+  req.authUser?.readOnly ? EMPTY_TRASH : listTrash(ownerOf(req))
+);
 
-app.get('/api/trash/count', async (req) => trashCount(ownerOf(req)));
+app.get('/api/trash/count', async (req) =>
+  req.authUser?.readOnly
+    ? { total: 0, places: 0, visits: 0, media: 0 }
+    : trashCount(ownerOf(req))
+);
 
 app.post('/api/trash/restore', async (req, reply) => {
   const parsed = parseTrashItems(req.body);
@@ -2019,6 +2204,19 @@ app.get('/api/media/:id/:variant', async (req, reply) => {
     .prepare(`SELECT * FROM media WHERE id = ?${ownerSql(owner)}`)
     .get(...ownerArgs(owner, id));
   if (!m) return reply.code(404).send({ error: 'not found' });
+  // 2026-11-09 D-335：只读样板访客不能直接读秘密基地的原图 / 预览 / 缩略图
+  if (req.authUser?.readOnly) {
+    const ownerCond = owner ? ' AND p.user_id = ?' : '';
+    const secret = db
+      .prepare(
+        `SELECT p.secret FROM media m
+         JOIN visit v ON v.id = m.visit_id
+         JOIN place p ON p.id = v.place_id
+         WHERE m.id = ?${ownerCond}`
+      )
+      .get(...(owner ? [id, owner] : [id]));
+    if (secret && Number(secret.secret) === 1) return reply.code(404).send({ error: 'not found' });
+  }
   const thumbRoot = thumbRootFor(owner);
 
   // D-212：按账号自己的素材库根目录解析（默认 = 服务器 mediaRoot）
@@ -2733,6 +2931,19 @@ app.setNotFoundHandler((req, reply) => {
     <p style="color:#98a2b3">API 健康检查：<a style="color:#e8a15a" href="/api/health">/api/health</a></p>
     </body>`);
 });
+
+// ───────────── 首次初始化示例足迹（2026-11-09）─────────────
+// 本地单机模式：服务启动时（app.listen 之前）如果库里还没有任何地点，一次生成 34 省省会示例数据。
+// 云端 multi 模式：改在 /api/auth/login、/api/auth/register 成功后按账号生成（见上方两个路由）。
+// 失败只打日志，绝不能影响服务启动（老库 / 已有数据的库不受影响，详见 server/starter.mjs）。
+if (CONFIG.authMode !== 'multi') {
+  try {
+    const starter = await ensureStarterData();
+    if (starter?.seeded) console.log(`[starter] 已生成 ${starter.places} 条示例足迹`);
+  } catch (e) {
+    console.error('[starter] 示例数据生成失败（不影响服务启动）：', e?.message || e);
+  }
+}
 
 app.listen({ port: CONFIG.port, host: '127.0.0.1' })
   .then(async () => {

@@ -7,10 +7,20 @@ import '../SecretPrompt.css';
 interface Props {
   /** 密码设置 / 修改 / 重置后通知 App 刷新秘密基地状态 */
   onChanged: () => void;
+  /**
+   * 2026-11-09 D-331（用户反馈）：密码被设置 / 修改 / 重置后，通知 App 清掉当前会话的
+   * 「秘密基地已解锁」状态——改了密码后再打开秘密基地需要重新输入新密码。
+   */
+  onPasswordChanged?: () => void;
+  /**
+   * 2026-11-09 D-332（用户选择方案 B）：multi（云端版）不再有单独的「秘密基地密码」，
+   * 改为打开秘密基地时验证登录账号密码；本页只做说明，不提供设置 / 修改 / 重置密码的 UI。
+   */
+  multi?: boolean;
 }
 
 /** 安全分类：秘密基地密码（设置 / 修改 / 重置） */
-export default function SecuritySettings({ onChanged }: Props) {
+export default function SecuritySettings({ onChanged, onPasswordChanged, multi = false }: Props) {
   const t = useT();
   const [secret, setSecret] = useState<SecretStatus | null>(null);
   const [secretErr, setSecretErr] = useState<string | null>(null);
@@ -20,6 +30,25 @@ export default function SecuritySettings({ onChanged }: Props) {
   const [pwdBusy, setPwdBusy] = useState<'set' | 'change' | 'reset' | null>(null);
   const [pwdMsg, setPwdMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
+
+  // 2026-11-09 D-329：显示秘密基地「初始密码」提示（首次初始化时自动设置；用户可修改 / 重置）
+  const [initialPwd, setInitialPwd] = useState('');
+  useEffect(() => {
+    let alive = true;
+    api
+      .config()
+      .then((c) => {
+        if (alive && typeof c.starterSecretPassword === 'string') {
+          setInitialPwd(c.starterSecretPassword);
+        }
+      })
+      .catch(() => {
+        /* 读不到就显示原始说明，不影响页面 */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const loadSecret = useCallback(async () => {
     try {
@@ -65,6 +94,7 @@ export default function SecuritySettings({ onChanged }: Props) {
       setPwdMsg({ ok: true, text: t('已设置密码：秘密基地已上锁') });
       await loadSecret();
       onChanged();
+      onPasswordChanged?.();
     } catch (e: any) {
       setPwdMsg({ ok: false, text: t('设置失败：') + (e?.message || e) });
     } finally {
@@ -91,6 +121,7 @@ export default function SecuritySettings({ onChanged }: Props) {
       setPwdMsg({ ok: true, text: t('密码已修改') });
       await loadSecret();
       onChanged();
+      onPasswordChanged?.();
     } catch (e: any) {
       setPwdMsg({ ok: false, text: t('修改失败：') + (e?.message || e) });
     } finally {
@@ -109,12 +140,43 @@ export default function SecuritySettings({ onChanged }: Props) {
       setPwdMsg({ ok: true, text: t('已重置密码：秘密基地不再上锁（地点标记和内容都保留）') });
       await loadSecret();
       onChanged();
+      onPasswordChanged?.();
     } catch (e: any) {
       setPwdMsg({ ok: false, text: t('重置失败：') + (e?.message || e) });
     } finally {
       setPwdBusy(null);
     }
   };
+
+  // 2026-11-09 D-332（用户选择方案 B）：云端版（multi）秘密基地用「登录账号密码」解锁，
+  // 没有单独的秘基密码可设置 / 修改 / 重置，本分类只做说明 + 数量展示。
+  if (multi) {
+    return (
+      <div className="set-pane">
+        <section className="set-section">
+          <div className="set-section-head">
+            <h3 className="set-section-title">{t('秘密基地密码')}</h3>
+          </div>
+          <p className="set-section-desc">
+            {t('云端版用登录账号密码解锁：打开秘密基地详情前需要重新输入你的登录账号密码；忘记登录密码时请联系管理员重置。')}
+          </p>
+          {secret && (
+            <div className="field-static">
+              <span>{t('状态')}</span>
+              <div className="value">
+                {secret.places > 0
+                  ? t('已用登录密码保护 · {n} 个秘密基地', { n: secret.places })
+                  : t('还没有秘密基地')}
+              </div>
+            </div>
+          )}
+          <p className="hint">
+            {t('秘密基地内容不加密，仅防止他人临时使用你已登录的浏览器时直接查看。')}
+          </p>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="set-pane">
@@ -125,6 +187,12 @@ export default function SecuritySettings({ onChanged }: Props) {
         <p className="set-section-desc">
           {t('秘密基地在地图上照常可见（只用紫罗兰色飞镖区分），点开详情需要密码。密码只保存在这台电脑上，不会上传。')}
         </p>
+
+        {initialPwd && secret?.configured && (
+          <p className="hint" style={{ marginTop: -6 }}>
+            {t('（初始密码为{v}）', { v: initialPwd })}
+          </p>
+        )}
 
         {secretErr ? (
           <>
@@ -300,7 +368,7 @@ export default function SecuritySettings({ onChanged }: Props) {
             )}
 
             <p className="hint">
-              {t('密码只保存在这台电脑上，不会上传，也不会显示在任何地方。')}
+              {t('密码只保存在这台电脑上，不会上传，也不会显示在任何地方。【本地版应用的秘密基地密码其实是个摆设，忘记了就直接重置就行~~】')}
             </p>
           </>
         )}

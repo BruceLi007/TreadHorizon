@@ -239,6 +239,15 @@ const dict: Dict = {
   '请输入密码': 'Please enter the password',
   '这是秘密基地，输入密码后才能查看详情。':
     'This is a secret spot; enter the password to see the details.',
+  '初始密码可到 设置 → 安全 里查看（也可以在那里重置）':
+    'See the initial password in Settings → Security (you can also reset it there).',
+  // D-332（用户选择方案 B）：云端版秘密基地用登录账号密码解锁
+  '这是秘密基地。云端版需要重新输入你的登录账号密码来解锁。':
+    'This is a secret spot. In the cloud version, re-enter your login password to unlock it.',
+  '云端版用登录账号密码解锁；忘记登录密码时请联系管理员重置。':
+    'The cloud version unlocks with your login password. If you forgot it, ask the administrator to reset it.',
+  '登录密码': 'Login password',
+  '输入登录密码': 'Enter login password',
   '密码': 'Password',
   '输入密码': 'Enter password',
   '密码错误只会提示错误，不会泄露任何地点信息。':

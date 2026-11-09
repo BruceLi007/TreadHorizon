@@ -92,7 +92,10 @@ CREATE TABLE IF NOT EXISTS session (
   ip          TEXT,
   ua          TEXT,
   created_at  INTEGER NOT NULL,
-  last_seen_at INTEGER
+  last_seen_at INTEGER,
+  -- 2026-11-09 D-335：只读样板会话标记 + 会话级天地图 Key（访客各自填自己的 Key，不落账号、不互相覆盖）
+  readonly    INTEGER NOT NULL DEFAULT 0,
+  tdt_key     TEXT
 );
 
 CREATE TABLE IF NOT EXISTS invite (
@@ -148,6 +151,19 @@ CREATE INDEX IF NOT EXISTS idx_quota_request_status ON quota_request(status, cre
 `);
 
 /**
+ * 首次初始化示例数据标记（2026-11-09，示例足迹）：
+ * 每个「作用域」只种一次 34 省省会示例数据，scope = 'local'（单机）或 `user:<userId>`（云端）；
+ * 已有地点 / 老库 / 安装版真实数据只写标记（places = 0）不生成，避免污染用户自己的数据。
+ */
+db.exec(`
+CREATE TABLE IF NOT EXISTS seed_marker (
+  scope      TEXT PRIMARY KEY,
+  created_at INTEGER NOT NULL,
+  places     INTEGER NOT NULL DEFAULT 0   -- 这次实际写入的示例地点数（0 = 因已有数据/空种子而跳过）
+);
+`);
+
+/**
  * 轻量迁移：老库（M0 建的）缺列时补上，不改已有数据。
  * 不用迁移框架，这个项目只有一个数据库文件、单人使用。
  */
@@ -173,6 +189,9 @@ addColumnIfMissing('media', 'user_id', 'user_id TEXT');
 addColumnIfMissing('user_setting', 'media_root', 'media_root TEXT');
 // 2026-11-07（D-224）：账号头像更新时间（0/NULL = 没上传过头像；文件放 data/avatars/<userId>.webp）
 addColumnIfMissing('user', 'avatar_updated_at', 'avatar_updated_at INTEGER');
+// 2026-11-09 D-335：只读样板会话（登录页「浏览样板展示」入口）——旧库补列，local 模式不使用
+addColumnIfMissing('session', 'readonly', 'readonly INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('session', 'tdt_key', 'tdt_key TEXT');
 
 // 上面补列之后才能建索引（老库的建表语句里没有 user_id 列）
 db.exec(`

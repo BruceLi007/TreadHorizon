@@ -11,6 +11,11 @@ interface Props {
   /** 密码校验通过（App 负责把「当前会话已解锁」状态记在内存里） */
   onSuccess: () => void;
   onCancel: () => void;
+  /**
+   * 2026-11-09 D-332（用户选择方案 B）：multi（云端版）不再用单独的秘密基地密码，
+   * 改为验证当前账号的登录密码；local（本地版）仍用设置 → 安全 里的秘密基地密码。
+   */
+  mode?: 'local' | 'multi';
 }
 
 /** 把接口错误翻译成用户看得懂的提示；不打印、不落地密码 */
@@ -30,7 +35,7 @@ function friendlyError(e: unknown, t: TFn): string {
  * - Enter 提交、Esc / 点遮罩取消
  * - 请求中禁用按钮，避免重复提交
  */
-export default function SecretPrompt({ title, onSuccess, onCancel }: Props) {
+export default function SecretPrompt({ title, onSuccess, onCancel, mode = 'local' }: Props) {
   const t = useT();
   const [pwd, setPwd] = useState('');
   const [err, setErr] = useState<string | null>(null);
@@ -79,7 +84,9 @@ export default function SecretPrompt({ title, onSuccess, onCancel }: Props) {
     setBusy(true);
     setErr(null);
     try {
-      await api.verifySecret(pwd); // 服务端只回 ok，不泄露任何地点信息
+      await (mode === 'multi'
+        ? api.unlockSecretWithAccountPassword(pwd)
+        : api.verifySecret(pwd)); // 服务端只回 ok，不泄露任何地点信息
       if (!aliveRef.current) return;
       setPwd('');
       onSuccess();
@@ -112,10 +119,19 @@ export default function SecretPrompt({ title, onSuccess, onCancel }: Props) {
           {t('秘密基地')}
         </div>
         {title && <p className="sec-sub">{title}</p>}
-        <p className="sec-tip">{t('这是秘密基地，输入密码后才能查看详情。')}</p>
+        <p className="sec-tip">
+          {mode === 'multi'
+            ? t('这是秘密基地。云端版需要重新输入你的登录账号密码来解锁。')
+            : t('这是秘密基地，输入密码后才能查看详情。')}
+        </p>
+        <p className="hint">
+          {mode === 'multi'
+            ? t('云端版用登录账号密码解锁；忘记登录密码时请联系管理员重置。')
+            : t('初始密码可到 设置 → 安全 里查看（也可以在那里重置）')}
+        </p>
 
         <label className="field">
-          <span>{t('密码')}</span>
+          <span>{mode === 'multi' ? t('登录密码') : t('密码')}</span>
           <input
             ref={inputRef}
             type="password"
@@ -124,7 +140,7 @@ export default function SecretPrompt({ title, onSuccess, onCancel }: Props) {
             autoComplete="current-password"
             spellCheck={false}
             maxLength={128}
-            placeholder={t('输入密码')}
+            placeholder={mode === 'multi' ? t('输入登录密码') : t('输入密码')}
             disabled={busy}
             onChange={(e) => setPwd(e.target.value)}
           />

@@ -25,6 +25,8 @@ interface Props {
   focus?: { mediaId?: string; placeId?: string } | null;
   /** 批量删除后通知 App 刷新回收站角标 / 地点媒体计数 */
   onChanged?: () => void;
+  /** 2026-11-09 D-335：只读样板会话——隐藏「选择 / 批量删除」写入口，只保留浏览与灯箱预览 */
+  readOnly?: boolean;
 }
 
 /** 每页条数（与服务端约定） */
@@ -219,7 +221,7 @@ function Tile({
   );
 }
 
-export default function PhotoWall({ onClose, onPick, focus, onChanged }: Props) {
+export default function PhotoWall({ onClose, onPick, focus, onChanged, readOnly = false }: Props) {
   const t = useT();
   const tp = useTp();
   const lang = useLang();
@@ -675,7 +677,7 @@ export default function PhotoWall({ onClose, onPick, focus, onChanged }: Props) 
             )}
           </div>
           <div className="pw-head-actions">
-            {items.length > 0 && (
+            {items.length > 0 && !readOnly && (
               <button
                 type="button"
                 className={selectMode ? 'pw-select-btn on' : 'pw-select-btn'}
@@ -859,7 +861,7 @@ export default function PhotoWall({ onClose, onPick, focus, onChanged }: Props) 
           </div>
         </div>
 
-        {selectMode && (
+        {!readOnly && selectMode && (
           <div className="pw-bulkbar">
             <span className="pw-bulk-count">{t('已选 {n} 张', { n: selectedIds.length })}</span>
             <button
@@ -913,7 +915,7 @@ export default function PhotoWall({ onClose, onPick, focus, onChanged }: Props) 
       </div>
       </div>
 
-      {confirmBulk && (
+      {!readOnly && confirmBulk && (
         <ConfirmDialog
           title={t('删除选中的 {n} 张照片/视频？', { n: selectedIds.length })}
           danger

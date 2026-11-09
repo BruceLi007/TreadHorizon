@@ -24,12 +24,18 @@ export default function KeySetupPage({
   onDone,
   onClose,
   mode = 'multi',
+  readOnlySession = false,
 }: {
   onDone: () => void;
   /** 关闭小窗（回到欢迎页；缺失 Key 时欢迎页右下按钮显示「请填写地图Key」） */
   onClose?: () => void;
   /** multi = 当前账号的 Key；local = 本机全局 Key（D-238） */
   mode?: 'multi' | 'local';
+  /**
+   * 2026-11-09 D-335：只读样板展示访客。Key 只存本次浏览会话（服务端 session.tdt_key），
+   * 不写展示账号、不同访客互不覆盖；文案同步改成「本次会话」口径。
+   */
+  readOnlySession?: boolean;
 }) {
   const t = useT();
   const isLocal = mode === 'local';
@@ -104,7 +110,9 @@ export default function KeySetupPage({
         <p className="login-lead">
           {isLocal
             ? t('这台电脑还没有配置天地图 Key，填一次就能加载地图。')
-            : t('你的账号还没有配置天地图 Key。每个账号使用自己的 Key，地图才能加载。')}
+            : readOnlySession
+              ? t('这是只读样板展示：填你自己的天地图 Key 才能加载地图（每个访客各用各的）。')
+              : t('你的账号还没有配置天地图 Key。每个账号使用自己的 Key，地图才能加载。')}
         </p>
 
         <form className="login-form" onSubmit={submit} noValidate>
@@ -150,7 +158,9 @@ export default function KeySetupPage({
         <p className="login-note">
           {isLocal
             ? t('Key 只保存在这台电脑上。')
-            : t('Key 只保存在你自己的账号下，其他账号看不到。')}
+            : readOnlySession
+              ? t('Key 只保存在本次浏览会话里，不会保存到展示账号。')
+              : t('Key 只保存在你自己的账号下，其他账号看不到。')}
         </p>
       </div>
     </div>

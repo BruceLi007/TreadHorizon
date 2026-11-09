@@ -206,6 +206,7 @@ const dict: Dict = {
   '秘密基地在地图上照常可见（只用紫罗兰色飞镖区分），点开详情需要密码。密码只保存在这台电脑上，不会上传。':
     'Secret spots stay visible on the map (only distinguished by the violet dart), and opening their details requires the password. The password is stored only on this computer and is never uploaded.',
   '读取中…': 'Loading…',
+  '（初始密码为{v}）': '(initial password: {v})',
   '已设置密码 · {n} 个秘密基地': 'Password set · {n} secret spots',
   '未设置密码（秘密基地不会上锁）': 'No password set (secret spots are not locked)',
   ' · 已有 {n} 个地点标为秘密基地': ' · {n} places are already marked as secret spots',
@@ -228,8 +229,16 @@ const dict: Dict = {
   '确认密码': 'Confirm password',
   '再输一次': 'Enter it again',
   '设置中…': 'Setting…',
-  '密码只保存在这台电脑上，不会上传，也不会显示在任何地方。':
-    'The password is stored only on this computer; it is never uploaded or displayed anywhere.',
+  '密码只保存在这台电脑上，不会上传，也不会显示在任何地方。【本地版应用的秘密基地密码其实是个摆设，忘记了就直接重置就行~~】':
+    'The password is stored only on this computer; it is never uploaded or displayed anywhere. [Note: in the local version the secret-spot password is really just a soft screen — if you forget it, simply reset it.]',
+  // ── D-332（用户选择方案 B）：云端版秘密基地用登录账号密码解锁 ──
+  '云端版用登录账号密码解锁：打开秘密基地详情前需要重新输入你的登录账号密码；忘记登录密码时请联系管理员重置。':
+    'In the cloud version, secret spots are unlocked with your login password: re-enter your account password before opening the details. If you forgot your login password, ask the administrator to reset it.',
+  '已用登录密码保护 · {n} 个秘密基地':
+    'Protected by your login password · {n} secret spot(s)',
+  '还没有秘密基地': 'No secret spots yet',
+  '秘密基地内容不加密，仅防止他人临时使用你已登录的浏览器时直接查看。':
+    'Secret-spot content is not encrypted; this only stops someone casually using your already-signed-in browser from opening it directly.',
 
   // ── 图标配色（D-161 / D-164：家 + 去过 / 想去 / 秘密基地 共用一条十二色相条）──
   '图标配色': 'Icon colors',
@@ -519,6 +528,13 @@ const dict: Dict = {
   '已是最新版本': 'Up to date',
   '无法检查更新（不影响使用）': 'Could not check for updates (the app still works)',
   '再检查一次': 'Check again',
+  '不再提醒这个版本': 'Do not remind me about this version',
+  '已忽略此版本提醒': 'Reminder for this version is off',
+  '恢复提醒': 'Turn reminder back on',
+  '升级前确认': 'Confirm before upgrading',
+  '前往查看': 'Go and view',
+  '升级需要关闭并重新启动程序；如果正在上传文件，升级会导致上传中断、失败，需要重新上传。建议先确认上传队列为空，并做好备份。':
+    'Upgrading requires closing and restarting the app. If files are uploading right now, the upgrade will interrupt them and they will need to be uploaded again. Make sure the upload queue is empty and back up your data first.',
 
 };
 

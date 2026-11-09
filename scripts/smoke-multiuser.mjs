@@ -131,6 +131,7 @@ const startServer = ({ port, dataDir, mediaRoot, authMode, adminUser, adminPwd }
     cwd: ROOT,
     env: {
       ...process.env,
+      STARTER_DATA: '0',
       PORT: String(port),
       DATA_DIR: dataDir,
       MEDIA_ROOT: mediaRoot,
