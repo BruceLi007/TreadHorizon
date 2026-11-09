@@ -1645,15 +1645,51 @@ html:is([data-theme='light'], [data-theme='white']) .folder-drop-overlay {
   border: 1px solid transparent;
   margin-bottom: 6px;
   cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .visit:hover {
-  background: rgba(255, 255, 255, 0.03);
+  /* 2026-11-09 D-339：悬停底色改为跟随主题的强调色（原先写死白色，
+     浅色 / 纯白外观下几乎看不见） */
+  background: rgba(var(--accent-rgb), 0.05);
 }
 
+/* 2026-11-09 D-339（用户反馈「到访栏选中和未选中好像完全没差别」）：
+   选中的到访卡片用品牌橙（与「省份点亮」/ Logo 日出同色系）做
+   浅色底 + 描边 + 左侧竖条 + 日期前小圆点，深色 / 浅色 / 纯黑 / 纯白 4 档外观都明显可辨。
+   未选中的到访保持透明底、无描边。 */
 .visit.active {
-  border-color: var(--line);
-  background: rgba(255, 255, 255, 0.028);
+  border-color: rgba(var(--province-rgb), 0.8);
+  background: rgba(var(--province-rgb), 0.15);
+  box-shadow: inset 4px 0 0 var(--province);
+}
+
+/* 纯白 / 浅色外观下橙色底再明显一点（白底上 15% 橙色仍偏淡） */
+html:is([data-theme='light'], [data-theme='white']) .visit.active {
+  background: rgba(var(--province-rgb), 0.19);
+}
+
+.visit.active .visit-head .date {
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.visit.active .visit-head .date::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--province);
+  vertical-align: middle;
+}
+
+.visit.active .visit-head .vtitle {
+  font-weight: 600;
 }
 
 /* 编辑中的到访卡片：保持与其它到访框同宽，仅做轻高亮；编辑表单在卡片内部、照片上方展开
@@ -1661,6 +1697,7 @@ html:is([data-theme='light'], [data-theme='white']) .folder-drop-overlay {
 .visit.editing {
   border-color: var(--line);
   background: rgba(255, 255, 255, 0.02);
+  box-shadow: none;
 }
 
 html:is([data-theme='light'], [data-theme='white']) .visit.editing {
@@ -4291,8 +4328,7 @@ html:is([data-theme='light'], [data-theme='white']) .hud-username {
 .search-results,
 .timeline,
 .app > .panel,
-.app > .st-panel,
-.visit.active {
+.app > .st-panel {
   border: 0;
 }
 
