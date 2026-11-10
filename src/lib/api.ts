@@ -12,6 +12,7 @@ import type {
   BackupRestoreResult,
   BackupStatus,
   Companion,
+  DuplicateScanResult,
   HomePoint,
   InviteInfo,
   MergeResult,
@@ -31,6 +32,7 @@ import type {
   StatsQuery,
   TrashCount,
   TrashData,
+  TrashDuplicatesResult,
   TrashSelection,
   UpdateCheckResult,
   UploadResult,
@@ -313,6 +315,18 @@ export const api = {
 
   deleteMedia: (id: string) =>
     fetch(`/api/media/${id}`, { method: 'DELETE' }).then((r) => json(r)),
+
+  /** 2026-11-10 D-355（用户要求）：扫描同账号全库里的重复素材（同内容 hash，只读，不删除） */
+  duplicateMedia: () =>
+    fetch('/api/media/duplicates').then((r) => json<DuplicateScanResult>(r)),
+
+  /** 把所选的重复副本软删进回收站（服务端保证每组至少保留 1 份） */
+  trashDuplicateMedia: (ids: string[]) =>
+    fetch('/api/media/duplicates/trash', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    }).then((r) => json<TrashDuplicatesResult>(r)),
 
   /** 打开本地文件夹（F-MED-09）：服务端调资源管理器，绝对路径不下发前端 */
   revealMedia: (id: string) =>

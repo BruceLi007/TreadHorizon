@@ -125,6 +125,9 @@ const dict: Dict = {
   // ── App：上传队列（F-MED-10）──
   '正在上传…': 'Uploading…',
   '已存在（同内容），跳过': 'Already exists (same content), skipped',
+  // 2026-11-10 D-354（用户要求）：上传查重扩展到同账号全库，提示重复照片已存在于哪个地点 · 到访
+  '已存在（{place} · {date}），跳过':
+    'Already exists in {place} · {date}, skipped',
   '上传失败': 'Upload failed',
   '已取消': 'Canceled',
   '上传结束：': 'Upload finished: ',

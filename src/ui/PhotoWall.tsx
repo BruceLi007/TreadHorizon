@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api';
-import type { PhotoWallData, PhotoWallItem, PhotoWallQuery } from '../lib/types';
+import type { MediaItem, PhotoWallData, PhotoWallItem, PhotoWallQuery } from '../lib/types';
 import { useLang, useT, useTp, type TPfn } from '../i18n';
 import SortToggle, { type SortOrder } from './SortToggle';
 import Segmented from './Segmented';
@@ -317,7 +317,8 @@ export default function PhotoWall({ onClose, onPick, focus, onChanged, readOnly 
   const [items, setItems] = useState<PhotoWallItem[]>([]);
   const [total, setTotal] = useState(0);
   const [yearChips, setYearChips] = useState<{ year: string; count: number }[]>([]);
-  const [provinceOptions, setProvinceOptions] = useState<string[]>([]);
+  /** 省份下拉选项（D-359）：来自服务端当前筛选下的全量省份聚合，不再只从已加载页里凑 */
+  const [provinceOptions, setProvinceOptions] = useState<{ name: string; count: number }[]>([]);
   const [firstLoading, setFirstLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [done, setDone] = useState(false);
@@ -401,6 +402,36 @@ export default function PhotoWall({ onClose, onPick, focus, onChanged, readOnly 
     }
   };
 
+  /**
+   * D-358（用户要求）：灯箱里删除当前照片 / 视频（移到回收站，可恢复）。
+   * 与批量删除同一套本地状态更新（列表 / 总数 / 年份计数），并让灯箱停到相邻项。
+   */
+  const deletePreviewItem = async (item: MediaItem) => {
+    await api.deleteMedia(item.id);
+    const old = itemsRef.current;
+    const idx = old.findIndex((it) => it.id === item.id);
+    const removed = idx >= 0 ? old[idx] : null;
+    const next = old.filter((it) => it.id !== item.id);
+    itemsRef.current = next;
+    setItems(next);
+    setTotal((n) => Math.max(0, n - 1));
+    if (removed) {
+      setYearChips((prev) =>
+        prev.map((y) =>
+          removed.date && removed.date.startsWith(y.year)
+            ? { ...y, count: Math.max(0, y.count - 1) }
+            : y
+        )
+      );
+    }
+    setSelectedIds((prev) => prev.filter((id) => id !== item.id));
+    if (previewId === item.id) {
+      if (next.length === 0) setPreviewId(null);
+      else setPreviewId(next[Math.min(Math.max(idx, 0), next.length - 1)].id);
+    }
+    onChanged?.();
+  };
+
   const buildQuery = useCallback(
     (offset: number): PhotoWallQuery => ({
       limit: PAGE_SIZE,
@@ -426,19 +457,9 @@ export default function PhotoWall({ onClose, onPick, focus, onChanged, readOnly 
       // 年份 chip：只在没有选年份时刷新（选了年份后响应里的 years 只剩那一年，不能覆盖）
       if (!year) setYearChips(Array.isArray(d.years) ? d.years : []);
 
-      // 省份下拉：从已加载的 item 里聚合，只增不减
-      setProvinceOptions((prev) => {
-        const set = new Set(prev);
-        let changed = false;
-        for (const it of list) {
-          const p = it.place?.province;
-          if (p && !set.has(p)) {
-            set.add(p);
-            changed = true;
-          }
-        }
-        return changed ? [...set].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN')) : prev;
-      });
+      // 省份下拉（D-359）：服务端按当前其它筛选聚合**全部**有素材的省份（不受省份筛选本身影响），
+      // 不再只从已加载的几页 item 里凑——库里几千张照片时老实现只有第一页那几个省可选。
+      if (Array.isArray(d.provinces)) setProvinceOptions(d.provinces);
 
       const end = list.length === 0 || list.length < PAGE_SIZE || next.length >= realTotal;
       doneRef.current = end;
@@ -636,6 +657,12 @@ export default function PhotoWall({ onClose, onPick, focus, onChanged, readOnly 
 
   const hasFilter = year !== null || province !== null || placeFilter !== null;
 
+  /** 省份下拉选项（D-359）：按中文名排序（服务端按码位排序，这里换成拼音顺序保持原习惯）；选项带张数 */
+  const provinceSelectOptions = useMemo(
+    () => provinceOptions.slice().sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN')),
+    [provinceOptions]
+  );
+
   /** 月份分组标题：中文「2026年11月」，英文「Nov 2026」；无日期归「未知月份」 */
   const groupLabel = (key: string): string => {
     if (!/^\d{4}-\d{2}$/.test(key)) return t('未知月份');
@@ -699,25 +726,26 @@ export default function PhotoWall({ onClose, onPick, focus, onChanged, readOnly 
         </div>
 
         <div className="pw-filters">
-          <div className="pw-years">
-            <Segmented<string>
-              size="sm"
-              variant="radio"
-              scrollable
-              ariaLabel={t('按年份筛选')}
-              options={[
-                { id: 'all', label: t('全部') },
-                ...yearChips.map((y) => ({
-                  id: y.year,
-                  label: y.year,
-                  count: y.count,
-                  title: t('{year} 年 · {count} 张', { year: y.year, count: y.count }),
-                })),
-              ]}
-              value={year ?? 'all'}
-              onChange={(id) => setYear(id === 'all' ? null : id)}
-            />
-          </div>
+          {/* 2026-11-10 D-353（用户反馈「时间多了，年份表太长了」）：
+              年份从一排横向 chip 改成下拉选择（选项 = 全部 + 各年份及张数），与右侧「省份」下拉一致。 */}
+          <label className="pw-year">
+            <span>{t('年份')}</span>
+            <select
+              aria-label={t('按年份筛选')}
+              value={year ?? ''}
+              onChange={(e) => setYear(e.target.value || null)}
+            >
+              <option value="">{t('全部')}</option>
+              {yearChips.map((y) => (
+                <option key={y.year} value={y.year}>
+                  {t('{year}（{n} 张）', {
+                    year: y.year,
+                    n: y.count > 99 ? '99+' : y.count,
+                  })}
+                </option>
+              ))}
+            </select>
+          </label>
 
           <div className="pw-cols">
             <span className="pw-cols-label">{t('照片每行')}</span>
@@ -749,9 +777,12 @@ export default function PhotoWall({ onClose, onPick, focus, onChanged, readOnly 
                 <span>{t('省份')}</span>
                 <select value={province ?? ''} onChange={(e) => setProvince(e.target.value || null)}>
                   <option value="">{t('全部')}</option>
-                  {provinceOptions.map((p) => (
-                    <option key={p} value={p}>
-                      {tp(p)}
+                  {provinceSelectOptions.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {t('{province}（{n} 张）', {
+                        province: tp(p.name),
+                        n: p.count > 99 ? '99+' : p.count,
+                      })}
                     </option>
                   ))}
                 </select>
@@ -938,6 +969,7 @@ export default function PhotoWall({ onClose, onPick, focus, onChanged, readOnly 
             const next = items[i];
             if (next) setPreviewId(next.id);
           }}
+          onDelete={readOnly ? undefined : deletePreviewItem}
         />
       )}
     </>

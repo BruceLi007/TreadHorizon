@@ -140,6 +140,17 @@ const dict: Dict = {
     '{n} photos/videos will be moved to Trash together (recoverable)',
   '这个地点还没有到访记录，可以加一次或直接拖照片进来。':
     'No visits for this place yet — add one, or just drag photos in.',
+  // 2026-11-10 D-347（用户要求）：到访照片默认只显示一行，可展开 / 收起
+  '展开全部 {n} 个照片/视频': 'Show all {n} photos/videos',
+  '收起照片': 'Collapse photos',
+  // 2026-11-10 D-348（用户要求）：到访列表多选批量操作（批量移到回收站）
+  '多选（可批量移到回收站）': 'Multi-select (batch move to Trash)',
+  '选择这次到访（{date}）': 'Select this visit ({date})',
+  '取消选择这次到访（{date}）': 'Deselect this visit ({date})',
+  '删除选中的 {n} 次到访？': 'Delete the {n} selected visits?',
+  '选中的到访会连同照片/视频一起移到回收站，之后可在顶栏「回收站」恢复。':
+    'The selected visits, together with their photos/videos, will be moved to Trash and can be restored from the top bar later.',
+  '有 {n} 次到访删除失败，请重试': '{n} visits failed to delete; please try again',
 
   // ── Sidebar · 上传队列 ──
   '上传队列': 'Upload queue',
@@ -224,6 +235,7 @@ const dict: Dict = {
   '文件不在了，已打开所在文件夹': 'The file is gone; its folder was opened instead',
   '已在资源管理器中定位': 'Revealed in File Explorer',
   '打开失败：{msg}': 'Failed to open: {msg}',
+  '已移到回收站（可在回收站恢复）': 'Moved to Trash (restore it in Trash)',
   '滚轮 / 双指缩放 · 双击放大 · 拖动平移':
     'Scroll / pinch to zoom · double-click to enlarge · drag to pan',
   '灯箱缩略图': 'Lightbox filmstrip',

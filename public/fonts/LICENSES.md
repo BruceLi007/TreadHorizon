@@ -4,14 +4,14 @@
 它们作为界面可选字体**原样分发（未修改字形）**。使用、复制、再分发或嵌入时请遵守 OFL，
 保留版权声明与本许可文件。字体仅用于界面显示，不参与用户数据 / 备份。
 
-## 1. 喵咛狗爬黑 / Miorning Goupa Hei（默认界面字体）
+## 1. 喵咛狗爬黑 / Miorning Goupa Hei（内置界面字体；2026-11-10 D-359 起默认字体改为「猫啃什锦黑」）
 
 - 文件：`miao-goupa-hei.ttf`
 - 版权：Copyright (c) 2026, MIORNING (喵咛).
 - 设计：MIORNING / AI-assisted type design and construction
 - 许可：SIL Open Font License, Version 1.1（https://openfontlicense.org）
 
-## 2. 猫啃什锦黑 / Maoken Assorted Sans（2026-11-08 D-298 新增）
+## 2. 猫啃什锦黑 / Maoken Assorted Sans（默认界面字体，2026-11-10 D-359 起；2026-11-08 D-298 新增）
 
 - 文件：`maoken-shijin-hei.ttf`（完整版，32,598 字形；未采用 Lite 精简版）
 - 版权：Copyright (c) 2022-11-02, ZERO子 (https://github.com/Skr-ZERO)，with Reserved Font Name “Assorted”“什锦”；Copyright (c) 2022-11-01, Umihotaru (https://umihotaru.work/)

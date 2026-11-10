@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import type { BackupStatus, UpdateCheckResult } from '../../lib/types';
+import type { BackupStatus, UpdateCheckResult, UploadItem } from '../../lib/types';
 import type { AppFont, FontSize, FontWeight, Slogan, Theme, ThemeLevel } from './types';
 import type { HomeColor } from '../../lib/homeIcon';
 import type { MarkerColorPrefs } from '../../lib/markerColors';
@@ -15,6 +15,7 @@ import TdtSettings from './TdtSettings';
 import SecuritySettings from './SecuritySettings';
 import AccountSettings from './AccountSettings';
 import UserManagementSettings from './UserManagementSettings';
+import UploadSettings from './UploadSettings';
 import AboutSettings from './AboutSettings';
 import './SettingsModal.css';
 
@@ -92,12 +93,23 @@ interface Props {
    * 服务端对只读会话的写请求一律 403，这里只是不展示入口（退出登录在顶栏「只读」标识旁）。
    */
   readOnly?: boolean;
+  /**
+   * 2026-11-10 D-350（用户要求）：上传队列从到访点侧栏拆到「设置 → 上传」。
+   * 队列状态由 App 持有，这里只负责展示与操作（关设置 / 切地点都不中断上传）。
+   */
+  uploads?: UploadItem[];
+  onCancelUpload?: (key: string) => void;
+  onCancelAllUploads?: () => void;
+  onRetryUpload?: (key: string) => void;
+  onClearFinishedUploads?: () => void;
+  onCloseUploadQueue?: () => void;
 }
 
 export type TabId =
   | 'general'
   | 'backup'
   | 'library'
+  | 'upload'
   | 'trash'
   | 'tdt'
   | 'security'
@@ -124,6 +136,8 @@ const MAIN_TABS: { id: TabId; label: string; desc: string }[] = [
   { id: 'general', label: '通用', desc: '外观明暗、界面语言、主题与字体' },
   { id: 'backup', label: '备份与恢复', desc: '导出备份 / 从备份恢复 / 备份提醒' },
   { id: 'library', label: '素材库', desc: '素材库路径、重新关联与视频封面' },
+  // 2026-11-10 D-350（用户要求）：上传队列单独成板块，按地点 · 到访分组显示进度 / 失败重试
+  { id: 'upload', label: '上传', desc: '上传队列、进度与失败重试' },
   { id: 'tdt', label: '天地图 Key', desc: '天地图 Key（Key 只存本机）' },
   { id: 'security', label: '安全', desc: '秘密基地密码' },
 ];
@@ -240,6 +254,13 @@ function NavIcon({ id }: { id: TabId }) {
             <path d="M8.6 12.8c.4-1.8 1.5-2.9 2.4-2.9s2 1.1 2.4 2.9" />
           </>
         )}
+        {id === 'upload' && (
+          <>
+            <path d="M8 10.6V2.8" />
+            <path d="M5.2 5.4 8 2.6l2.8 2.8" />
+            <path d="M2.8 9.4v2.4a1.4 1.4 0 0 0 1.4 1.4h7.6a1.4 1.4 0 0 0 1.4-1.4V9.4" />
+          </>
+        )}
         {id === 'about' && (
           <>
             <circle cx="8" cy="8" r="5.8" />
@@ -290,6 +311,12 @@ export default function SettingsModal({
   onIgnoreUpdate,
   onRestoreUpdateReminder,
   readOnly = false,
+  uploads = [],
+  onCancelUpload = () => {},
+  onCancelAllUploads = () => {},
+  onRetryUpload = () => {},
+  onClearFinishedUploads = () => {},
+  onCloseUploadQueue = () => {},
 }: Props) {
   const t = useT();
   const [tab, setTab] = useState<TabId>(initialTab ?? 'general');
@@ -503,6 +530,18 @@ export default function SettingsModal({
             )}
             {activeTab === 'library' && (
               <LibrarySettings onChanged={onChanged} multi={multi} isAdmin={isAdmin} />
+            )}
+            {/* 2026-11-10 D-350（用户要求）：上传队列独立板块（按地点 · 到访分组，可收起 / 展开） */}
+            {activeTab === 'upload' && (
+              <UploadSettings
+                uploads={uploads}
+                onCancelUpload={onCancelUpload}
+                onCancelAllUploads={onCancelAllUploads}
+                onRetryUpload={onRetryUpload}
+                onClearFinishedUploads={onClearFinishedUploads}
+                onCloseUploadQueue={onCloseUploadQueue}
+                readOnly={readOnly}
+              />
             )}
             {activeTab === 'trash' && <TrashSettings onChanged={onChanged} />}
             {activeTab === 'tdt' && <TdtSettings multi={multi} />}

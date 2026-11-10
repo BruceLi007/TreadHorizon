@@ -38,17 +38,17 @@ interface Props {
   autoAddVisit?: boolean;
   /** 自动展开一次后通知 App 清掉标记，避免每次打开都自动弹 */
   onAutoAddVisitHandled?: () => void;
-  /** F-MED-10 上传队列（状态由 App 管理，关掉侧栏也会继续传） */
+  /** F-MED-10 上传队列（状态由 App 管理；2026-11-10 D-350 起完整队列在 设置 → 上传，侧栏只留一行摘要） */
   uploads: UploadItem[];
-  onPickFiles: (visitId: string, files: File[]) => void;
+  onPickFiles: (
+    visitId: string,
+    files: File[],
+    meta?: { placeId?: string; placeName?: string; visitDate?: string }
+  ) => void;
   /** 拖文件夹等操作的轻提示（App 传 say；不传则静默） */
   onToast?: (msg: string) => void;
-  onCancelUpload: (key: string) => void;
-  onCancelAllUploads: () => void;
-  onRetryUpload: (key: string) => void;
-  onClearFinishedUploads: () => void;
-  /** 关闭上传队列卡片（有未完成项时会先中止/清空） */
-  onCloseUploadQueue: () => void;
+  /** 2026-11-10 D-350：侧栏上传摘要的「在设置中查看」→ 打开 设置 → 上传 */
+  onOpenUploadSettings: () => void;
   onOpenLightbox: (visitId: string, index: number) => void;
   onChanged: () => void;
   onDeleted: () => void;
@@ -315,11 +315,7 @@ export default function Sidebar({
   uploads,
   onPickFiles,
   onToast,
-  onCancelUpload,
-  onCancelAllUploads,
-  onRetryUpload,
-  onClearFinishedUploads,
-  onCloseUploadQueue,
+  onOpenUploadSettings,
   onOpenLightbox,
   onChanged,
   onDeleted,
@@ -377,6 +373,16 @@ export default function Sidebar({
   // 删除到访（F-VST-04）
   const [confirmingVisit, setConfirmingVisit] = useState<string | null>(null);
   const [askDeletePlace, setAskDeletePlace] = useState(false);
+  // 2026-11-10 D-347（用户要求）：到访里的照片默认只显示 1 行预览，点「展开全部」看全部、再点「收起」，
+  // 避免一个到访照片很多时侧栏要往下拉很久。集合里是当前展开照片的到访 id。
+  const [expandedMediaVisits, setExpandedMediaVisits] = useState<Set<string>>(new Set());
+  // 2026-11-10 D-348（用户要求）：到访列表支持多选批量操作（批量移到回收站，可恢复）。
+  // 交互与 My旅迹多选（D-295）一致：选择按钮 + 卡片勾选框 + 底部批量条 + 二次确认。
+  const [visitSelectMode, setVisitSelectMode] = useState(false);
+  const [selectedVisits, setSelectedVisits] = useState<Set<string>>(new Set());
+  const [bulkVisitBusy, setBulkVisitBusy] = useState(false);
+  const [bulkVisitErr, setBulkVisitErr] = useState<string | null>(null);
+  const [confirmBulkVisits, setConfirmBulkVisits] = useState(false);
   // D-246：拖文件夹到侧栏 → 按文件夹名新建一次到访并批量上传
   const [folderDropActive, setFolderDropActive] = useState(false);
   const [folderDropBusy, setFolderDropBusy] = useState(false);
@@ -385,29 +391,8 @@ export default function Sidebar({
   // 媒体操作（F-MED-05 / F-MED-06）
   const [moving, setMoving] = useState<string | null>(null);
 
-  // 上传队列卡片的本地关闭兜底：即使父组件的状态没来得及清（或 HMR 旧闭包），点 × 也应立刻收起
-  const [queueClosed, setQueueClosed] = useState(false);
-  // 2026-11-07 D-261：有上传失败项时，点 × 先弹确认，避免把「失败 + 可重试」记录静默清掉
-  const [closeQueueAsk, setCloseQueueAsk] = useState(false);
-  // 2026-11-10（用户要求）：「素材上传时的列表单独做一个可展开收起的栏，点一下展开，点一下收起」。
-  // 默认收起，只显示标题栏摘要（完成数 / 进度 / 失败数），避免文件多时侧栏被长列表占满。
-  const [queueExpanded, setQueueExpanded] = useState(false);
-  const prevUploadLen = useRef(0);
-  useEffect(() => {
-    if (uploads.length === 0) {
-      setQueueClosed(false);
-      setCloseQueueAsk(false);
-      setQueueExpanded(false);
-      prevUploadLen.current = 0;
-      return;
-    }
-    // 新加了一批文件 → 重新显示队列
-    if (uploads.length > prevUploadLen.current) {
-      setQueueClosed(false);
-      setCloseQueueAsk(false);
-    }
-    prevUploadLen.current = uploads.length;
-  }, [uploads.length]);
+  // 2026-11-10 D-350（用户要求）：上传队列拆到「设置 → 上传」后，侧栏不再保留队列卡片的
+  // 展开 / 关闭 / 失败确认等本地状态，只读 App 传进来的 uploads 显示一行摘要。
 
   // 换到别的地点时复位所有状态
   useEffect(() => {
@@ -416,6 +401,12 @@ export default function Sidebar({
     setEditingVisit(null);
     setAddingVisit(false);
     setConfirmingVisit(null);
+    setExpandedMediaVisits(new Set());
+    setVisitSelectMode(false);
+    setSelectedVisits(new Set());
+    setBulkVisitBusy(false);
+    setBulkVisitErr(null);
+    setConfirmBulkVisits(false);
     setAskDeletePlace(false);
     setMoving(null);
     setSaving(false);
@@ -442,12 +433,92 @@ export default function Sidebar({
   const activeVisit = detail.visits.find((v) => v.id === (target ?? detail.visits[0]?.id));
   const total = detail.visits.reduce((n, v) => n + v.media.length, 0);
 
+  /**
+   * 2026-11-10 D-347（用户要求）：到访照片收起时占满一行 = 「照片每行」列数；
+   * 「+ 添加素材」格始终在第一格（D-245），所以可编辑时照片只占 列数 - 1 格；只读访客没有添加格。
+   */
+  const mediaCollapseLimit = readOnly ? mediaCols : Math.max(1, mediaCols - 1);
+  const toggleVisitMedia = (visitId: string) => {
+    setExpandedMediaVisits((prev) => {
+      const next = new Set(prev);
+      if (next.has(visitId)) next.delete(visitId);
+      else next.add(visitId);
+      return next;
+    });
+  };
+
+  /* ── D-348：到访列表多选批量操作（批量移到回收站，可恢复）── */
+  const visitIds = detail.visits.map((v) => v.id);
+  const allVisitsSelected = visitIds.length > 0 && visitIds.every((id) => selectedVisits.has(id));
+  const toggleVisitSelection = (visitId: string) => {
+    setBulkVisitErr(null);
+    setSelectedVisits((prev) => {
+      const next = new Set(prev);
+      if (next.has(visitId)) next.delete(visitId);
+      else next.add(visitId);
+      return next;
+    });
+  };
+  const toggleAllVisits = () => {
+    setBulkVisitErr(null);
+    setSelectedVisits(allVisitsSelected ? new Set() : new Set(visitIds));
+  };
+  const enterVisitSelect = () => {
+    setBulkVisitErr(null);
+    setSelectedVisits(new Set());
+    setAddingVisit(false);
+    setEditingVisit(null);
+    setConfirmingVisit(null);
+    setMoving(null);
+    setExpandedMediaVisits(new Set()); // 多选时统一收起照片，列表更紧凑
+    setVisitSelectMode(true);
+  };
+  const exitVisitSelect = () => {
+    setBulkVisitErr(null);
+    setSelectedVisits(new Set());
+    setVisitSelectMode(false);
+  };
+  /** 批量删除：逐个走单点到访删除接口（到访 + 照片/视频一起进回收站，可恢复）。
+   *  全部删完不弹「最后一个到访」的地點删除确认——多选删除只删到访，地点保留。 */
+  const runBulkVisitDelete = async () => {
+    const ids = [...selectedVisits];
+    if (!ids.length) return;
+    setBulkVisitBusy(true);
+    setBulkVisitErr(null);
+    const failed: string[] = [];
+    for (const id of ids) {
+      try {
+        await api.deleteVisit(id);
+      } catch {
+        failed.push(id);
+      }
+    }
+    setBulkVisitBusy(false);
+    setConfirmBulkVisits(false);
+    // 当前选中的到访被删掉后回到第一个到访，避免 target 停在已删 id 上
+    if (target && ids.includes(target)) setTarget(null);
+    if (failed.length) {
+      setSelectedVisits(new Set(failed));
+      setBulkVisitErr(t('有 {n} 次到访删除失败，请重试', { n: failed.length }));
+    } else {
+      setSelectedVisits(new Set());
+      setVisitSelectMode(false);
+    }
+    onChanged();
+  };
+
   /** 选完文件：优先用「+」格子记录的到访，否则用当前选中的到访 */
   const onFilesPicked = (files: FileList | null, visitId?: string) => {
     const id = visitId ?? pendingPickVisit.current ?? activeVisit?.id;
     pendingPickVisit.current = null;
     if (!files || !id) return;
-    onPickFiles(id, Array.from(files));
+    // D-350：带上「地点 · 到访日期」，设置 → 上传板块按此分组
+    const v = detail.visits.find((x) => x.id === id);
+    onPickFiles(id, Array.from(files), {
+      placeId: detail.id,
+      placeName: detail.name,
+      visitDate: v?.date,
+    });
   };
 
   /** 点某次到访照片格的「+」：把目标切到这次到访再打开文件选择（D-110） */
@@ -516,7 +587,11 @@ export default function Sidebar({
           created += 1;
           queued += folder.files.length;
           lastCreatedId = createdVisit.id;
-          onPickFiles(createdVisit.id, folder.files);
+          onPickFiles(createdVisit.id, folder.files, {
+            placeId: detail.id,
+            placeName: detail.name,
+            visitDate: createdVisit.date,
+          });
         } catch (err: any) {
           onToast?.(t('按文件夹新建到访失败：{msg}', { msg: err?.message || String(err) }));
         }
@@ -524,7 +599,11 @@ export default function Sidebar({
       if (looseFiles.length) {
         const targetId = activeVisit?.id ?? detail.visits[0]?.id;
         if (targetId) {
-          onPickFiles(targetId, looseFiles);
+          onPickFiles(targetId, looseFiles, {
+            placeId: detail.id,
+            placeName: detail.name,
+            visitDate: detail.visits.find((v) => v.id === targetId)?.date,
+          });
           queued += looseFiles.length;
         } else {
           onToast?.(t('先添加一次到访，再把零散文件拖进来'));
@@ -569,6 +648,9 @@ export default function Sidebar({
    * 用户填好后点「保存」才真正创建；取消不会留下空记录（2026-11-04，D-102）。
    */
   const startAddVisit = () => {
+    // D-348：点「+ 添加一次到访」时退出多选模式，避免两种交互叠加
+    setVisitSelectMode(false);
+    setSelectedVisits(new Set());
     setVform({
       date: todayISO(),
       title: '',
@@ -851,16 +933,12 @@ export default function Sidebar({
     }
   };
 
-  // 上传队列汇总（F-MED-10）
+  // 上传队列汇总（F-MED-10）：2026-11-10 D-350 起侧栏只显示一行摘要，完整队列在「设置 → 上传」
   const uploadDone = uploads.filter((x) => x.status === 'done').length;
-  // D-261：失败项数量 —— 关闭队列前若有失败项，先弹确认（失败项清掉后需要重新选文件）
   const uploadFailed = uploads.filter((x) => x.status === 'error').length;
   const uploadActive = uploads.some((x) => x.status === 'queued' || x.status === 'uploading');
-  const uploadHasFinished = uploads.some((x) =>
-    ['done', 'skipped', 'canceled'].includes(x.status)
-  );
 
-  // 收起状态标题栏里的整体进度（完成 / 跳过算 1，上传中按实际 progress 折算）
+  // 摘要里的整体进度（完成 / 跳过算 1，上传中按实际 progress 折算）
   const uploadPct = uploads.length
     ? Math.round(
         (uploads.reduce((sum, x) => {
@@ -872,33 +950,6 @@ export default function Sidebar({
           100
       )
     : 0;
-
-  // 2026-11-10（用户要求）：有上传失败时，队列不自动关闭、等用户手动关闭；
-  // 失败第一次出现时把列表自动展开一次，让用户直接看到哪些文件失败
-  // （之后用户手动收起，不会因为同一个失败状态被强行再展开）。
-  const prevUploadFailed = useRef(0);
-  useEffect(() => {
-    if (uploadFailed > 0 && prevUploadFailed.current === 0) setQueueExpanded(true);
-    prevUploadFailed.current = uploadFailed;
-  }, [uploadFailed]);
-
-  /** 上传状态文案：在组件里翻译，切换语言即时生效（避免模块级常量缓存中文，D-138） */
-  const uploadStatusLabel = (s: UploadItem['status']): string => {
-    switch (s) {
-      case 'queued':
-        return t('等待中');
-      case 'uploading':
-        return t('上传中');
-      case 'done':
-        return t('完成');
-      case 'skipped':
-        return t('跳过（重复）');
-      case 'error':
-        return t('失败');
-      default:
-        return t('已取消');
-    }
-  };
 
   // 2026-11-09 D-325（用户要求）：地点编辑里的「设为秘密基地 / 设为家」按钮，
   // 背景色跟随 设置 → 通用 → 图标配色 里当前生效的标记颜色（秘密基地品红 / 家青色等）。
@@ -918,10 +969,10 @@ export default function Sidebar({
   return (
     <aside
       className="panel"
-      onDragEnter={readOnly ? undefined : onPanelDragEnter}
-      onDragOver={readOnly ? undefined : onPanelDragOver}
-      onDragLeave={readOnly ? undefined : onPanelDragLeave}
-      onDrop={readOnly ? undefined : (e) => void onPanelDrop(e)}
+      onDragEnter={readOnly || visitSelectMode ? undefined : onPanelDragEnter}
+      onDragOver={readOnly || visitSelectMode ? undefined : onPanelDragOver}
+      onDragLeave={readOnly || visitSelectMode ? undefined : onPanelDragLeave}
+      onDrop={readOnly || visitSelectMode ? undefined : (e) => void onPanelDrop(e)}
     >
       {/* D-246：拖文件夹到侧栏的提示 / 处理中状态（覆盖层不接收鼠标事件，避免挡住 drop） */}
       {(folderDropActive || folderDropBusy) && (
@@ -1223,6 +1274,18 @@ export default function Sidebar({
           </div>
           {detail.kind !== 'wishlist' && (
             <div className="visit-cols">
+              {/* D-348：多选入口（选择 / 取消选择） */}
+              {!readOnly && detail.visits.length > 0 && (
+                <button
+                  type="button"
+                  className={'text-btn sm visit-select-btn' + (visitSelectMode ? ' on' : '')}
+                  onClick={visitSelectMode ? exitVisitSelect : enterVisitSelect}
+                  title={visitSelectMode ? t('取消选择') : t('多选（可批量移到回收站）')}
+                  disabled={saving || bulkVisitBusy}
+                >
+                  {visitSelectMode ? t('取消选择') : t('选择')}
+                </button>
+              )}
               <span className="visit-cols-label">{t('照片每行')}</span>
               <Segmented
                 size="sm"
@@ -1287,7 +1350,7 @@ export default function Sidebar({
           )}
 
           {detail.kind !== 'wishlist' && (
-          <div className="visits" ref={visitsRef}>
+          <div className={'visits' + (visitSelectMode ? ' selecting' : '')} ref={visitsRef}>
             {addingVisit && (
               <div className="visit active editing" onClick={(e) => e.stopPropagation()}>
                 <VisitFormEditor
@@ -1300,22 +1363,82 @@ export default function Sidebar({
                 />
               </div>
             )}
-            {detail.visits.map((v) => (
+            {detail.visits.map((v) => {
+              // D-347：照片多时默认只显示一行（含「+ 添加素材」格共一行），点按钮展开 / 收起
+              const canCollapseMedia = v.media.length > mediaCollapseLimit;
+              const mediaExpanded = expandedMediaVisits.has(v.id);
+              const shownMedia =
+                canCollapseMedia && !mediaExpanded
+                  ? v.media.slice(0, mediaCollapseLimit)
+                  : v.media;
+              return (
               <Fragment key={v.id}>
               <div
                 className={
                   'visit' +
                   (v.id === activeVisit?.id ? ' active' : '') +
-                  (editingVisit === v.id ? ' editing' : '')
+                  (editingVisit === v.id ? ' editing' : '') +
+                  (visitSelectMode ? ' selectable' : '') +
+                  (selectedVisits.has(v.id) ? ' picked' : '')
                 }
-                onClick={() => setTarget(v.id)}
+                role={visitSelectMode ? 'button' : undefined}
+                tabIndex={visitSelectMode ? 0 : undefined}
+                aria-pressed={visitSelectMode ? selectedVisits.has(v.id) : undefined}
+                onClick={() =>
+                  visitSelectMode ? toggleVisitSelection(v.id) : setTarget(v.id)
+                }
+                onKeyDown={
+                  visitSelectMode
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          toggleVisitSelection(v.id);
+                        }
+                      }
+                    : undefined
+                }
               >
                 <div className="visit-head">
+                      {/* D-348：多选模式下每张到访卡片左侧的勾选框（复用 D-295 的 .pick 样式） */}
+                      {visitSelectMode && (
+                        <button
+                          type="button"
+                          className={selectedVisits.has(v.id) ? 'pick on visit-pick' : 'pick visit-pick'}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleVisitSelection(v.id);
+                          }}
+                          aria-pressed={selectedVisits.has(v.id)}
+                          aria-label={
+                            selectedVisits.has(v.id)
+                              ? t('取消选择这次到访（{date}）', { date: v.date })
+                              : t('选择这次到访（{date}）', { date: v.date })
+                          }
+                          title={
+                            selectedVisits.has(v.id)
+                              ? t('取消选择这次到访（{date}）', { date: v.date })
+                              : t('选择这次到访（{date}）', { date: v.date })
+                          }
+                        >
+                          {selectedVisits.has(v.id) && (
+                            <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true" focusable="false">
+                              <path
+                                d="M2 6.4 4.6 9 10 3.2"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.9"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          )}
+                        </button>
+                      )}
                       <span className="date">{v.date}</span>
                       {v.title && <span className="vtitle">{v.title}</span>}
                       {v.rating ? <span className="rate">{'★'.repeat(v.rating)}</span> : null}
                       <span className="n">{v.media.length}</span>
-                      {editingVisit !== v.id && !readOnly && (
+                      {editingVisit !== v.id && !readOnly && !visitSelectMode && (
                       <div className="visit-actions">
                         <button
                           className="text-btn"
@@ -1389,10 +1512,10 @@ export default function Sidebar({
                       </div>
                     )}
 
-                    <div className="grid">
+                    <div className="grid" id={`visit-media-${v.id}`}>
                       {/* 「+ 添加素材」格始终放在第一格（2026-11-07 D-245，用户要求），照片依次排在后面
-                          2026-11-09 D-335：只读样板访客不显示上传格 */}
-                      {!readOnly && (
+                          2026-11-09 D-335：只读样板访客不显示上传格；D-348：多选模式不显示添加格 */}
+                      {!readOnly && !visitSelectMode && (
                         <div className="tile-wrap">
                           <button
                             type="button"
@@ -1410,7 +1533,7 @@ export default function Sidebar({
                           </button>
                         </div>
                       )}
-                      {v.media.map((m, i) => (
+                      {shownMedia.map((m, i) => (
                         <MediaTile
                           key={m.id}
                           m={m}
@@ -1424,6 +1547,44 @@ export default function Sidebar({
                         />
                       ))}
                     </div>
+
+                    {/* 2026-11-10 D-347（用户要求）：照片多时默认只显示一行，点「展开全部」看全部、再点「收起」，
+                        避免一次到访照片太多时侧栏要往下拉很久。 */}
+                    {canCollapseMedia && !visitSelectMode && (
+                      <button
+                        type="button"
+                        className={`visit-media-toggle${mediaExpanded ? ' expanded' : ''}`}
+                        aria-expanded={mediaExpanded}
+                        aria-controls={`visit-media-${v.id}`}
+                        title={
+                          mediaExpanded
+                            ? t('收起照片')
+                            : t('展开全部 {n} 个照片/视频', { n: v.media.length })
+                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleVisitMedia(v.id);
+                        }}
+                      >
+                        <span className="vm-chevron" aria-hidden="true">
+                          <svg width="9" height="9" viewBox="0 0 10 10" focusable="false">
+                            <path
+                              d="M3 1.5 7 5 3 8.5"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.8"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </span>
+                        <span>
+                          {mediaExpanded
+                            ? t('收起照片')
+                            : t('展开全部 {n} 个照片/视频', { n: v.media.length })}
+                        </span>
+                      </button>
+                    )}
 
                     {moving && v.media.some((m) => m.id === moving) && (
                       <div className="chooser" onClick={(e) => e.stopPropagation()}>
@@ -1453,7 +1614,8 @@ export default function Sidebar({
               </div>
 
               </Fragment>
-            ))}
+              );
+            })}
 
             {detail.visits.length === 0 && (
               <div className="muted pad">
@@ -1463,150 +1625,89 @@ export default function Sidebar({
           </div>
           )}
 
+          {/* D-348：到访多选批量操作条（复用 My旅迹 D-295 的批量条样式） */}
+          {!readOnly && visitSelectMode && (
+            <div className="mytrail-bulkbar visit-bulkbar">
+              <span className="mytrail-bulk-count">
+                {t('已选 {n} 项', { n: selectedVisits.size })}
+              </span>
+              <button type="button" className="text-btn sm" onClick={toggleAllVisits} disabled={bulkVisitBusy}>
+                {allVisitsSelected ? t('取消全选') : t('全选')}
+              </button>
+              {bulkVisitErr && <span className="mytrail-bulk-err">{bulkVisitErr}</span>}
+              <span className="mytrail-bulk-spacer" />
+              <button
+                type="button"
+                className="text-btn sm"
+                onClick={exitVisitSelect}
+                disabled={bulkVisitBusy}
+              >
+                {t('取消选择')}
+              </button>
+              <button
+                type="button"
+                className="danger-btn"
+                onClick={() => setConfirmBulkVisits(true)}
+                disabled={!selectedVisits.size || bulkVisitBusy}
+              >
+                {t('移到回收站')}
+              </button>
+            </div>
+          )}
+
+          {/* D-348：批量删除二次确认（到访 + 照片/视频一起进回收站，可恢复） */}
+          {!readOnly && confirmBulkVisits && (
+            <ConfirmDialog
+              title={t('删除选中的 {n} 次到访？', { n: selectedVisits.size })}
+              danger
+              busy={bulkVisitBusy}
+              busyText={t('删除中…')}
+              confirmText={t('移到回收站')}
+              onCancel={() => {
+                if (!bulkVisitBusy) setConfirmBulkVisits(false);
+              }}
+              onConfirm={() => void runBulkVisitDelete()}
+            >
+              <p>{t('选中的到访会连同照片/视频一起移到回收站，之后可在顶栏「回收站」恢复。')}</p>
+            </ConfirmDialog>
+          )}
+
           {detail.kind !== 'wishlist' && !readOnly && (
           <div className="panel-foot column">
-            {uploads.length > 0 && !queueClosed && (
-              <div className="upload-queue">
-                <div className="uq-head">
+            {/* 2026-11-10 D-350（用户要求）：上传队列拆到「设置 → 上传」；侧栏只留一行摘要——
+                显示全局「共几个在传 / 已完成多少 / 失败数」，不可展开，点链接跳到设置 → 上传。 */}
+            {uploads.length > 0 && (
+              <div className="upload-mini">
+                <div className="upload-mini-row">
+                  <span className="upload-mini-text">
+                    {uploadActive
+                      ? t('正在上传 · 共 {total} 个 · 已完成 {done} 个', {
+                          total: uploads.length,
+                          done: uploadDone,
+                        })
+                      : t('上传结束 · 共 {total} 个 · 已完成 {done} 个', {
+                          total: uploads.length,
+                          done: uploadDone,
+                        })}
+                  </span>
+                  {uploadActive && <span className="uq-pct">{uploadPct}%</span>}
+                  {uploadFailed > 0 && (
+                    <span className="uq-failed">{t('失败 {n}', { n: uploadFailed })}</span>
+                  )}
                   <button
                     type="button"
-                    className={`uq-toggle${queueExpanded ? ' expanded' : ''}`}
-                    onClick={() => setQueueExpanded((v) => !v)}
-                    aria-expanded={queueExpanded}
-                    aria-controls="upload-queue-list"
-                    title={queueExpanded ? t('收起上传列表') : t('展开上传列表')}
+                    className="text-btn sm upload-mini-link"
+                    onClick={onOpenUploadSettings}
                   >
-                    <span className="uq-chevron" aria-hidden="true">
-                      <svg width="9" height="9" viewBox="0 0 10 10" focusable="false">
-                        <path
-                          d="M3 1.5 7 5 3 8.5"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </span>
-                    <span>
-                      {t('上传队列')} <span className="uq-count">{uploadDone}/{uploads.length}</span>
-                    </span>
-                    {uploadActive && <span className="uq-pct">{uploadPct}%</span>}
-                    {uploadFailed > 0 && (
-                      <span className="uq-failed">{t('失败 {n}', { n: uploadFailed })}</span>
-                    )}
+                    {t('在设置中查看')}
                   </button>
-                  <div className="uq-actions">
-                    {uploadActive && (
-                      <button className="text-btn" onClick={onCancelAllUploads}>
-                        {t('全部取消')}
-                      </button>
-                    )}
-                    {uploadHasFinished && (
-                      <button className="text-btn" onClick={onClearFinishedUploads}>
-                        {t('清除已完成')}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="icon uq-close"
-                      onClick={() => {
-                        // D-261：还有失败项时先确认（关闭会清空重试入口，需要重新选文件）
-                        if (uploadFailed > 0) {
-                          setCloseQueueAsk(true);
-                          return;
-                        }
-                        // 本地先收起（保证点了立刻有反馈），再通知 App 清空队列/取消未完成项
-                        setQueueClosed(true);
-                        onCloseUploadQueue?.();
-                      }}
-                      title={t('关闭上传队列（未完成项会被取消）')}
-                      aria-label={t('关闭上传队列')}
-                    >
-                      <CloseIcon size={12} />
-                    </button>
-                  </div>
                 </div>
                 {uploadActive && (
                   <div className="uq-mini" aria-hidden="true">
                     <div className="uq-mini-fill" style={{ width: `${Math.max(3, uploadPct)}%` }} />
                   </div>
                 )}
-                <div
-                  id="upload-queue-list"
-                  className={`uq-list-wrap${queueExpanded ? '' : ' collapsed'}`}
-                >
-                  <div className="uq-list-inner">
-                    <div className="uq-list">
-                  {uploads.map((it) => {
-                    const pct = Math.round(it.progress * 100);
-                    const statusText =
-                      it.status === 'uploading' && it.progress >= 1
-                        ? t('处理中（缩略图）…')
-                        : uploadStatusLabel(it.status);
-                    // 进度到 100% 后服务端还在生成缩略图/封面帧，此时中止也停不下服务端，隐藏取消
-                    const cancelable =
-                      it.status === 'queued' || (it.status === 'uploading' && it.progress < 1);
-                    return (
-                      <div key={it.key} className={`uq-item ${it.status}`}>
-                        <div className="uq-line">
-                          <span className="uq-name" title={it.file.name}>
-                            {it.file.name}
-                          </span>
-                          <span className="uq-status">
-                            {statusText}
-                            {it.status === 'uploading' && it.progress < 1 ? ` ${pct}%` : ''}
-                          </span>
-                          {cancelable && (
-                            <button className="text-btn" onClick={() => onCancelUpload(it.key)}>
-                              {t('取消')}
-                            </button>
-                          )}
-                          {it.status === 'error' && (
-                            <button className="text-btn" onClick={() => onRetryUpload(it.key)}>
-                              {t('重试')}
-                            </button>
-                          )}
-                        </div>
-                        <div className="uq-bar">
-                          <div
-                            className="uq-fill"
-                            style={{
-                              width: `${
-                                it.status === 'done' || it.status === 'skipped'
-                                  ? 100
-                                  : it.status === 'uploading'
-                                    ? Math.max(4, pct)
-                                    : 0
-                              }%`,
-                            }}
-                          />
-                        </div>
-                        {it.status === 'error' && it.error && (
-                          <div className="uq-err">{it.error}</div>
-                        )}
-                      </div>
-                    );
-                  })}
-                    </div>
-                  </div>
-                </div>
               </div>
-            )}
-            {/* D-261：还有失败项时关闭上传队列 → 先确认（失败项会丢，需要重新选文件） */}
-            {closeQueueAsk && uploadFailed > 0 && (
-              <ConfirmDialog
-                title={t('还有 {n} 个文件上传失败，仍要关闭上传队列？', { n: uploadFailed })}
-                confirmText={t('仍然关闭')}
-                onCancel={() => setCloseQueueAsk(false)}
-                onConfirm={() => {
-                  setCloseQueueAsk(false);
-                  setQueueClosed(true);
-                  onCloseUploadQueue?.();
-                }}
-              >
-                <p>{t('关闭后，失败的文件需要重新选择上传（不会自动重试）。')}</p>
-              </ConfirmDialog>
             )}
             <input
               ref={fileRef}
@@ -1619,9 +1720,11 @@ export default function Sidebar({
                 e.target.value = '';
               }}
             />
-            <button className="ghost full" onClick={startAddVisit} disabled={addingVisit}>
-              {t('+ 添加一次到访')}
-            </button>
+            {!visitSelectMode && (
+              <button className="ghost full" onClick={startAddVisit} disabled={addingVisit}>
+                {t('+ 添加一次到访')}
+              </button>
+            )}
 
             {askDeletePlace ? (
               <div className="confirm-del">

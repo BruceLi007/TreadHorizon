@@ -488,7 +488,12 @@ export default function StatsPanel({ onClose, onOpenBackup, homeKey = '', readOn
   };
 
   const timeChart = useMemo(() => {
-    const points = data?.time ?? [];
+    // D-357：没有记录的时间桶（年 / 季 / 月）不再展示出来。
+    // 服务端 /api/stats 仍会补齐首末之间的空桶（series 对齐与既有 API 契约依赖它，
+    // 见 server/stats.mjs；smoke-m3-stats 有断言），所以这里只在展示层过滤 visits = 0 的空桶。
+    // 注意「有到访但所选指标为 0」的桶仍显示（如某年有到访没拍照，选「照片数」时显示 0），
+    // 只有整段没有任何到访记录的桶才隐藏。
+    const points = (data?.time ?? []).filter((pt) => pt.visits > 0);
     const primary = effMetrics[0] ?? 'visits';
     const secondary = effMetrics[1] ?? null;
     const seriesList = data?.series ?? [];

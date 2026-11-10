@@ -90,12 +90,60 @@ export interface UploadSkipped {
   name: string;
   reason: string;
   mediaId?: string;
+  /**
+   * 2026-11-10 D-354（用户要求：上传按「同账号全库」查重）：
+   * 命中重复时返回已存在的地点名 / 到访日期 / 是否就是本次这个到访，供前端提示「已存在于哪」。
+   */
+  sameVisit?: boolean;
+  placeName?: string | null;
+  visitDate?: string | null;
 }
 
 export interface UploadResult {
   added: { id: string; name: string }[];
   skipped: UploadSkipped[];
   errors: string[];
+}
+
+// ── 重复素材检测（2026-11-10 D-355，用户要求）──
+
+/** 一组重复素材（内容 hash 相同）里的一份 */
+export interface DuplicateMediaItem {
+  id: string;
+  kind: 'photo' | 'video';
+  name: string;
+  bytes: number;
+  createdAt: number;
+  visitId: string;
+  visitDate: string;
+  placeId: string;
+  placeName: string;
+}
+
+/** 一组重复素材（2 份以上） */
+export interface DuplicateMediaGroup {
+  hash: string;
+  count: number;
+  bytes: number;
+  items: DuplicateMediaItem[];
+}
+
+export interface DuplicateScanResult {
+  groups: DuplicateMediaGroup[];
+  /** 重复组数 */
+  totalGroups: number;
+  /** 多出来的副本数（每组保留 1 份后剩下的） */
+  extraCopies: number;
+  /** 多出来的副本总字节（彻底删除后释放） */
+  extraBytes: number;
+}
+
+export interface TrashDuplicatesResult {
+  trashed: number;
+  /** 因为「每组至少保留 1 份」而被保留的组数 */
+  keptLast: number;
+  bytes: number;
+  ids?: string[];
 }
 
 export interface PlaceBrief {
@@ -133,6 +181,13 @@ export interface UploadItem {
   progress: number;
   error?: string;
   mediaId?: string;
+  /**
+   * 2026-11-10 D-350（用户要求）：上传队列拆到「设置 → 上传」后，需要显示「哪个地点、哪次到访」，
+   * 在入队时由 Sidebar 带上；老数据 / 兜底可缺省（显示「未知地点 / 未标注日期」）。
+   */
+  placeId?: string;
+  placeName?: string;
+  visitDate?: string;
 }
 
 // ── M3：回收站（F-SYS-07 / D-57：按删除动作分层） ──
@@ -460,6 +515,12 @@ export interface PhotoWallData {
   items: PhotoWallItem[];
   /** 当前筛选下的年份分布，用于顶部年份 chip */
   years: { year: string; count: number }[];
+  /**
+   * 当前筛选下「有素材的省份」分布（2026-11-10 D-359）。
+   * 服务端按年 / 地点 / 种类等其它筛选聚合，但**不受省份筛选本身影响**，
+   * 所以选了某个省后下拉仍能切到别的省；用于照片墙「省份」下拉。
+   */
+  provinces: { name: string; count: number }[];
 }
 
 export interface PhotoWallQuery {

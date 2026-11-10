@@ -102,6 +102,18 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
     includeEarlier: boolean;
     skipped: number;
   } | null>(null);
+  /**
+   * 2026-11-10 D-352（用户要求「回收站也做出可以展开收起」）：
+   * 「全部」标签下按 地点 / 到访 / 照片视频 分三组，组标题可点开 / 收起（默认全部展开）；
+   * 「地点 / 到访 / 照片视频」单标签仍保持原来的平铺列表。
+   */
+  const [openGroups, setOpenGroups] = useState<Record<'place' | 'visit' | 'media', boolean>>({
+    place: true,
+    visit: true,
+    media: true,
+  });
+  const toggleGroup = (key: 'place' | 'visit' | 'media') =>
+    setOpenGroups((cur) => ({ ...cur, [key]: !cur[key] }));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -317,6 +329,116 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
     media: t('没有单独删除的照片/视频。'),
   };
 
+  /** 一行回收站记录（2026-11-10 D-352：抽成函数，供平铺列表与「全部」分组共用） */
+  const renderRow = (it: TrashItem) => {
+    const key = itemKey(it);
+    const isSel = selected.includes(key);
+    const restorable = isRestorable(it);
+    const earlier = earlierOf(it);
+    return (
+      <div
+        key={key}
+        className={isSel ? 'trash-row on' : 'trash-row'}
+        role="checkbox"
+        aria-checked={isSel}
+        tabIndex={0}
+        onClick={() => toggle(key)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggle(key);
+          }
+        }}
+      >
+        <input
+          className="trash-check"
+          type="checkbox"
+          checked={isSel}
+          onClick={(e) => e.stopPropagation()}
+          onChange={() => toggle(key)}
+        />
+        {it.type === 'media' && (
+          <img
+            className="trash-thumb"
+            src={api.thumbUrl(it.id)}
+            alt=""
+            loading="lazy"
+            onError={(e) => {
+              e.currentTarget.style.visibility = 'hidden';
+            }}
+          />
+        )}
+        <div className="trash-main">
+          <div className="trash-title">
+            <span className={`trash-type ${it.type}`}>{typeLabel(it, t)}</span>
+            {rowTitle(it, t)}
+            {it.type === 'place' && it.kind === 'wishlist' && (
+              <span className="kind-wish">{t('想去')}</span>
+            )}
+          </div>
+          <div className="trash-meta">
+            {it.type === 'place' && (
+              <>
+                {regionOf(it, tp) || t('未标注地区')}
+                {t(' · 本次删除 {n} 次到访 · ', { n: it.visit_count })}
+                {mediaText(it.media_count, t)}
+                {earlier.visits > 0 &&
+                  t(' · 另有 {n} 次到访此前单独删除', { n: earlier.visits })}
+                {earlier.media > 0 && t(' · 另有 {n} 张照片此前单独删除', { n: earlier.media })}
+              </>
+            )}
+            {it.type === 'visit' && (
+              <>
+                {it.place_name}
+                {it.province
+                  ? t('（{region}）', {
+                      region: [tp(it.province), it.city].filter(Boolean).join(' '),
+                    })
+                  : ''}{' '}
+                · {fmtDate(it.date)}
+                {t(' · 本次删除 ')}
+                {mediaText(it.media_count, t)}
+                {earlier.media > 0 && t(' · 另有 {n} 张照片此前单独删除', { n: earlier.media })}
+              </>
+            )}
+            {it.type === 'media' && (
+              <>
+                {it.place_name} · {fmtDate(it.date)} · {fmtBytes(it.size)}
+                {it.parent_place_deleted
+                  ? t(' · 所属地点在回收站，需先恢复地点')
+                  : it.parent_visit_deleted
+                    ? t(' · 所属到访在回收站，需先恢复到访')
+                    : ''}
+              </>
+            )}
+          </div>
+          <div className="trash-meta deleted-at">
+            {t('删除于 {time}', { time: fmtTime(it.deleted_at) })}
+            {it.type !== 'media' ? t(' · 本次占 {size}', { size: fmtBytes(it.size) }) : ''}
+          </div>
+        </div>
+        <div className="trash-actions" onClick={(e) => e.stopPropagation()}>
+          <button
+            className="text-btn"
+            onClick={() => requestRestore([it])}
+            disabled={!!busy || !restorable}
+            title={restorable ? t('恢复这条记录') : t('所属父级还在回收站，请先恢复父级')}
+          >
+            {t('恢复')}
+          </button>
+          <button
+            className="text-btn danger"
+            onClick={() => startPurge([it])}
+            disabled={!!busy}
+            title={t('彻底删除并释放空间，无法恢复')}
+          >
+            {t('彻底删除')}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <aside className={embedded ? 'panel trash-panel-embedded' : 'panel'}>
       {embedded ? (
@@ -426,120 +548,37 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
           </p>
         )}
 
-        {tabItems.map((it) => {
-          const key = itemKey(it);
-          const isSel = selected.includes(key);
-          const restorable = isRestorable(it);
-          const earlier = earlierOf(it);
-          return (
-            <div
-              key={key}
-              className={isSel ? 'trash-row on' : 'trash-row'}
-              role="checkbox"
-              aria-checked={isSel}
-              tabIndex={0}
-              onClick={() => toggle(key)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  toggle(key);
-                }
-              }}
-            >
-              <input
-                className="trash-check"
-                type="checkbox"
-                checked={isSel}
-                onClick={(e) => e.stopPropagation()}
-                onChange={() => toggle(key)}
-              />
-              {it.type === 'media' && (
-                <img
-                  className="trash-thumb"
-                  src={api.thumbUrl(it.id)}
-                  alt=""
-                  loading="lazy"
-                  onError={(e) => {
-                    e.currentTarget.style.visibility = 'hidden';
-                  }}
-                />
-              )}
-              <div className="trash-main">
-                <div className="trash-title">
-                  <span className={`trash-type ${it.type}`}>{typeLabel(it, t)}</span>
-                  {rowTitle(it, t)}
-                  {it.type === 'place' && it.kind === 'wishlist' && (
-                    <span className="kind-wish">{t('想去')}</span>
-                  )}
-                </div>
-                <div className="trash-meta">
-                  {it.type === 'place' && (
-                    <>
-                      {regionOf(it, tp) || t('未标注地区')}
-                      {t(' · 本次删除 {n} 次到访 · ', { n: it.visit_count })}
-                      {mediaText(it.media_count, t)}
-                      {earlier.visits > 0 &&
-                        t(' · 另有 {n} 次到访此前单独删除', { n: earlier.visits })}
-                      {earlier.media > 0 &&
-                        t(' · 另有 {n} 张照片此前单独删除', { n: earlier.media })}
-                    </>
-                  )}
-                  {it.type === 'visit' && (
-                    <>
-                      {it.place_name}
-                      {it.province
-                        ? t('（{region}）', {
-                            region: [tp(it.province), it.city].filter(Boolean).join(' '),
-                          })
-                        : ''}{' '}
-                      · {fmtDate(it.date)}
-                      {t(' · 本次删除 ')}
-                      {mediaText(it.media_count, t)}
-                      {earlier.media > 0 &&
-                        t(' · 另有 {n} 张照片此前单独删除', { n: earlier.media })}
-                    </>
-                  )}
-                  {it.type === 'media' && (
-                    <>
-                      {it.place_name} · {fmtDate(it.date)} · {fmtBytes(it.size)}
-                      {it.parent_place_deleted
-                        ? t(' · 所属地点在回收站，需先恢复地点')
-                        : it.parent_visit_deleted
-                          ? t(' · 所属到访在回收站，需先恢复到访')
-                          : ''}
-                    </>
-                  )}
-                </div>
-                <div className="trash-meta deleted-at">
-                  {t('删除于 {time}', { time: fmtTime(it.deleted_at) })}
-                  {it.type !== 'media'
-                    ? t(' · 本次占 {size}', { size: fmtBytes(it.size) })
-                    : ''}
-                </div>
-              </div>
-              <div className="trash-actions" onClick={(e) => e.stopPropagation()}>
+        {tab !== 'all' && tabItems.map((it) => renderRow(it))}
+
+        {tab === 'all' &&
+          [
+            { key: 'place' as const, label: t('地点') },
+            { key: 'visit' as const, label: t('到访') },
+            { key: 'media' as const, label: t('照片视频') },
+          ].map((g) => {
+            const rows = tabItems.filter((it) => it.type === g.key);
+            if (!rows.length) return null;
+            const open = openGroups[g.key];
+            return (
+              <div key={g.key} className="trash-group">
                 <button
-                  className="text-btn"
-                  onClick={() => requestRestore([it])}
-                  disabled={!!busy || !restorable}
-                  title={
-                    restorable ? t('恢复这条记录') : t('所属父级还在回收站，请先恢复父级')
-                  }
+                  type="button"
+                  className="trash-group-head"
+                  onClick={() => toggleGroup(g.key)}
+                  aria-expanded={open}
+                  title={open ? t('收起分组') : t('展开分组')}
                 >
-                  {t('恢复')}
+                  <span
+                    className={open ? 'trash-group-caret open' : 'trash-group-caret'}
+                    aria-hidden="true"
+                  />
+                  <span className="trash-group-name">{g.label}</span>
+                  <span className="trash-group-count">{t('（{n} 项）', { n: rows.length })}</span>
                 </button>
-                <button
-                  className="text-btn danger"
-                  onClick={() => startPurge([it])}
-                  disabled={!!busy}
-                  title={t('彻底删除并释放空间，无法恢复')}
-                >
-                  {t('彻底删除')}
-                </button>
+                {open && <div className="trash-group-rows">{rows.map((it) => renderRow(it))}</div>}
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
 
         {msg && <p className="hint pad">{msg}</p>}
         {err && (

@@ -55,13 +55,14 @@ export interface FontOption {
 }
 
 /** 选项顺序 = 设置页里的展示顺序；每个选项用对应字体渲染自己的名字，所见即所得。
- *  默认字体（喵咛狗爬黑）排第一；不提供「系统默认」一项
+ *  默认字体（2026-11-10 D-359 起 = 猫啃什锦黑）排第一；不提供「系统默认」一项
  *  （旧偏好 tm-font='system' 或已删除字体，读的时候校验不通过、自动回落到默认字体）。 */
 export const APP_FONTS: FontOption[] = [
-  { id: 'miao-goupa', label: '喵咛狗爬黑' },
+  // 2026-11-10 D-359：用户要求默认字体改为猫啃什锦黑 → 排第一
+  { id: 'maoken-shijin', label: '猫啃什锦黑' },
   // 2026-11-08 D-298：用户提供、猫啃网下载的 6 款 SIL OFL 1.1 字体
   // 2026-11-08 D-299：嗷呜碎瘾黑按用户要求彻底删除；现为 7 款下载字体 + 4 款系统字体
-  { id: 'maoken-shijin', label: '猫啃什锦黑' },
+  { id: 'miao-goupa', label: '喵咛狗爬黑' },
   { id: 'jingnan-bobohei', label: '荆南波波黑' },
   { id: 'childfun-sans', label: '游趣体' },
   { id: 'tiejili', label: '铁蒺藜体' },
@@ -73,8 +74,9 @@ export const APP_FONTS: FontOption[] = [
   { id: 'kaiti', label: '楷体' },
 ];
 
-/** 默认界面字体（2026-11-07 D-227 用户确认）：喵咛狗爬黑（SIL OFL 1.1，随仓库发布） */
-export const DEFAULT_FONT: AppFont = 'miao-goupa';
+/** 默认界面字体（2026-11-10 D-359 用户要求：改为猫啃什锦黑；此前 2026-11-07 D-227 起为喵咛狗爬黑）
+ *  仍随仓库发布（SIL OFL 1.1，public/fonts/） */
+export const DEFAULT_FONT: AppFont = 'maoken-shijin';
 
 /** localStorage 里的值可能来自旧版本/手改，读的时候统一校验 */
 export const isAppFont = (v: string | null): v is AppFont =>
@@ -106,7 +108,8 @@ export const isMediaCols = (v: number | null | undefined): v is MediaCols =>
  * （1.0 / 1.2 / 1.4；D-299 用户要求中档再大一个字号、大档再大两个字号，此前为 1.0 / 1.1 / 1.2）。
  * 图片、图标、地图、布局盒子比例都不变；
  * 顶栏 6 键（宽度受 632px 轨道约束）宽度固定、文字跟随缩放。
- * 默认「大」= 2026-11-08 D-282 用户要求（此前默认「中」）；偏好只存本机浏览器 `tm-font-size`（不写 data/、不进备份）。
+ * 默认「中」= 2026-11-08 D-282 曾改为「大」，2026-11-10 D-359 用户要求改回「中」；
+ * 偏好只存本机浏览器 `tm-font-size`（不写 data/、不进备份）。
  */
 export type FontSize = 'sm' | 'md' | 'lg';
 
@@ -119,7 +122,7 @@ export const FONT_SIZE_LABEL: Record<FontSize, string> = {
   lg: '大',
 };
 
-export const DEFAULT_FONT_SIZE: FontSize = 'lg';
+export const DEFAULT_FONT_SIZE: FontSize = 'md';
 
 export const isFontSize = (v: string | null | undefined): v is FontSize =>
   v === 'sm' || v === 'md' || v === 'lg';
@@ -142,10 +145,10 @@ export const FONT_WEIGHT_LABEL: Record<FontWeight, string> = {
 };
 
 /**
- * 默认界面字重（2026-11-08 D-282 用户要求：默认改为「加粗」；
- * 之前 2026-11-06 起默认是「常规」）。
+ * 默认界面字重（2026-11-10 D-359 用户要求：默认「常规」；
+ * D-282 起为「加粗」；此前 2026-11-06 起默认是「常规」）。
  */
-export const DEFAULT_FONT_WEIGHT: FontWeight = 'bold';
+export const DEFAULT_FONT_WEIGHT: FontWeight = 'normal';
 
 export const isFontWeight = (v: string | null | undefined): v is FontWeight =>
   v === 'normal' || v === 'bold';

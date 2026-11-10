@@ -110,9 +110,16 @@ const uploadPhoto = async (visitId, name, rgb = [120, 60, 30]) => {
   const up = await uploadOne(visitId, name, await makeJpg(...rgb));
   return up.added?.[0]?.id ?? null;
 };
-/** 假 mp4：只要扩展名是视频即可落一条 kind='video' 的媒体记录（无 ffmpeg 时不会生成封面帧） */
+/** 假 mp4：只要扩展名是视频即可落一条 kind='video' 的媒体记录（无 ffmpeg 时不会生成封面帧）。
+ *  2026-11-10 D-359：尾部拼上文件名，保证两次上传的内容不同——D-354 起上传按「同账号全库」
+ *  sha256 查重，完全相同字节的第二个假视频会被判重复跳过，导致本冒烟造数少一条。 */
 const uploadVideo = async (visitId, name) => {
-  const buf = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from('ftypmp42'), Buffer.alloc(64, 7)]);
+  const buf = Buffer.concat([
+    Buffer.from([0, 0, 0, 24]),
+    Buffer.from('ftypmp42'),
+    Buffer.alloc(64, 7),
+    Buffer.from(name),
+  ]);
   const up = await uploadOne(visitId, name, buf, 'video/mp4');
   return up.added?.[0]?.id ?? null;
 };
@@ -126,6 +133,18 @@ const yearsOf = (items) => {
   const m = new Map();
   for (const it of items) m.set(it.date.slice(0, 4), (m.get(it.date.slice(0, 4)) || 0) + 1);
   return sortDesc([...m.keys()]).map((y) => ({ year: y, count: m.get(y) }));
+};
+/** 按 items 聚合省份（D-359 校验 /api/photos 新增的 provinces 字段用） */
+const provincesOf = (items) => {
+  const m = new Map();
+  for (const it of items) {
+    const name = it.place?.province;
+    if (!name) continue;
+    m.set(name, (m.get(name) || 0) + 1);
+  }
+  return [...m.entries()]
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .map(([name, count]) => ({ name, count }));
 };
 
 const run = async () => {
@@ -235,6 +254,12 @@ const run = async () => {
       { year: '2020', count: 2 },
     ]);
     eq('years 与 items 分布一致', p.years, yearsOf(p.items));
+    // D-359：新增 provinces（省份下拉的服务端数据源；全部省份聚合，不受省份筛选本身影响）
+    eq('provinces = 北京市 2 / 浙江省 3', p.provinces, [
+      { name: '北京市', count: 2 },
+      { name: '浙江省', count: 3 },
+    ]);
+    eq('provinces 与 items 分布一致', p.provinces, provincesOf(p.items));
 
     const photoItem = p.items.find((it) => it.id === b1);
     eq('照片 item 字段', {
@@ -285,6 +310,8 @@ const run = async () => {
     const byProv = await getJson('/api/photos?province=' + encodeURIComponent('浙江省'));
     eq('province=浙江省 total=3（软删后）', byProv.total, 3);
     eq('province=浙江省 years', byProv.years, [{ year: '2024', count: 1 }, { year: '2020', count: 2 }]);
+    // D-359：省份筛选不影响 provinces 列表本身（否则选了省下拉就只剩当前省）
+    eq('province 筛选时 provinces 仍列全部省份', byProv.provinces, p.provinces);
     const byCity = await getJson('/api/photos?city=' + encodeURIComponent('杭州市'));
     eq('city=杭州市 total=3', byCity.total, 3);
     eq('city 不符 → 0', (await getJson('/api/photos?city=' + encodeURIComponent('三亚市'))).total, 0);
@@ -296,6 +323,11 @@ const run = async () => {
     eq('kind=photo total=3', (await getJson('/api/photos?kind=photo')).total, 3);
     const byRange = await getJson('/api/photos?from=2024-01-01');
     eq('from=2024-01-01 total=3', byRange.total, 3);
+    // D-359：provinces 跟随「其它筛选」，只列该时间范围内有素材的省份
+    eq('from=2024 provinces 只列该范围内省份', byRange.provinces, [
+      { name: '北京市', count: 2 },
+      { name: '浙江省', count: 1 },
+    ]);
     const byRange2 = await getJson('/api/photos?to=2020-12-31');
     eq('to=2020-12-31 total=2', byRange2.total, 2);
     const byRange3 = await getJson('/api/photos?from=2020-06-01&to=2023-12-31');
@@ -308,6 +340,11 @@ const run = async () => {
     eq('组合筛选 total=1（b1）', byCombo.total, 1);
     eq('组合筛选 items[0] = b1', byCombo.items[0]?.id, b1);
     eq('组合筛选 years', byCombo.years, [{ year: '2024', count: 1 }]);
+    // D-359：组合筛选（含 province）时 provinces 仍按「其它筛选」聚合（北京 1 / 浙江 1）
+    eq('组合筛选 provinces 不受省份筛选影响', byCombo.provinces, [
+      { name: '北京市', count: 1 },
+      { name: '浙江省', count: 1 },
+    ]);
 
     // ── 5) 参数校验 ─────────────────────────────────────────────
     section('5) 参数白名单校验（400）');
@@ -331,6 +368,12 @@ const run = async () => {
     check('v2 的 b1 不出现', !p5.items.some((it) => it.id === b1));
     eq('删除后 years', p5.years, [{ year: '2024', count: 2 }, { year: '2020', count: 1 }]);
     eq('删除后 years 与 items 一致', p5.years, yearsOf(p5.items));
+    // D-359：软删后的 provinces（北京 2 / 浙江 1）
+    eq('删除后 provinces', p5.provinces, [
+      { name: '北京市', count: 2 },
+      { name: '浙江省', count: 1 },
+    ]);
+    eq('删除后 provinces 与 items 一致', p5.provinces, provincesOf(p5.items));
 
     console.log('\n' + '─'.repeat(64));
     console.log(`通过 ${pass} 项，失败 ${fail} 项 ${fail === 0 ? '✅' : '❌'}`);

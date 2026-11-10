@@ -301,7 +301,7 @@ data/      运行期数据（不进 Git）
 
 ## 第三方资源与许可
 
-- **字体**：`public/fonts/` 随仓库附带 7 款 **SIL OFL 1.1** 字体——默认界面字体**喵咛狗爬黑**，另有**猫啃什锦黑 / 荆南波波黑 / 游趣体 / 铁蒺藜体 / 呆萌手写体 / 字魂扁桃体**，版权与 OFL 全文见 [`public/fonts/LICENSES.md`](public/fonts/LICENSES.md)；设置里的微软雅黑 / 宋体 / 黑体 / 楷体由操作系统提供，不随仓库分发
+- **字体**：`public/fonts/` 随仓库附带 7 款 **SIL OFL 1.1** 字体——默认界面字体**猫啃什锦黑**，另有**喵咛狗爬黑 / 荆南波波黑 / 游趣体 / 铁蒺藜体 / 呆萌手写体 / 字魂扁桃体**，版权与 OFL 全文见 [`public/fonts/LICENSES.md`](public/fonts/LICENSES.md)；设置里的微软雅黑 / 宋体 / 黑体 / 楷体由操作系统提供，不随仓库分发
 - **地图与地理编码**：天地图官方服务（需自备浏览器端 Key；审图号由天地图瓦片自带）
 - **省界数据**：`public/province-boundaries*.json` 由 geojson.cn「天地图-国家标准矢量地图」整理，仅用于省份点亮
 - **开源依赖**：React / Vite / Fastify / sharp 等第三方库遵循各自许可（见 `package-lock.json`）；**HEIC / HEIF 解码**使用 [`heic-convert`](https://www.npmjs.com/package/heic-convert)（ISC）与 `libheif-js`（LGPL-3.0）——仅作为 npm 运行时依赖安装，不随仓库 / 发布包分发源码

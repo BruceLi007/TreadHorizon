@@ -739,13 +739,17 @@ html:is([data-theme='light'], [data-theme='white']) .brand-logo-svg {
 }
 
 /* 「+ 添加足迹」独立按钮：和大按钮组反色（浅色外观黑底白字 / 深色外观白底黑字）；
-   D-141：高度跟按钮组一起压扁（40 → 34）。 */
+   D-141：高度跟按钮组一起压扁（40 → 34）。
+   2026-11-10 D-360（用户要求「不要点击变大的动效，就一直保持最大」）：
+   原来打点中会加一圈 2px 外描边（box-shadow），在纯白 / 深色外观下描边色与按钮底色几乎相同，
+   看起来就是「点击后按钮变大 2px」；现把这份「最大尺寸」直接做进按钮（34 + 2×2 = 38 高、
+   左右内边距 14 + 2 = 16），点击前后外形完全一致。 */
 .hud-add {
-  height: 34px;
+  height: 38px;
   /* 2026-11-08 D-299：大档字号从 1.2 提到 1.4 后，按钮文字变宽会把整排 HUD 往左推、
      在 1600 宽下顶到左侧品牌标语；左右内边距 20 → 14 让按钮宽度基本维持原尺寸
      （大档下 ≈128px，与旧默认 ≈126px 持平），顶栏字号仍完整跟随三档放大。 */
-  padding: 0 14px;
+  padding: 0 16px;
   border: 0;
   border-radius: 999px;
   background: var(--text-1);
@@ -763,10 +767,10 @@ html:is([data-theme='light'], [data-theme='white']) .brand-logo-svg {
   filter: brightness(1.08);
 }
 
-/* 打点中：加一圈提示环（默认已是反色实底，不能再靠反色区分） */
-.hud-add.on {
-  box-shadow: 0 0 0 2px var(--accent);
-}
+/* 打点中（2026-11-10 D-360 用户要求「不要点击变大的动效，就一直保持最大」）：
+   外观**完全不变** —— 不加外描边（会看起来变大）、也不加内描边（会看起来变小）。
+   打点状态提示交给：右侧「+ 添加足迹」面板打开、地图光标变琥珀飞镖、按钮 title / tooltip
+   变成「退出添加足迹（Esc）」。原来这里是一圈 2px 外描边 `box-shadow: 0 0 0 2px var(--accent)`。 */
 
 /* 顶栏 6 个按钮（2026-11-04，D-118 / D-121）：
    整体是一条轨道，未选中 = 透明底灰字，选中 = 反色实心滑块。
@@ -849,9 +853,9 @@ html:is([data-theme='light'], [data-theme='white']) .brand-logo-svg {
   }
 
   .hud-add {
-    /* D-141：窄屏同步压扁 32 → 30 */
-    height: 30px;
-    padding: 0 14px;
+    /* D-141：窄屏同步压扁 32 → 30；2026-11-10 D-360：把原来打点中的 2px 外描边尺寸做进按钮 → 34 */
+    height: 34px;
+    padding: 0 16px;
     font-size: calc(13px * var(--fs-scale));
   }
 
@@ -1734,6 +1738,11 @@ html:is([data-theme='light'], [data-theme='white']) .visit.editing {
   .actions-thumb {
     transition: none;
   }
+
+  /* 2026-11-10 D-347：照片展开 / 收起按钮的箭头过渡 */
+  .visit-media-toggle .vm-chevron {
+    transition: none;
+  }
 }
 
 .visit-head {
@@ -1764,6 +1773,84 @@ html:is([data-theme='light'], [data-theme='white']) .visit.editing {
   /* 每行几张由设置 / 侧栏快捷切换决定（2026-11-04，D-116）：--visit-cols 默认 3 */
   grid-template-columns: repeat(var(--visit-cols, 3), minmax(0, 1fr));
   gap: 4px;
+}
+
+/* 2026-11-10 D-347（用户要求）：到访照片默认只显示一行，底部「展开全部 / 收起照片」按钮——
+   一个到访照片很多时，不用往下拉很久。整行按钮低对比、悬停变品牌色，展开时箭头朝上。 */
+.visit-media-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  margin: 6px 0 0;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    color 140ms ease,
+    border-color 140ms ease;
+}
+
+.visit-media-toggle:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--line);
+}
+
+.visit-media-toggle .vm-chevron {
+  display: inline-flex;
+  flex: none;
+  transition: transform 160ms ease;
+  transform: rotate(90deg);
+}
+
+.visit-media-toggle.expanded .vm-chevron {
+  transform: rotate(-90deg);
+}
+
+/* 2026-11-10 D-348（用户要求）：到访列表多选批量操作（批量移到回收站，可恢复）——
+   复用 My旅迹 D-295 的 .pick 勾选框与 .mytrail-bulkbar 批量条；多选模式下整张卡片点击 = 勾选 / 取消勾选。 */
+.visit-cols {
+  flex-wrap: wrap;
+}
+
+.visit.selectable {
+  cursor: pointer;
+}
+
+.visit.picked {
+  border-color: rgba(var(--accent-rgb), 0.85);
+  background: var(--accent-soft);
+  box-shadow: inset 4px 0 0 var(--accent);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .visit.picked {
+  background: rgba(var(--accent-rgb), 0.16);
+}
+
+/* 多选模式下照片 / 视频格不接收点击，点击落到卡片上 = 勾选 */
+.visits.selecting .visit .tile-wrap {
+  pointer-events: none;
+}
+
+/* 勾选框在到访卡片标题行最左，不需要 D-295 的右间距 */
+.visit-pick {
+  margin-right: 0;
+}
+
+.visit-select-btn {
+  white-space: nowrap;
+}
+
+.visit-select-btn.on {
+  color: var(--accent);
 }
 
 .tile {
@@ -1985,6 +2072,25 @@ html:is([data-theme='light'], [data-theme='white']) .visit.editing {
 .lb-reset:hover {
   color: var(--text-1);
   border-color: #3a4150;
+}
+
+/* 灯箱删除键（2026-11-10 D-358 用户要求：浏览照片时随时能删）：
+   危险操作，近黑遮罩上用低饱和红；禁用态（删除中）降透明度。 */
+.lb-del {
+  color: var(--bad);
+  border-color: rgba(224, 108, 117, 0.45);
+  background: rgba(224, 108, 117, 0.12);
+}
+
+.lb-del:hover:not(:disabled) {
+  color: #fff;
+  border-color: rgba(224, 108, 117, 0.8);
+  background: rgba(224, 108, 117, 0.26);
+}
+
+.lb-del:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .lb-hint {
@@ -3557,6 +3663,50 @@ html:is([data-theme='light'], [data-theme='white']) .cluster-row {
   background: rgba(255, 255, 255, 0.02);
 }
 
+/* 2026-11-10 D-350（用户要求）：上传队列拆到「设置 → 上传」后，到访点侧栏只留一行摘要——
+   全局「正在上传 / 共几个 · 已完成多少 / 失败数」+「在设置中查看」链接，不可展开。 */
+.upload-mini {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-2);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .upload-mini {
+  background: rgba(20, 30, 50, 0.03);
+}
+
+.upload-mini-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  width: 100%;
+}
+
+.upload-mini-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-mini-link {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.upload-mini > .uq-mini {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+}
+
 .uq-head {
   display: flex;
   align-items: center;
@@ -3750,6 +3900,11 @@ html:is([data-theme='light'], [data-theme='white']) .cluster-row {
   line-height: 1.4;
 }
 
+/* 2026-11-10 D-354：跳过（重复）的说明用次要文字色，不当作错误标红 */
+.uq-item.skipped .uq-err {
+  color: var(--text-3);
+}
+
 html:is([data-theme='light'], [data-theme='white']) .upload-queue {
   background: rgba(20, 30, 50, 0.03);
 }
@@ -3807,6 +3962,11 @@ html:is([data-theme='light'], [data-theme='white']) .upload-queue {
 .lb-msg {
   color: var(--accent);
   font-size: calc(11px * var(--fs-scale));
+}
+
+/* D-358：灯箱内删除失败的提示（正常提示沿用 .lb-msg 的强调色） */
+.lb-msg.err {
+  color: var(--bad);
 }
 
 /* ── 回收站（F-SYS-07） ── */
@@ -3912,6 +4072,77 @@ html:is([data-theme='light'], [data-theme='white']) .upload-queue {
 .trash-row.on {
   background: var(--accent-soft);
   border-color: rgba(var(--accent-rgb), 0.35);
+}
+
+/* 2026-11-10 D-352（用户要求「回收站也做出可以展开收起」）：
+   「全部」标签下按 地点 / 到访 / 照片视频 分组，组标题可点开 / 收起（默认全部展开）；
+   「地点 / 到访 / 照片视频」单标签仍是原来的平铺列表。 */
+.trash-group {
+  margin-bottom: 6px;
+}
+
+.trash-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-2);
+  font: inherit;
+  font-size: calc(12.5px * var(--fs-scale));
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+html:is([data-theme='light'], [data-theme='white']) .trash-group-head {
+  background: rgba(20, 30, 50, 0.03);
+}
+
+.trash-group-head:hover {
+  color: var(--text-1);
+  border-color: rgba(var(--accent-rgb), 0.35);
+}
+
+.trash-group-caret {
+  flex: none;
+  width: 0;
+  height: 0;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 160ms ease;
+  transform: rotate(0deg);
+}
+
+.trash-group-caret.open {
+  transform: rotate(90deg);
+}
+
+.trash-group-name {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.trash-group-count {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.trash-group-rows {
+  padding-top: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trash-group-caret {
+    transition: none;
+  }
 }
 
 .trash-check {

@@ -36,6 +36,11 @@ interface Props {
   onIndex: (i: number) => void;
   /** F-BRW-05：从灯箱跳到照片墙并定位到这张（App 负责关灯箱 / 开照片墙） */
   onGotoWall?: (mediaId: string) => void;
+  /**
+   * D-358（用户要求）：灯箱里直接删除当前照片 / 视频（父组件负责调接口 + 刷新列表）。
+   * 不传 = 只读样板会话 / 不需要删除入口，此时不显示删除按钮。
+   */
+  onDelete?: (item: MediaItem) => Promise<void> | void;
 }
 
 const MIN = 1;
@@ -43,7 +48,7 @@ const MAX = 6;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
-export default function Lightbox({ items, index, onClose, onIndex, onGotoWall }: Props) {
+export default function Lightbox({ items, index, onClose, onIndex, onGotoWall, onDelete }: Props) {
   const t = useT();
   const cur = items[index];
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -54,6 +59,22 @@ export default function Lightbox({ items, index, onClose, onIndex, onGotoWall }:
   // 缩放 + 平移（只对图片有效）
   const [view, setView] = useState({ s: 1, x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
+  /** D-358：正在删除当前项（按钮显示「删除中…」并禁止重复点） */
+  const [deleting, setDeleting] = useState(false);
+  /** D-358：删除结果提示（不跟翻页重置，几秒后自动消失） */
+  const [flash, setFlash] = useState<{ text: string; bad: boolean } | null>(null);
+  const flashTimer = useRef<number | null>(null);
+  const showFlash = useCallback((text: string, bad = false) => {
+    if (flashTimer.current) window.clearTimeout(flashTimer.current);
+    setFlash({ text, bad });
+    flashTimer.current = window.setTimeout(() => setFlash(null), 4200);
+  }, []);
+  useEffect(
+    () => () => {
+      if (flashTimer.current) window.clearTimeout(flashTimer.current);
+    },
+    []
+  );
 
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinchStart = useRef<{ dist: number; s: number } | null>(null);
@@ -207,6 +228,21 @@ export default function Lightbox({ items, index, onClose, onIndex, onGotoWall }:
     }
   };
 
+  // D-358（用户要求）：浏览照片 / 视频时随时可删——点删除键直接移到回收站（可恢复），
+  // 与侧栏单张素材删除（D-56）一致不弹确认；删掉最后一张时父组件会关灯箱。
+  const handleDelete = async () => {
+    if (!onDelete || !cur || deleting) return;
+    setDeleting(true);
+    try {
+      await onDelete(cur);
+      showFlash(t('已移到回收站（可在回收站恢复）'));
+    } catch (e: any) {
+      showFlash(t('删除失败：{msg}', { msg: e?.message || e }), true);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (!cur) return null;
 
   const zoomed = view.s > 1.001;
@@ -327,6 +363,19 @@ export default function Lightbox({ items, index, onClose, onIndex, onGotoWall }:
             {t('在照片墙中查看')}
           </button>
         )}
+        {/* D-358（用户要求）：灯箱内删当前照片 / 视频（移到回收站，可恢复） */}
+        {onDelete && (
+          <button
+            type="button"
+            className="lb-reset lb-del"
+            onClick={() => void handleDelete()}
+            disabled={deleting}
+            title={t('删除（移到回收站，可恢复）')}
+            aria-label={t('删除（移到回收站，可恢复）')}
+          >
+            {deleting ? t('删除中…') : t('删除')}
+          </button>
+        )}
         <button
           className="lb-reset"
           onClick={async () => {
@@ -342,6 +391,7 @@ export default function Lightbox({ items, index, onClose, onIndex, onGotoWall }:
           {t('打开本地文件夹')}
         </button>
         {msg && <span className="lb-msg">{msg}</span>}
+        {flash && <span className={flash.bad ? 'lb-msg err' : 'lb-msg'}>{flash.text}</span>}
       </div>
 
       {cur.kind === 'photo' && !zoomed && (

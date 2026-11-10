@@ -231,6 +231,10 @@ const dict: Dict = {
   '下一张': 'Next',
   '按年份筛选': 'Filter by year',
   '{year} 年 · {count} 张': '{year} · {count} photos',
+  // 2026-11-10 D-353（用户要求）：照片墙年份筛选改为下拉，选项显示年份 + 张数
+  '{year}（{n} 张）': '{year} ({n} photos)',
+  // 2026-11-10 D-359（用户反馈省份选项太少）：省份下拉改为服务端全量聚合，选项显示省份 + 张数
+  '{province}（{n} 张）': '{province} ({n} photos)',
   '清除地点筛选': 'Clear place filter',
   '只看{place} ×': 'Showing {place} ×',
   '「{name}」': '“{name}”',
@@ -285,6 +289,10 @@ const dict: Dict = {
     'Some files could not be deleted (records are cleaned up; files may remain in the library):\n{items}',
   '彻底删除失败：{msg}': 'Permanent delete failed: {msg}',
   '照片视频': 'Photos & videos',
+  // 2026-11-10 D-352（用户要求）：「全部」标签按类型分组，组标题可展开 / 收起
+  '（{n} 项）': ' ({n})',
+  '展开分组': 'Expand group',
+  '收起分组': 'Collapse group',
   '回收站是空的。删除的地点 / 到访 / 照片视频会先来到这里，确认不要了再彻底删除释放空间。':
     'Trash is empty. Deleted places, visits, photos and videos land here first; delete them permanently to free up space.',
   '没有单独删除的地点。': 'No separately deleted places.',

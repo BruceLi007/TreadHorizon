@@ -2115,18 +2115,38 @@ async function handleMediaUpload(req, reply, owner) {
       const id = randomUUID();
       const hash = await hashFile(dest);
 
-      // F-MED-07 上传查重：同一到访内同内容只留一份（D-46 定稿）。
-      // 只删掉自己刚落盘的那份，绝不碰已有文件。
+      // 2026-11-10 D-354（用户要求）：上传查重从「同一到访内」扩展到「同账号全库」——
+      // 同一份内容（hash 相同）已经在任何到访里（含本次这个到访）就不再落第二份磁盘；
+      // 命中时返回已存在的地点 / 到访日期，前端提示「已存在于 XX 地点 · XX 到访」。
+      // 仍只删自己刚落盘的那份，绝不碰已有文件；回收站里的旧记录只在本次到访内走「恢复」（D-56 行为不变）。
       if (hash) {
-        const active = db.prepare(
-          'SELECT id FROM media WHERE visit_id = ? AND hash = ? AND deleted_at IS NULL'
-        ).get(v.id, hash);
+        const active = db
+          .prepare(
+            `SELECT m.id, m.visit_id,
+                    v.date AS visit_date,
+                    COALESCE(p.name, '') AS place_name
+             FROM media m
+             JOIN visit v ON v.id = m.visit_id
+             JOIN place p ON p.id = v.place_id
+             WHERE m.hash = ? AND m.deleted_at IS NULL
+               AND v.deleted_at IS NULL AND p.deleted_at IS NULL${ownerSql(owner, 'm.user_id')}
+             ORDER BY m.created_at ASC
+             LIMIT 1`
+          )
+          .get(...ownerArgs(owner, hash));
         if (active) {
           try { unlinkSync(dest); } catch { /* 删不掉也不影响已有记录 */ }
-          skipped.push({ name: original, reason: 'duplicate', mediaId: active.id });
+          skipped.push({
+            name: original,
+            reason: 'duplicate',
+            mediaId: active.id,
+            sameVisit: active.visit_id === v.id,
+            placeName: active.place_name || null,
+            visitDate: active.visit_date || null,
+          });
           continue;
         }
-        // 同内容的那份在回收站里：直接恢复旧记录，不再占第二份磁盘（D-56）。
+        // 同内容的那份在本次到访的回收站里：直接恢复旧记录，不再占第二份磁盘（D-56）。
         const trashed = db.prepare(`
           SELECT id, rel_path FROM media
           WHERE visit_id = ? AND hash = ? AND deleted_at IS NOT NULL
@@ -2299,6 +2319,153 @@ app.delete('/api/media/:id', async (req, reply) => {
   );
 
   return { ok: true, trashed: true, mediaId: m.id, visitId: m.visit_id, bytes: m.bytes ?? 0 };
+});
+
+// ───────────── 重复素材检测 / 清理（2026-11-10 D-355，用户要求）─────────────
+// 扫描「同账号全库」里内容完全相同（media.hash 相同）的活跃素材，按 hash 分组返回明细，
+// 供 设置 → 素材库 →「重复照片检测」使用。只读扫描，不删除任何东西。
+// 清理单独走 POST /api/media/duplicates/trash：软删进回收站（可恢复），且**每组至少保留 1 份**。
+app.get('/api/media/duplicates', async (req) => {
+  const owner = ownerOf(req);
+  const groups = db
+    .prepare(
+      `SELECT hash, COUNT(*) AS n, SUM(bytes) AS bytes
+       FROM media
+       WHERE deleted_at IS NULL AND hash IS NOT NULL AND hash <> ''${ownerSql(owner)}
+       GROUP BY hash
+       HAVING COUNT(*) > 1
+       ORDER BY (COUNT(*) - 1) DESC, SUM(bytes) DESC`
+    )
+    .all(...ownerArgs(owner));
+  if (!groups.length) return { groups: [], totalGroups: 0, extraCopies: 0, extraBytes: 0 };
+
+  const items = [];
+  const hashes = groups.map((g) => g.hash);
+  for (let i = 0; i < hashes.length; i += 150) {
+    const chunk = hashes.slice(i, i + 150);
+    const marks = chunk.map(() => '?').join(',');
+    items.push(
+      ...db
+        .prepare(
+          `SELECT m.id, m.hash, m.kind, m.bytes, m.created_at, m.visit_id, m.rel_path,
+                  v.date AS visit_date, p.id AS place_id, p.name AS place_name
+           FROM media m
+           JOIN visit v ON v.id = m.visit_id
+           JOIN place p ON p.id = v.place_id
+           WHERE m.deleted_at IS NULL AND m.hash IN (${marks})${ownerSql(owner, 'm.user_id')}
+           ORDER BY m.created_at ASC, m.id ASC`
+        )
+        .all(...ownerArgs(owner, ...chunk))
+    );
+  }
+
+  const byHash = new Map();
+  for (const it of items) {
+    const list = byHash.get(it.hash) ?? [];
+    list.push(it);
+    byHash.set(it.hash, list);
+  }
+
+  let extraCopies = 0;
+  let extraBytes = 0;
+  const out = groups.map((g) => {
+    const list = byHash.get(g.hash) ?? [];
+    const extras = list.slice(1);
+    extraCopies += extras.length;
+    extraBytes += extras.reduce((n, it) => n + (it.bytes ?? 0), 0);
+    return {
+      hash: String(g.hash),
+      count: list.length,
+      bytes: g.bytes ?? 0,
+      items: list.map((it) => ({
+        id: it.id,
+        kind: it.kind,
+        name: String(it.rel_path || '').split(/[\\/]/).pop() || '',
+        bytes: it.bytes ?? 0,
+        createdAt: it.created_at,
+        visitId: it.visit_id,
+        visitDate: it.visit_date,
+        placeId: it.place_id,
+        placeName: it.place_name,
+      })),
+    };
+  });
+
+  return { groups: out, totalGroups: out.length, extraCopies, extraBytes };
+});
+
+app.post('/api/media/duplicates/trash', async (req, reply) => {
+  const owner = ownerOf(req);
+  const ids = Array.isArray(req.body?.ids)
+    ? [...new Set(req.body.ids.map((x) => String(x)).filter(Boolean))]
+    : [];
+  if (!ids.length) return reply.code(400).send({ error: '缺少要清理的素材 id' });
+  if (ids.length > 500) return reply.code(400).send({ error: '一次最多清理 500 个素材' });
+
+  // 只处理自己账号、仍在库里的素材
+  const rows = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200);
+    const marks = chunk.map(() => '?').join(',');
+    rows.push(
+      ...db
+        .prepare(
+          `SELECT id, hash, visit_id, bytes FROM media
+           WHERE deleted_at IS NULL AND id IN (${marks})${ownerSql(owner)}`
+        )
+        .all(...ownerArgs(owner, ...chunk))
+    );
+  }
+  if (!rows.length) return { trashed: 0, keptLast: 0, bytes: 0 };
+
+  const byHash = new Map();
+  for (const r of rows) {
+    const key = r.hash || `id:${r.id}`;
+    const list = byHash.get(key) ?? [];
+    list.push(r);
+    byHash.set(key, list);
+  }
+
+  const toTrash = [];
+  let keptLast = 0;
+  let bytes = 0;
+  for (const list of byHash.values()) {
+    const hash = list[0].hash;
+    if (!hash) {
+      // 历史数据没有 hash：按 id 单独处理，不参与「每组保留 1 份」保护
+      for (const r of list) {
+        toTrash.push(r);
+        bytes += r.bytes ?? 0;
+      }
+      continue;
+    }
+    const active = db
+      .prepare(
+        `SELECT id FROM media WHERE deleted_at IS NULL AND hash = ?${ownerSql(owner)}
+         ORDER BY created_at ASC, id ASC`
+      )
+      .all(...ownerArgs(owner, hash));
+    const selectedIds = new Set(list.map((r) => r.id));
+    // 若这次把某一组的全部活跃副本都选了 → 保留最早的那一份，其余照常清理
+    const keepId = selectedIds.size >= active.length ? active[0]?.id : null;
+    if (keepId) keptLast += 1;
+    for (const r of list) {
+      if (r.id === keepId) continue;
+      toTrash.push(r);
+      bytes += r.bytes ?? 0;
+    }
+  }
+
+  const stamp = now();
+  const updateM = db.prepare('UPDATE media SET deleted_at = ? WHERE id = ?');
+  const clearCover = db.prepare(
+    `UPDATE place SET cover_media_id = NULL WHERE cover_media_id = ?${ownerSql(owner)}`
+  );
+  for (const r of toTrash) {
+    updateM.run(stamp, r.id);
+    clearCover.run(...ownerArgs(owner, r.id));
+  }
+  return { trashed: toTrash.length, keptLast, bytes, ids: toTrash.map((r) => r.id) };
 });
 
 app.patch('/api/media/:id', async (req, reply) => {

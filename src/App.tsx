@@ -38,7 +38,7 @@ import KeySetupPage from './ui/KeySetupPage';
 import LocalEntryPage from './ui/LocalEntryPage';
 import SecretPrompt from './ui/SecretPrompt';
 import { api } from './lib/api';
-import type { AuthMe } from './lib/types';
+import type { AuthMe, MediaItem } from './lib/types';
 import { normalizeRegion, regionFromText, isChineseProvinceName, regionNeedsFill } from './lib/region';
 import { isInsideChina, loadChinaBounds } from './lib/chinaBounds';
 import {
@@ -118,7 +118,7 @@ const readTheme = (): Theme => {
   }
 };
 /**
- * 界面字体（2026-11-04，D-92；2026-11-07 D-227：默认改为「喵咛狗爬黑」，字体选项精简为 2 款 OFL + 系统 4 款）。
+ * 界面字体（2026-11-04，D-92；2026-11-07 D-227 精简字体；2026-11-10 D-359 默认改为「猫啃什锦黑」）。
  * 默认 = DEFAULT_FONT；只存本机浏览器，不写 data/。
  * 旧偏好里可能还存着 'system'（已删除的「系统默认」）或已删除字体（乐米 / 方塘像素体 / 仿宋）——
  * 校验不通过，自动回落到默认字体。
@@ -133,7 +133,7 @@ const readFont = (): AppFont => {
   }
   return DEFAULT_FONT;
 };
-/** 界面字号（2026-11-05，D-142）：小 / 中 / 大三档，默认「大」（2026-11-08 D-282 用户要求）；只存本机浏览器 */
+/** 界面字号（2026-11-05，D-142）：小 / 中 / 大三档，默认「中」（2026-11-10 D-359 用户要求；D-282 期间为「大」）；只存本机浏览器 */
 const FONT_SIZE_KEY = 'tm-font-size';
 const readFontSize = (): FontSize => {
   try {
@@ -143,7 +143,7 @@ const readFontSize = (): FontSize => {
     return DEFAULT_FONT_SIZE;
   }
 };
-/** 界面字重（2026-11-06 用户要求）：常规 / 加粗，默认「加粗」（2026-11-08 D-282 用户要求）；只存本机浏览器 */
+/** 界面字重（2026-11-06 用户要求）：常规 / 加粗，默认「常规」（2026-11-10 D-359 用户要求；D-282 期间为「加粗」）；只存本机浏览器 */
 const FONT_WEIGHT_KEY = 'tm-font-weight';
 const readFontWeight = (): FontWeight => {
   try {
@@ -155,15 +155,17 @@ const readFontWeight = (): FontWeight => {
 };
 
 /**
- * 默认外观升级（2026-11-08 D-282，用户要求：默认 纯白 / 喵咛狗爬黑 / 大 / 加粗）。
+ * 默认外观升级（2026-11-08 D-282 / 2026-11-10 D-359，用户要求）。
  *
- * 旧版本的默认值（深色 / 中 / 常规）早已被本机的 `tm-theme` / `tm-font-size` / `tm-font-weight`
+ * 旧版本的默认值早已被本机的 `tm-theme` / `tm-font` / `tm-font-size` / `tm-font-weight`
  * 记住，光改代码里的默认常量对老用户（包括这台机器）不会生效。
- * 这里做**一次性迁移**：只有「偏好缺失或仍然是旧默认值」时才改成新默认，
- * 用户自己选过的其它值（如浅色 / 小 / 常规之外的档位）保持不动。
- * 迁移标记写在 `tm-ui-defaults`，版本号变化才再跑一次。
+ * 这里做**一次性迁移**：只有「偏好缺失或仍然是上一版默认值」时才改成新默认，
+ * 用户自己选过的其它值保持不动。迁移标记写在 `tm-ui-defaults`，版本号变化才再跑一次。
+ *
+ * - D-282：深色 / 中 / 常规 → 纯白 / 大 / 加粗；
+ * - D-359（用户 2026-11-10 要求）：喵咛狗爬黑 / 大 / 加粗 → **猫啃什锦黑 / 中 / 常规**（主题不变，仍纯白）。
  */
-const UI_DEFAULTS_VERSION = 'd282';
+const UI_DEFAULTS_VERSION = 'd359';
 const UI_DEFAULTS_KEY = 'tm-ui-defaults';
 const migrateUiDefaults = () => {
   try {
@@ -173,9 +175,14 @@ const migrateUiDefaults = () => {
       const cur = localStorage.getItem(key);
       if (cur === null || cur === oldDefault) localStorage.setItem(key, newDefault);
     };
+    // D-282 旧默认（从更旧版本一步升上来时先过一遍，再进 D-359）
     upgrade(THEME_KEY, 'dark', 'white');
     upgrade(FONT_SIZE_KEY, 'md', 'lg');
     upgrade(FONT_WEIGHT_KEY, 'normal', 'bold');
+    // D-359 新默认（只动「上一版默认值」，用户自选保留）
+    upgrade(FONT_KEY, 'miao-goupa', 'maoken-shijin');
+    upgrade(FONT_SIZE_KEY, 'lg', 'md');
+    upgrade(FONT_WEIGHT_KEY, 'bold', 'normal');
     localStorage.setItem(UI_DEFAULTS_KEY, UI_DEFAULTS_VERSION);
   } catch {
     /* 隐私模式下 localStorage 可能不可用：忽略，直接用新的默认值 */
@@ -240,6 +247,14 @@ export default function App() {
   const [places, setPlaces] = useState<Place[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<PlaceDetail | null>(null);
+  /**
+   * 2026-11-10 D-349（用户反馈「上传中点其它地点会被拉回正在上传的到访地点」）：
+   * 上传是长任务，异步回调（refreshAfterUpload / processUploadQueue）里不能用开始上传时的
+   * `detail` 闭包，否则每次上传成功的防抖刷新都会把侧栏 setDetail 回旧的「上传地点」。
+   * 这里用 ref 始终指向**当前**打开的详情；异步回调只读 ref、且写回前再校验一次 id。
+   */
+  const detailRef = useRef<PlaceDetail | null>(null);
+  detailRef.current = detail;
   /** 详情来路（D-290）：标题栏「← 返回」回到地图 / My旅迹列表 / 这一簇 */
   const [detailSource, setDetailSource] = useState<DetailSource>('map');
   /** 从聚合簇点进成员时记下簇快照，返回时恢复「这一簇」面板（D-290） */
@@ -1055,6 +1070,29 @@ export default function App() {
   }, [refreshPlaces, say, readOnly]);
 
   // ── 地图点选（F-PLC-09，2026-11-04 并入「+ 添加足迹」）──
+  /**
+   * 2026-11-10 D-351（用户反馈：搜索「深圳鹿嘴山庄」提示「暂不支持国外到访记录」）：
+   * 完整省界只画陆地海岸线，沿海 / 近岸 POI 会落在省界多边形外一点点
+   * （实测深圳鹿嘴山庄 114.590191,22.539085 离广东省多边形仅 0.14km；D-263 维多利亚港同类问题）。
+   * 这类点天地图逆地理能返回中国省份，所以「多边形判定不过」时补一次逆地理：
+   * 能给出中国省份 → 视为国内放行；真正的境外坐标逆地理给不出中国省份 → 仍按原规则拦下。
+   * 已有中国省份信息时（地址文本解析 / 已取回的逆地理）不再重复请求。
+   */
+  const isInsideChinaLoose = useCallback(
+    async (lng: number, lat: number, knownProvince?: string | null): Promise<boolean> => {
+      await loadChinaBounds();
+      if (isInsideChina(lng, lat)) return true;
+      if (isChineseProvinceName(knownProvince)) return true;
+      try {
+        const r = await api.reverse(lng, lat);
+        return isChineseProvinceName(r.address?.province);
+      } catch {
+        return false;
+      }
+    },
+    []
+  );
+
   const startPinDraft = useCallback(
     async (lng: number, lat: number) => {
       if (readOnly) return; // 2026-11-09 D-335：只读样板会话不能打点
@@ -1066,8 +1104,8 @@ export default function App() {
         return;
       }
       // 2026-11-06 用户要求：暂不支持国外到访记录（天地图全球数据太粗、搜索/逆地理只覆盖国内）
-      await loadChinaBounds();
-      if (!isInsideChina(lng, lat)) {
+      // 2026-11-10 D-351：沿海 / 近岸点在省界外但在国内，逆地理能给出中国省份 → 放行
+      if (!(await isInsideChinaLoose(lng, lat))) {
         say(tr('暂不支持国外到访记录'));
         return;
       }
@@ -1089,7 +1127,7 @@ export default function App() {
       });
       refreshAddr(lng, lat);
     },
-    [refreshAddr, say, readOnly]
+    [refreshAddr, say, readOnly, isInsideChinaLoose]
   );
 
   // 「添加足迹」点选状态下按 Esc 退出：
@@ -1134,8 +1172,9 @@ export default function App() {
       // 若 POI 地址文本能解析出中国省份（如「山东省青岛市…」「海南省三沙市…」）就放行；
       // 境外 POI 的地址是外国地名，解析不出中国省份，仍会被拦下。
       const hinted = regionFromText(poi.address);
-      await loadChinaBounds();
-      if (!isInsideChina(lng, lat) && !isChineseProvinceName(hinted?.province)) {
+      // 2026-11-10 D-351：省界多边形判不过时补一次逆地理（沿海 / 近岸点如深圳鹿嘴山庄），
+      // 逆地理给不出中国省份的境外坐标仍会被拦下。
+      if (!(await isInsideChinaLoose(lng, lat, hinted?.province))) {
         say(tr('暂不支持国外到访记录'));
         return;
       }
@@ -1155,7 +1194,7 @@ export default function App() {
       mapApi.current?.flyTo(lng, lat, 12);
       refreshAddr(lng, lat);
     },
-    [refreshAddr, say]
+    [refreshAddr, say, isInsideChinaLoose]
   );
 
   // 顶栏搜索里点「添加为足迹」
@@ -1175,8 +1214,8 @@ export default function App() {
   const onDraftMoved = useCallback(
     async (lng: number, lat: number) => {
       // 2026-11-06 用户要求：拖到国外 → 提示并保持上一个国内位置（不更新 draft 坐标）
-      await loadChinaBounds();
-      if (!isInsideChina(lng, lat)) {
+      // 2026-11-10 D-351：沿海 / 近岸点在省界外但在国内（逆地理能给出中国省份）→ 放行
+      if (!(await isInsideChinaLoose(lng, lat))) {
         say(tr('暂不支持国外到访记录'));
         // 触发一次重渲染：MapView 会按 draft 里的旧坐标把草稿飞镖摆回去
         setDraft((d) => (d ? { ...d } : d));
@@ -1185,7 +1224,7 @@ export default function App() {
       setDraft((d) => (d ? { ...d, lng, lat } : d));
       refreshAddr(lng, lat);
     },
-    [refreshAddr, say]
+    [refreshAddr, say, isInsideChinaLoose]
   );
 
   const saveDraft = useCallback(async () => {
@@ -1193,8 +1232,8 @@ export default function App() {
     if (readOnly) return; // 2026-11-09 D-335：只读样板会话不能保存足迹
     // 2026-11-06 用户要求：国外坐标不落库（点击 / 拖拽已有拦截，这里再兜底一次）
     // 2026-11-07 D-264：与 pickPoi 同规则——地址 / 逆地理能给出中国省份的（沿海港口、离岛等）放行。
-    await loadChinaBounds();
-    if (!isInsideChina(draft.lng, draft.lat) && !isChineseProvinceName(draft.addr?.province)) {
+    // 2026-11-10 D-351：省界多边形判不过时统一补逆地理（鹿嘴山庄等近岸点），境外坐标仍拦下。
+    if (!(await isInsideChinaLoose(draft.lng, draft.lat, draft.addr?.province))) {
       say(tr('暂不支持国外到访记录'));
       return;
     }
@@ -1245,7 +1284,7 @@ export default function App() {
     } finally {
       setSaving(false);
     }
-  }, [draft, saving, readOnly, refreshPlaces, say]);
+  }, [draft, saving, readOnly, refreshPlaces, say, isInsideChinaLoose]);
 
   // ── 上传队列（F-MED-10）：串行上传、逐文件进度、取消、失败重试 ──
   const [uploads, setUploads] = useState<UploadItem[]>([]);
@@ -1289,21 +1328,31 @@ export default function App() {
     [commitUploads]
   );
 
-  /** 上传成功几个后统一刷新一次侧栏/地图（防抖，避免每个文件都打接口） */
+  /**
+   * 上传成功几个后统一刷新一次侧栏/地图（防抖，避免每个文件都打接口）。
+   * 2026-11-10 D-349（用户反馈）：只看**当前打开**的详情（detailRef），且仅当本次上传的目标到访
+   * 就在当前地点里时才刷新详情；写回前再核对一次地点 id，避免把用户切走后的侧栏拉回上传地点。
+   * 依赖里不再包含 detail（否则长任务捕获旧闭包；见 detailRef 注释）。
+   */
   const refreshAfterUpload = useCallback(() => {
     if (uploadRefreshTimer.current) window.clearTimeout(uploadRefreshTimer.current);
     uploadRefreshTimer.current = window.setTimeout(async () => {
       await refreshPlaces();
       void refreshTrashCount();
-      if (detail) {
-        try {
-          setDetail(await api.place(detail.id));
-        } catch {
-          /* 地点可能已被删 */
-        }
+      const cur = detailRef.current;
+      if (!cur) return;
+      // 当前详情里有「本批上传」的到访才需要刷新（上传地点还在眼前）；切到别的地点时不再刷新它
+      const visitIds = new Set(cur.visits.map((v) => v.id));
+      if (!uploadsRef.current.some((u) => visitIds.has(u.visitId))) return;
+      try {
+        const fresh = await api.place(cur.id);
+        // 请求期间用户又切走了：丢弃这次结果，不要覆盖新地点
+        if (detailRef.current?.id === cur.id) setDetail(fresh);
+      } catch {
+        /* 地点可能已被删 */
       }
     }, 260);
-  }, [detail, refreshPlaces, refreshTrashCount]);
+  }, [refreshPlaces, refreshTrashCount]);
 
   const processUploadQueue = useCallback(async () => {
     if (uploadingRef.current) return;
@@ -1327,10 +1376,18 @@ export default function App() {
             patchUpload(next.key, { status: 'done', progress: 1, mediaId: r.added[0]?.id });
             refreshAfterUpload();
           } else if (r.skipped.length) {
+            // 2026-11-10 D-354（用户要求）：全库查重命中时提示「已存在于哪」（地点 · 到访日期）
+            const s = r.skipped[0];
+            const where = s?.placeName
+              ? tr('已存在（{place} · {date}），跳过', {
+                  place: s.placeName,
+                  date: s.visitDate ? s.visitDate.replace(/-/g, '.') : '—',
+                })
+              : tr('已存在（同内容），跳过');
             patchUpload(next.key, {
               status: 'skipped',
               progress: 1,
-              error: tr('已存在（同内容），跳过'),
+              error: where,
             });
           } else {
             patchUpload(next.key, { status: 'error', error: r.errors?.[0] || tr('上传失败') });
@@ -1376,7 +1433,11 @@ export default function App() {
   }, [patchUpload, refreshAfterUpload, say, clearUploadAutoClose, commitUploads]);
 
   const enqueueUploads = useCallback(
-    (visitId: string, files: File[]) => {
+    (
+      visitId: string,
+      files: File[],
+      meta?: { placeId?: string; placeName?: string; visitDate?: string }
+    ) => {
       if (!files.length) return;
       if (readOnly) return; // 2026-11-09 D-335：只读样板会话不能上传
       clearUploadAutoClose();
@@ -1392,12 +1453,16 @@ export default function App() {
         );
       }
       if (!accepted.length) return;
+      // 2026-11-10 D-350：入队时带上「地点 · 到访」信息，设置 → 上传板块按此分组展示
       const items: UploadItem[] = accepted.map((file) => ({
         key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         file,
         visitId,
         status: 'queued',
         progress: 0,
+        placeId: meta?.placeId,
+        placeName: meta?.placeName,
+        visitDate: meta?.visitDate,
       }));
       commitUploads([...uploadsRef.current, ...items]);
       void processUploadQueue();
@@ -1502,24 +1567,37 @@ export default function App() {
   const updateAvailable = updateReminder(updateCheck, ignoredUpdateVersion);
   const latestVersion = updateCheck?.latestVersion || '';
   const updateDotText = t('发现新版本 {v}', { v: latestVersion });
-  const settingsDot = backupDue || updateAvailable;
-  const settingsDotText =
-    backupDue && updateAvailable
-      ? t('该备份了：{text} · 发现新版本 {v}', { text: backupDueText, v: latestVersion })
-      : backupDue
-        ? t('该备份了：{text}', { text: backupDueText })
-        : updateDotText;
-  const settingsDotTitle =
-    backupDue && updateAvailable
-      ? t('设置 · 该备份了：{text} · 发现新版本 {v}', { text: backupDueText, v: latestVersion })
-      : backupDue
-        ? t('设置 · 该备份了：{text}', { text: backupDueText })
-        : updateAvailable
-          ? t('设置 · 发现新版本 {v}', { v: latestVersion })
-          : t('设置');
+  // ── 上传失败提醒（2026-11-10 D-350，用户要求把上传队列拆到设置里）──
+  // 有失败项时：顶栏「设置」按钮 + 设置导航「上传」显示红点，避免队列在侧栏被藏起来后没人发现。
+  const uploadFailedCount = uploads.filter((u) => u.status === 'error').length;
+  const uploadDotText = t('有 {n} 个文件上传失败', { n: uploadFailedCount });
+  const settingsDotParts = [
+    backupDue ? t('该备份了：{text}', { text: backupDueText }) : '',
+    updateAvailable ? updateDotText : '',
+    uploadFailedCount > 0 ? uploadDotText : '',
+  ].filter(Boolean);
+  const settingsDot = settingsDotParts.length > 0;
+  const settingsDotText = settingsDotParts.join(' · ');
+  const settingsDotTitle = settingsDot ? t('设置 · {text}', { text: settingsDotText }) : t('设置');
 
   const lightboxVisit = detail?.visits.find((v) => v.id === lightbox?.visitId);
   const lightboxItems = lightboxVisit?.media ?? [];
+
+  /**
+   * D-358（用户要求）：灯箱里直接删除当前照片 / 视频（移到回收站，可恢复）。
+   * 与侧栏单张素材删除（D-56）同口径，不弹确认；删的是这一组里的最后一张时关灯箱并 toast，
+   * 否则刷新地点详情后灯箱自动停到相邻项（index 由渲染时的 min 夹住）。
+   */
+  const deleteLightboxMedia = async (item: MediaItem) => {
+    await api.deleteMedia(item.id);
+    const remain = Math.max(0, lightboxItems.length - 1);
+    if (remain === 0) setLightbox(null);
+    await refreshPlaces();
+    if (detail) setDetail(await api.place(detail.id));
+    void refreshTrashCount();
+    if (remain === 0) say(tr('已移到回收站 · 可在顶栏恢复'));
+  };
+
   /** 右侧抽屉（My旅迹 / 统计 / 地点 / 添加足迹 / 聚合簇 / 合并）打开时，抽屉下移让开顶部大按钮组（D-125） */
   const topbarPanelOpen = Boolean(
     adding || detail || mergeFrom || cluster || statsOpen || myTrailOpen
@@ -1918,7 +1996,15 @@ export default function App() {
               // 2026-11-09 D-327：升级提醒同理——只有新版本时落到「关于」；两者都有时备份优先。
               // 2026-11-09 D-335：只读样板会话没有备份分类，直接停在默认分类。
               setSettingsInitialTab(
-                readOnly ? undefined : backupDue ? 'backup' : updateAvailable ? 'about' : undefined
+                readOnly
+                  ? undefined
+                  : backupDue
+                    ? 'backup'
+                    : updateAvailable
+                      ? 'about'
+                      : uploadFailedCount > 0
+                        ? 'upload'
+                        : undefined
               );
               setSettingsOpen(true);
               if (!readOnly) {
@@ -1980,11 +2066,11 @@ export default function App() {
           uploads={uploads}
           onPickFiles={enqueueUploads}
           onToast={say}
-          onCancelUpload={cancelUpload}
-          onCancelAllUploads={cancelAllUploads}
-          onRetryUpload={retryUpload}
-          onClearFinishedUploads={clearFinishedUploads}
-          onCloseUploadQueue={closeUploadQueue}
+          onOpenUploadSettings={() => {
+            // 2026-11-10 D-350：侧栏上传摘要的「在设置中查看」→ 直接落到设置 → 上传
+            setSettingsInitialTab('upload');
+            setSettingsOpen(true);
+          }}
           onOpenLightbox={(visitId, index) => setLightbox({ visitId, index })}
           onTrashed={() => say(tr('已移到回收站 · 可在顶栏恢复'))}
           secretConfigured={secretStatus.configured}
@@ -2147,13 +2233,21 @@ export default function App() {
           // 用户点进设置后能一眼看到待办在哪个分类，再点进去就是具体提醒。
           // 2026-11-09 D-327：更新提醒同样挂到「关于」分类。
           navDots={
-            backupDue || updateAvailable
+            backupDue || updateAvailable || uploadFailedCount > 0
               ? {
                   ...(backupDue ? { backup: t('该备份了：{text}', { text: backupDueText }) } : {}),
                   ...(updateAvailable ? { about: updateDotText } : {}),
+                  ...(uploadFailedCount > 0 ? { upload: uploadDotText } : {}),
                 }
               : undefined
           }
+          // 2026-11-10 D-350：上传队列搬到设置 → 上传（侧栏只留一行摘要）
+          uploads={uploads}
+          onCancelUpload={cancelUpload}
+          onCancelAllUploads={cancelAllUploads}
+          onRetryUpload={retryUpload}
+          onClearFinishedUploads={clearFinishedUploads}
+          onCloseUploadQueue={closeUploadQueue}
           updateCheck={updateCheck}
           updateChecking={updateChecking}
           onCheckUpdate={refreshUpdateCheck}
@@ -2239,6 +2333,7 @@ export default function App() {
           onClose={() => setLightbox(null)}
           onIndex={(i) => setLightbox({ visitId: lightbox.visitId, index: i })}
           onGotoWall={(mediaId) => openPhotoWall({ mediaId, placeId: detail?.id })}
+          onDelete={readOnly ? undefined : deleteLightboxMedia}
         />
       )}
 

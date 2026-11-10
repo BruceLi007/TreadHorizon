@@ -1162,3 +1162,259 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
   font-size: calc(11.5px * var(--fs-scale));
   line-height: 1.7;
 }
+
+/* ── 2026-11-10 D-350（用户要求）：设置 → 上传（完整上传队列，按「地点 · 到访」分组）── */
+.set-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.set-upload-hint {
+  margin: 0;
+}
+
+.set-upload-card {
+  margin-bottom: 0;
+}
+
+/* 设置页空间比侧栏大：列表给更高上限，超长仍内部滚动 */
+.set-upload .uq-list {
+  max-height: 420px;
+}
+
+.set-upload-group {
+  padding: 8px 0 2px;
+  border-top: 1px dashed var(--line);
+}
+
+.set-upload-group:first-child {
+  padding-top: 2px;
+  border-top: 0;
+}
+
+.set-upload-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  margin-bottom: 2px;
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-2);
+}
+
+.set-upload-group-place {
+  font-weight: 600;
+  color: var(--text-1);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.set-upload-group-date {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.set-upload-group-count {
+  margin-left: auto;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.set-upload-empty {
+  padding: 26px 8px 20px;
+  text-align: center;
+}
+
+.set-upload-empty-title {
+  margin-bottom: 6px;
+  font-size: calc(13px * var(--fs-scale));
+  color: var(--text-2);
+}
+
+.set-upload-empty .hint {
+  margin: 0;
+}
+
+/* ── 2026-11-10 D-355（用户要求）：设置 → 素材库 → 重复照片检测 ── */
+.set-dup .set-section-head {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.set-dup-summary {
+  margin: 2px 0 10px;
+  font-size: calc(12.5px * var(--fs-scale));
+  color: var(--text-2);
+}
+
+.set-dup-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.set-dup-group {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .set-dup-group {
+  background: rgba(20, 30, 50, 0.03);
+}
+
+.set-dup-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.set-dup-head .text-btn {
+  flex: none;
+  white-space: nowrap;
+}
+
+.set-dup-group-check {
+  flex: none;
+  accent-color: var(--accent);
+}
+
+/* 组头：点整行展开 / 收起（默认折叠，避免 100+ 组时列表过长） */
+.set-dup-head-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.set-dup-caret {
+  flex: none;
+  width: 0;
+  height: 0;
+  border-left: 5px solid var(--text-3);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 160ms ease;
+  transform: rotate(0deg);
+}
+
+.set-dup-caret.open {
+  transform: rotate(90deg);
+}
+
+.set-dup-title {
+  flex: none;
+  font-size: calc(12.5px * var(--fs-scale));
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.set-dup-places {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(11px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+.set-dup-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.set-dup-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease;
+}
+
+.set-dup-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .set-dup-row:hover {
+  background: rgba(20, 30, 50, 0.03);
+}
+
+.set-dup-row.on {
+  background: var(--accent-soft);
+  border-color: rgba(var(--accent-rgb), 0.35);
+}
+
+.set-dup-row input {
+  flex: none;
+  accent-color: var(--accent);
+}
+
+.set-dup-thumb {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--bg-raised);
+}
+
+.set-dup-thumb-video {
+  display: grid;
+  place-items: center;
+  font-size: calc(10px * var(--fs-scale));
+  color: var(--text-3);
+}
+
+.set-dup-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.set-dup-name {
+  font-size: calc(12.5px * var(--fs-scale));
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.set-dup-meta {
+  font-size: calc(11px * var(--fs-scale));
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.set-dup-keep-tag {
+  flex: none;
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: calc(10.5px * var(--fs-scale));
+  color: var(--text-3);
+  white-space: nowrap;
+}

@@ -3,6 +3,7 @@ import { api } from '../../lib/api';
 import type { UserUsage } from '../../lib/types';
 import { formatBytes } from '../../lib/bytes';
 import { tr, useT } from '../../i18n';
+import DuplicateMediaSettings from './DuplicateMediaSettings';
 
 interface Props {
   /** 素材库路径 / 关联关系变化后通知 App 刷新地点与侧栏 */
@@ -303,6 +304,8 @@ function UserLibraryInfo({ onChanged }: { onChanged: () => void }) {
         )}
       </section>
 
+      <DuplicateMediaSettings onChanged={onChanged} />
+
       <section className="set-section">
         <div className="set-section-head">
           <h3 className="set-section-title">{t('说明')}</h3>
@@ -523,11 +526,12 @@ export default function LibrarySettings({ onChanged, multi = false, isAdmin = fa
         </p>
       </section>
 
+      <DuplicateMediaSettings onChanged={onChanged} />
+
       <section className="set-section">
         <div className="set-section-head">
           <h3 className="set-section-title">{t('视频 · 封面帧')}</h3>
-        </div>
-        <div className="field-static">
+        </div>        <div className="field-static">
           <span>{t('视频封面组件')}</span>
           <div className="value">
             {ffmpeg === null

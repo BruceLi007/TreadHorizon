@@ -542,6 +542,59 @@ const dict: Dict = {
   '升级需要关闭并重新启动程序；如果正在上传文件，升级会导致上传中断、失败，需要重新上传。建议先确认上传队列为空，并做好备份。':
     'Upgrading requires closing and restarting the app. If files are uploading right now, the upgrade will interrupt them and they will need to be uploaded again. Make sure the upload queue is empty and back up your data first.',
 
+  // ── 2026-11-10 D-350（用户要求）：上传队列拆到「设置 → 上传」──
+  '上传': 'Uploads',
+  '上传队列、进度与失败重试': 'Upload queue, progress and retries',
+  '在设置中查看': 'View in Settings',
+  '正在上传 · 共 {total} 个 · 已完成 {done} 个':
+    'Uploading · {total} files · {done} done',
+  '上传结束 · 共 {total} 个 · 已完成 {done} 个':
+    'Upload finished · {total} files · {done} done',
+  '有 {n} 个文件上传失败': '{n} file(s) failed to upload',
+  '设置 · {text}': 'Settings · {text}',
+  '上传在后台继续，切换地点或关掉设置都不会中断。':
+    'Uploads keep running in the background; switching places or closing Settings will not interrupt them.',
+  '现在没有上传任务': 'No uploads right now',
+  '在到访里添加素材（或把照片 / 文件夹拖进地点侧栏）后，上传进度和失败重试会显示在这里。':
+    'Add media inside a visit (or drag photos / folders into the place sidebar); upload progress and retries will appear here.',
+  '未知地点': 'Unknown place',
+  '未标注日期': 'No date',
+  '共 {n} 个 · 已完成 {done} 个': '{n} files · {done} done',
+  '关闭队列': 'Close queue',
+
+  // ── 2026-11-10 D-355（用户要求）：设置 → 素材库 → 重复照片检测 ──
+  '重复照片检测': 'Duplicate detection',
+  '扫描中…': 'Scanning…',
+  '重新扫描': 'Scan again',
+  '按内容查重（文件字节完全一致）：同一张照片 / 视频被上传到多个到访、或重复导入时，会归到同一组。默认每组保留最早添加的一份，勾选其余副本后可以移到回收站（可恢复，不会直接删除文件）；彻底删除才会释放磁盘空间。':
+    'Duplicates are matched by content (byte-identical files): the same photo / video uploaded to several visits, or imported twice, is grouped together. The earliest copy is kept by default; select the other copies to move them to the Trash (recoverable — files are not deleted right away). Space is only freed after permanent deletion.',
+  '没有发现重复素材。': 'No duplicates found.',
+  '发现 {groups} 组重复 · 多出 {extra} 份 · 彻底删除后最多可释放约 {size}':
+    '{groups} duplicate groups · {extra} extra copies · up to {size} can be freed after permanent deletion',
+  '当前勾选 {n} 份（约 {size}）': '{n} selected ({size})',
+  '重复内容 · {n} 份 · 每份约 {size}': 'Same content · {n} copies · about {size} each',
+  '保留最早一份': 'Keep earliest one',
+  '最早添加': 'Added first',
+  '添加于 {time}': 'Added {time}',
+  '把所选 {n} 份移到回收站': 'Move {n} selected copies to Trash',
+  '每组至少保留一份；清理后可在 设置 → 回收站 恢复。':
+    'At least one copy per group is always kept; you can restore them from Settings → Trash.',
+  '把所选 {n} 份重复素材移到回收站？': 'Move the {n} selected duplicate copies to Trash?',
+  '所选中包含 {n} 个文件，约 {size}。': 'Selection contains {n} files, about {size}.',
+  '每组至少保留一份；移到回收站后可在 设置 → 回收站 恢复，彻底删除后才会真正释放磁盘空间。你电脑上的原文件不受影响。':
+    'At least one copy per group is kept. Moved copies can be restored from Settings → Trash; disk space is only freed after permanent deletion. The original files on your computer are not affected.',
+  '已把 {n} 份重复素材移到回收站（可在回收站恢复；彻底删除后约释放 {size}）':
+    'Moved {n} duplicate copies to Trash (restorable from Trash; permanent deletion frees about {size})',
+  ' · {n} 组因为勾选了全部副本，已自动保留每组最早的一份':
+    ' · {n} group(s) had all copies selected, so the earliest copy was kept automatically',
+  '扫描失败：{msg}': 'Scan failed: {msg}',
+  '清理失败：{msg}': 'Cleanup failed: {msg}',
+  // D-355 追加：重复组太多时默认折叠 + 分页加载
+  '已显示 {shown}/{total} 组': 'Showing {shown}/{total} groups',
+  '加载更多（还有 {n} 组）': 'Load more ({n} groups left)',
+  '选中本组多余副本（保留最早一份）':
+    'Select this group’s extra copies (keep the earliest one)',
+  '取消本组多余副本的选择': 'Deselect this group’s extra copies',
 };
 
 export default dict;

@@ -134,6 +134,24 @@ export function buildPhotos(parsed, ownerId = null, { hideSecret = false } = {})
     .all(...params)
     .map((r) => ({ year: String(r.year), count: Number(r.count) }));
 
+  // 省份下拉（2026-11-10 D-359 用户反馈「地区筛选只有这几个选项」）：
+  // 原来前端只从**已加载的那几页** item 里凑省份，库大（几千张）时永远只有前几十张的省份。
+  // 改成服务端按「当前其它筛选（年 / 地点 / 种类）」聚合全部有素材的省份；
+  // **不含省份筛选本身** —— 这样选了某个省后下拉仍列全部省份，不会只剩当前省一项。
+  const provWhere = buildWhere({ ...parsed, province: null }, ownerId, hideSecret);
+  const provinces = db
+    .prepare(`
+      SELECT p.province AS name, COUNT(*) AS count
+      FROM media m
+      JOIN visit v ON v.id = m.visit_id
+      JOIN place p ON p.id = v.place_id
+      WHERE ${provWhere.sql} AND p.province IS NOT NULL AND p.province <> ''
+      GROUP BY p.province
+      ORDER BY name
+    `)
+    .all(...provWhere.params)
+    .map((r) => ({ name: String(r.name), count: Number(r.count) }));
+
   const rows = db
     .prepare(`
       SELECT m.id, m.kind, m.width, m.height, m.duration, m.bytes, m.created_at,
@@ -170,5 +188,5 @@ export function buildPhotos(parsed, ownerId = null, { hideSecret = false } = {})
     secret: Number(r.secret) || 0,
   }));
 
-  return { total, items, years };
+  return { total, items, years, provinces };
 }
