@@ -132,6 +132,12 @@ const dict: Dict = {
     'A backup contains only app data (optional thumbnails / photo and video media). The current data is backed up automatically before a restore, and a mid-way failure rolls back; a restore with media only writes/overwrites files from the backup and never deletes other files in the media library.',
 
   // ── LibrarySettings ──
+  // 2026-11-10（用户要求）：设置 → 素材库 展示支持上传的格式
+  '支持上传的格式': 'Supported upload formats',
+  '原始文件原样保存在素材库；缩略图和预览会自动生成，视频封面需要安装 ffmpeg。':
+    'Original files are kept as-is in the media library. Thumbnails and previews are generated automatically; video posters require ffmpeg.',
+  '相机 RAW（如 .nef）暂不支持，请先导出 JPG / TIFF 再上传。':
+    'Camera RAW files (e.g. .nef) are not supported yet — export to JPG / TIFF first.',
   '读取失败：': 'Failed to read: ',
   '正在扫描素材库…': 'Scanning the media library…',
   '失败：': 'Failed: ',

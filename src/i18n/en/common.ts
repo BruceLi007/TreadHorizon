@@ -256,11 +256,13 @@ const dict: Dict = {
   // ── 自定义日期选择器（2026-11-07，D-247）──
   '选择日期': 'Choose date',
   '选择年月': 'Choose month and year',
-  '返回日期选择': 'Back to date selection',
+  '选择年份': 'Choose year',
   '上个月': 'Previous month',
   '下个月': 'Next month',
   '上一年': 'Previous year',
   '下一年': 'Next year',
+  '上十年': 'Previous decade',
+  '下十年': 'Next decade',
 
   // ── 上传单文件上限（2026-11-07，D-248）──
   '有 {n} 个文件超过单文件上限（{gb} GB），已跳过':

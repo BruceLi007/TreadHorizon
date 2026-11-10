@@ -1124,3 +1124,41 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* ── 2026-11-10（用户要求）：设置 → 素材库「支持上传的格式」── */
+.set-format-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.set-format-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.set-format-label {
+  flex: none;
+  min-width: 3.2em;
+  padding-top: 2px;
+  color: var(--text-3);
+  font-size: calc(12.5px * var(--fs-scale));
+}
+
+.set-format-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.set-format-chip {
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-raised);
+  color: var(--text-2);
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Courier New', monospace;
+  font-size: calc(11.5px * var(--fs-scale));
+  line-height: 1.7;
+}

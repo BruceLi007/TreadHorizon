@@ -817,6 +817,12 @@ export default function MapView({
 
     const alive = new Set<string>();
 
+    // 2026-11-10（用户要求）：「随着时间轴移动，地图出现的打点加一些动效，不要突然出现」。
+    // 记录本次 rebuild 新建的标记内层容器；rebuild 末尾统一加 .pin-enter 入场动画。
+    // 大面积重建（切语言 / 换图标配色 / 缩放聚合）不播，避免整屏标记闪一下。
+    const prevPinCount = pins.current.size;
+    const newAnims: HTMLDivElement[] = [];
+
     // 2026-11-06 D-185：悬停卡片里也显示「离家 X km」；把家的坐标放进单点 key，
     // 换家 / 移动家之后会重建节点、tooltip 立即用新距离（家本身不显示距离）。
     const homeForTip = placesRef.current.find((q) => q.home === 1) ?? null;
@@ -871,7 +877,11 @@ export default function MapView({
           im.style.transform = `rotate(${rots[i]}deg) scale(${i === 2 ? 0.8 : 0.76})`;
           clusterBody.appendChild(im);
         });
-        el.appendChild(clusterBody);
+        const anim = document.createElement('div');
+        anim.className = 'pin-anim';
+        anim.appendChild(clusterBody);
+        el.appendChild(anim);
+        newAnims.push(anim);
         const label = clusterLabel(c, t, tp);
         const sub = kind === 'wishlist' ? '' : clusterSub(c, t);
         // 3 个图标共底尖，容器也改为底尖对齐坐标点（anchorBottom: true），tooltip 抬到整组上方
@@ -916,7 +926,11 @@ export default function MapView({
         img.draggable = false;
         pinMedia.appendChild(img);
         pinBody.appendChild(pinMedia);
-        el.appendChild(pinBody);
+        const anim = document.createElement('div');
+        anim.className = 'pin-anim';
+        anim.appendChild(pinBody);
+        el.appendChild(anim);
+        newAnims.push(anim);
         el.title = p.secret ? t('{name}（秘密基地）', { name: p.name }) : p.name;
 
         // 单个飞镖也带描述：省份 · 去过几次 / 想去 · 最近什么时候
@@ -1022,7 +1036,11 @@ export default function MapView({
       img.draggable = false;
       pinMedia.appendChild(img);
       pinBody.appendChild(pinMedia);
-      el.appendChild(pinBody);
+      const anim = document.createElement('div');
+      anim.className = 'pin-anim';
+      anim.appendChild(pinBody);
+      el.appendChild(anim);
+      newAnims.push(anim);
       el.title = t('{name}（家）', { name: homePlace.name });
       const region = [tp(homePlace.province), homePlace.city].filter(Boolean).join(' · ');
       const bits: string[] = [];
@@ -1076,6 +1094,19 @@ export default function MapView({
         homePin.current.el.style.height = `${size}px`;
       }
       homePin.current.el.classList.toggle('selected', on);
+    }
+
+    // 入场动画：初次加载 / 时间轴·筛选后新出现的标记错峰弹出；
+    // 若本次几乎重建了全部标记（切语言 / 换图标配色等），则不播动画，避免整屏闪动。
+    if (newAnims.length > 0) {
+      const massRebuild =
+        prevPinCount > 0 && newAnims.length > Math.max(14, Math.round(prevPinCount * 0.6));
+      if (!massRebuild) {
+        newAnims.forEach((anim, i) => {
+          anim.classList.add('pin-enter');
+          anim.style.animationDelay = `${Math.min(i * 26, 420)}ms`;
+        });
+      }
     }
 
     positionAll();

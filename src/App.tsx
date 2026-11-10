@@ -1355,7 +1355,10 @@ export default function App() {
         if (errored) parts.push(tr('失败 {n}', { n: errored }));
         say(tr('上传结束：') + parts.join(' · '));
       }
-      // D-251：这一批全部成功（完成 / 跳过重复，无失败 / 取消）→ 3 秒后自动收起上传队列
+      // D-251 + 2026-11-10（用户要求）：
+      // - 这一批全部成功（完成 / 跳过重复，无失败 / 取消）→ 5 秒后自动收起上传队列；
+      // - 只要有失败（或取消）→ 不自动关闭，队列保持打开，由用户手动点 × 关闭
+      //   （D-261：有失败项时关闭前仍会二次确认）。
       clearUploadAutoClose();
       const allSuccess =
         items.length > 0 && items.every((x) => x.status === 'done' || x.status === 'skipped');
@@ -1366,7 +1369,7 @@ export default function App() {
           if (cur.length > 0 && cur.every((x) => x.status === 'done' || x.status === 'skipped')) {
             commitUploads([]);
           }
-        }, 3000);
+        }, 5000);
       }
       refreshAfterUpload();
     }

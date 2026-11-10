@@ -21,6 +21,69 @@ interface Props {
  * - 可以重新关联自己的文件 / 恢复默认路径；
  * - 看自己的用量 / 状态；当前路径直接显示本机文件夹（D-215 用户要求），可打开本地文件夹；
  */
+/**
+ * 2026-11-10（用户要求）：设置 → 素材库 展示「支持上传的格式」。
+ * 格式清单来自 /api/config 的 mediaFormats（后端由上传白名单 PHOTO_EXT / VIDEO_EXT 生成），
+ * 以后增删格式只改 server/importer.mjs 一处，设置页会自动跟着变。
+ */
+function UploadFormats() {
+  const t = useT();
+  const [formats, setFormats] = useState<{ photos: string[]; videos: string[] } | null>(null);
+
+  useEffect(() => {
+    let dead = false;
+    api
+      .config()
+      .then((c) => {
+        if (!dead) setFormats(c.mediaFormats ?? null);
+      })
+      .catch(() => {
+        /* 配置读取失败就不显示这一段，不影响设置页其它功能 */
+      });
+    return () => {
+      dead = true;
+    };
+  }, []);
+
+  if (!formats) return null;
+
+  return (
+    <section className="set-section">
+      <div className="set-section-head">
+        <h3 className="set-section-title">{t('支持上传的格式')}</h3>
+      </div>
+      <div className="set-format-groups">
+        <div className="set-format-group">
+          <span className="set-format-label">{t('照片')}</span>
+          <span className="set-format-chips">
+            {formats.photos.map((ext) => (
+              <code key={ext} className="set-format-chip">
+                {ext}
+              </code>
+            ))}
+          </span>
+        </div>
+        <div className="set-format-group">
+          <span className="set-format-label">{t('视频')}</span>
+          <span className="set-format-chips">
+            {formats.videos.map((ext) => (
+              <code key={ext} className="set-format-chip">
+                {ext}
+              </code>
+            ))}
+          </span>
+        </div>
+      </div>
+      <p className="set-section-desc">
+        {t('原始文件原样保存在素材库；缩略图和预览会自动生成，视频封面需要安装 ffmpeg。')}
+      </p>
+      <p className="set-section-desc">
+        {t('相机 RAW（如 .nef）暂不支持，请先导出 JPG / TIFF 再上传。')}
+      </p>
+    </section>
+  );
+}
+
 function UserLibraryInfo({ onChanged }: { onChanged: () => void }) {
   const t = useT();
   const [usage, setUsage] = useState<UserUsage | null>(null);
@@ -168,6 +231,8 @@ function UserLibraryInfo({ onChanged }: { onChanged: () => void }) {
           </>
         )}
       </section>
+
+      <UploadFormats />
 
       <section className="set-section">
         <div className="set-section-head">
@@ -383,6 +448,8 @@ export default function LibrarySettings({ onChanged, multi = false, isAdmin = fa
 
   return (
     <div className="set-pane">
+      <UploadFormats />
+
       <section className="set-section">
         <div className="set-section-head">
           <h3 className="set-section-title">{t('素材库')}</h3>

@@ -92,6 +92,8 @@ export const api = {
         maxUploadBytes: number;
         /** 2026-11-09 D-329：秘密基地初始密码（设置 → 安全 提示用；用户可自行修改） */
         starterSecretPassword?: string;
+        /** 2026-11-10：设置 → 素材库 展示支持上传的格式（与后端上传白名单同源） */
+        mediaFormats?: { photos: string[]; videos: string[] };
       }>(r)
     ),
 

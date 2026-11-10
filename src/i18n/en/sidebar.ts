@@ -148,6 +148,10 @@ const dict: Dict = {
   '关闭上传队列（未完成项会被取消）':
     'Close the upload queue (unfinished items will be cancelled)',
   '关闭上传队列': 'Close upload queue',
+  // 2026-11-10（用户要求）：上传列表可展开 / 收起
+  '展开上传列表': 'Expand upload list',
+  '收起上传列表': 'Collapse upload list',
+  '失败 {n}': '{n} failed',
   // D-261：有失败项时关闭队列的二次确认
   '还有 {n} 个文件上传失败，仍要关闭上传队列？':
     '{n} file(s) failed to upload. Close the upload queue anyway?',

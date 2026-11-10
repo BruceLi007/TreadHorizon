@@ -3564,7 +3564,79 @@ html:is([data-theme='light'], [data-theme='white']) .cluster-row {
   gap: 8px;
   font-size: calc(12px * var(--fs-scale));
   color: var(--text-2);
-  margin-bottom: 6px;
+}
+
+/* 2026-11-10（用户要求）：上传列表单独做成可展开/收起的栏——
+   点标题栏展开，再点收起；收起时只留标题 + 完成数 + 进度百分比，避免侧栏被长列表占满。 */
+.uq-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--text-2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.uq-toggle:hover {
+  color: var(--text-1);
+}
+
+.uq-chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-3);
+  transition: transform 160ms ease;
+}
+
+.uq-toggle.expanded .uq-chevron {
+  transform: rotate(90deg);
+}
+
+.uq-pct {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.uq-failed {
+  color: var(--bad);
+  white-space: nowrap;
+}
+
+.uq-mini {
+  height: 3px;
+  margin: 3px 0 2px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.uq-mini-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 120ms linear;
+}
+
+.uq-list-wrap {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 200ms ease;
+}
+
+.uq-list-wrap.collapsed {
+  grid-template-rows: 0fr;
+}
+
+.uq-list-inner {
+  min-height: 0;
+  overflow: hidden;
 }
 
 .uq-count {
@@ -3599,6 +3671,7 @@ html:is([data-theme='light'], [data-theme='white']) .cluster-row {
 .uq-list {
   max-height: 180px;
   overflow: auto;
+  padding-top: 6px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -4404,6 +4477,40 @@ html[lang='en'] .topbar .actions .ghost.on:hover {
   transform-origin: 50% 100%;
 }
 
+/* 2026-11-10（用户要求）：时间轴移动 / 筛选后新出现的打点不要「突然出现」，统一做入场动效。
+   - 动画只作用在内层 .pin-anim 上：外层 .pin 的 transform 由 MapView.positionAll() 独占定位；
+   - 与 .pin-body 呼吸、.pin-media 点击回弹、.cluster-body 脉冲分层，互不覆盖；
+   - 由 MapView 在新建节点时加 .pin-enter 并错峰（初次加载 / 时间轴新增才播，
+     切语言 / 换图标配色这种整体重建不播，避免整屏闪一下）。 */
+.pin-anim {
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 100%;
+}
+
+.pin-anim.pin-enter {
+  animation: pin-enter-pop 480ms cubic-bezier(0.22, 1.12, 0.36, 1) both;
+}
+
+@keyframes pin-enter-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.32);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.09);
+  }
+  78% {
+    opacity: 1;
+    transform: translateY(1px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 /* 尖端在底部中心：所有变换都绕杖尖进行，呼吸时坐标点不会漂 */
 .pin img {
   transform-origin: 50% 100%;
@@ -4587,6 +4694,7 @@ html[lang='en'] .topbar .actions .ghost.on:hover {
   .pin-body,
   .pin-media,
   .pin img,
+  .pin-anim,
   .cluster-body {
     animation: none !important;
   }

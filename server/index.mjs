@@ -114,6 +114,11 @@ const MIME = {
   '.m4v': 'video/mp4', '.webm': 'video/webm', '.avi': 'video/x-msvideo', '.mkv': 'video/x-matroska',
 };
 
+// 2026-11-10（用户要求）：设置 → 素材库 展示「支持上传的格式」。
+// 与上传白名单同源（server/importer.mjs 的 PHOTO_EXT / VIDEO_EXT），以后加格式只改这一处。
+const PHOTO_FORMATS = [...PHOTO_EXT].sort();
+const VIDEO_FORMATS = [...VIDEO_EXT].sort();
+
 const app = Fastify({ logger: false, bodyLimit: 4 * 1024 * 1024, trustProxy: true });
 
 // ───────────── M6 P2-2（D-202）：登录守卫 + 数据归属 ─────────────
@@ -485,6 +490,8 @@ app.get('/api/config', async (req) => {
       maxUploadBytes: CONFIG.maxUploadBytes,
       // 2026-11-09 D-329：设置 → 安全 显示「（初始密码为…）」提示用
       starterSecretPassword: CONFIG.starterSecretPassword,
+      // 2026-11-10（用户要求）：设置 → 素材库 展示支持上传的格式
+      mediaFormats: { photos: PHOTO_FORMATS, videos: VIDEO_FORMATS },
     };
   }
   const st = getUserSetting(ownerOf(req));
@@ -496,6 +503,7 @@ app.get('/api/config', async (req) => {
     home: null,
     maxUploadBytes: CONFIG.maxUploadBytes,
     starterSecretPassword: CONFIG.starterSecretPassword,
+    mediaFormats: { photos: PHOTO_FORMATS, videos: VIDEO_FORMATS },
   };
 });
 

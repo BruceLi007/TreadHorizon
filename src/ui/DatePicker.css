@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 2026-11-07 D-247：自定义日期选择器样式。
  * 触发器与 .field input 同款；弹层用主题变量，深浅主题一致；Portal 到 body，z-index 高于侧栏。
  */
@@ -217,7 +217,7 @@ html:is([data-theme='light'], [data-theme='white']) .dp-day:hover {
 
 .date-pop-months {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
   padding: 2px;
 }
@@ -243,4 +243,50 @@ html:is([data-theme='light'], [data-theme='white']) .dp-month:hover {
 .dp-month.on {
   border-color: var(--accent);
   color: var(--text-1);
+}
+
+/* ── 2026-11-10 D-343（用户要求）：日期选择器「年」视图（Windows 风格三级钻取）── */
+.date-pop-years {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 2px;
+}
+
+.dp-year {
+  height: 46px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-1);
+  font-size: calc(12px * var(--fs-scale));
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.dp-year:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+html:is([data-theme='light'], [data-theme='white']) .dp-year:hover {
+  background: rgba(20, 30, 50, 0.06);
+}
+
+.dp-year.on {
+  border-color: var(--accent);
+  color: var(--text-1);
+}
+
+/* 「年」视图的标题不可再上钻，用静态标题占位（与按钮标题同排版） */
+.dp-title-static {
+  flex: 1;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-1);
+  font-size: calc(12.5px * var(--fs-scale));
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: default;
 }

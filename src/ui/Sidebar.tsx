@@ -389,11 +389,15 @@ export default function Sidebar({
   const [queueClosed, setQueueClosed] = useState(false);
   // 2026-11-07 D-261：有上传失败项时，点 × 先弹确认，避免把「失败 + 可重试」记录静默清掉
   const [closeQueueAsk, setCloseQueueAsk] = useState(false);
+  // 2026-11-10（用户要求）：「素材上传时的列表单独做一个可展开收起的栏，点一下展开，点一下收起」。
+  // 默认收起，只显示标题栏摘要（完成数 / 进度 / 失败数），避免文件多时侧栏被长列表占满。
+  const [queueExpanded, setQueueExpanded] = useState(false);
   const prevUploadLen = useRef(0);
   useEffect(() => {
     if (uploads.length === 0) {
       setQueueClosed(false);
       setCloseQueueAsk(false);
+      setQueueExpanded(false);
       prevUploadLen.current = 0;
       return;
     }
@@ -855,6 +859,28 @@ export default function Sidebar({
   const uploadHasFinished = uploads.some((x) =>
     ['done', 'skipped', 'canceled'].includes(x.status)
   );
+
+  // 收起状态标题栏里的整体进度（完成 / 跳过算 1，上传中按实际 progress 折算）
+  const uploadPct = uploads.length
+    ? Math.round(
+        (uploads.reduce((sum, x) => {
+          if (x.status === 'done' || x.status === 'skipped') return sum + 1;
+          if (x.status === 'uploading') return sum + Math.max(0, Math.min(1, x.progress || 0));
+          return sum;
+        }, 0) /
+          uploads.length) *
+          100
+      )
+    : 0;
+
+  // 2026-11-10（用户要求）：有上传失败时，队列不自动关闭、等用户手动关闭；
+  // 失败第一次出现时把列表自动展开一次，让用户直接看到哪些文件失败
+  // （之后用户手动收起，不会因为同一个失败状态被强行再展开）。
+  const prevUploadFailed = useRef(0);
+  useEffect(() => {
+    if (uploadFailed > 0 && prevUploadFailed.current === 0) setQueueExpanded(true);
+    prevUploadFailed.current = uploadFailed;
+  }, [uploadFailed]);
 
   /** 上传状态文案：在组件里翻译，切换语言即时生效（避免模块级常量缓存中文，D-138） */
   const uploadStatusLabel = (s: UploadItem['status']): string => {
@@ -1442,9 +1468,34 @@ export default function Sidebar({
             {uploads.length > 0 && !queueClosed && (
               <div className="upload-queue">
                 <div className="uq-head">
-                  <span>
-                    {t('上传队列')} <span className="uq-count">{uploadDone}/{uploads.length}</span>
-                  </span>
+                  <button
+                    type="button"
+                    className={`uq-toggle${queueExpanded ? ' expanded' : ''}`}
+                    onClick={() => setQueueExpanded((v) => !v)}
+                    aria-expanded={queueExpanded}
+                    aria-controls="upload-queue-list"
+                    title={queueExpanded ? t('收起上传列表') : t('展开上传列表')}
+                  >
+                    <span className="uq-chevron" aria-hidden="true">
+                      <svg width="9" height="9" viewBox="0 0 10 10" focusable="false">
+                        <path
+                          d="M3 1.5 7 5 3 8.5"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </span>
+                    <span>
+                      {t('上传队列')} <span className="uq-count">{uploadDone}/{uploads.length}</span>
+                    </span>
+                    {uploadActive && <span className="uq-pct">{uploadPct}%</span>}
+                    {uploadFailed > 0 && (
+                      <span className="uq-failed">{t('失败 {n}', { n: uploadFailed })}</span>
+                    )}
+                  </button>
                   <div className="uq-actions">
                     {uploadActive && (
                       <button className="text-btn" onClick={onCancelAllUploads}>
@@ -1476,7 +1527,17 @@ export default function Sidebar({
                     </button>
                   </div>
                 </div>
-                <div className="uq-list">
+                {uploadActive && (
+                  <div className="uq-mini" aria-hidden="true">
+                    <div className="uq-mini-fill" style={{ width: `${Math.max(3, uploadPct)}%` }} />
+                  </div>
+                )}
+                <div
+                  id="upload-queue-list"
+                  className={`uq-list-wrap${queueExpanded ? '' : ' collapsed'}`}
+                >
+                  <div className="uq-list-inner">
+                    <div className="uq-list">
                   {uploads.map((it) => {
                     const pct = Math.round(it.progress * 100);
                     const statusText =
@@ -1527,6 +1588,8 @@ export default function Sidebar({
                       </div>
                     );
                   })}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
