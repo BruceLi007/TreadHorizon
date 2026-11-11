@@ -1733,14 +1733,15 @@ export default function App() {
         />
       )}
 
-      {/* 地图缩放按钮（2026-11-11 用户要求：上加下减、鼠标点击；左侧垂直居中，避开右侧抽屉） */}
+      {/* 地图缩放按钮（2026-11-11 用户要求：上加下减、鼠标点击；左侧垂直居中，避开右侧抽屉）
+          D-381：每次半级（0.5）——禁用态用容差比较，避免小数浮点误差 */}
       {boot === 'ready' && (
         <div className="map-zoom" role="group" aria-label={t('地图缩放')} data-zoom={mapZoom}>
           <button
             type="button"
             className="map-zoom-btn"
             onClick={() => mapApi.current?.zoomIn()}
-            disabled={mapZoom >= MAP_MAX_ZOOM}
+            disabled={mapZoom >= MAP_MAX_ZOOM - 0.001}
             title={t('放大地图')}
             aria-label={t('放大地图')}
           >
@@ -1752,7 +1753,7 @@ export default function App() {
             type="button"
             className="map-zoom-btn"
             onClick={() => mapApi.current?.zoomOut()}
-            disabled={mapZoom <= MAP_MIN_ZOOM}
+            disabled={mapZoom <= MAP_MIN_ZOOM + 0.001}
             title={t('缩小地图')}
             aria-label={t('缩小地图')}
           >

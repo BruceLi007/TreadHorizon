@@ -266,6 +266,15 @@ const CHINA_VIEW_BOUNDS = {
 export const MAP_MIN_ZOOM = 4;
 export const MAP_MAX_ZOOM = 17;
 
+/**
+ * 2026-11-11 D-381 用户反馈「地图放大一级有点太大」：缩放粒度改为**半级（0.5）**。
+ * 天地图 T.Map 引擎内部用构造 options 里的 AW（缩放取整粒度）/ aW（zoomIn / zoomOut 默认步长）
+ * 控制档位粒度，默认 1 = 整级；传 0.5 后 setZoom / 滚轮 / zoomIn 都按半级步进，
+ * 瓦片层会自动用相邻整级瓦片缩放渲染（D-381 已验证：4.5 级瓦片清晰、按钮与滚轮均可半级）。
+ * 若某天 SDK 不认这两个内部选项（被取整成整级），按钮会自动退化为整级步进，不会卡死。
+ */
+export const MAP_ZOOM_STEP = 0.5;
+
 function readView(): { lng: number; lat: number; zoom: number } | null {
   try {
     const raw = localStorage.getItem(VIEW_KEY);
@@ -1169,6 +1178,9 @@ export default function MapView({
           // maxBounds 把地图限制在中国范围附近（含南海海域），拖出范围会弹回；
           // 平移范围 30~180°E / -30~75°N；D-196（用户要求）最小缩放回到 4，和「总览」默认一致。
           minZoom: MAP_MIN_ZOOM,
+          // D-381：AW / aW = 0.5 → 缩放粒度改为半级（默认 1 = 整级），见 MAP_ZOOM_STEP 注释
+          AW: MAP_ZOOM_STEP,
+          aW: MAP_ZOOM_STEP,
           maxBounds: new T.LngLatBounds(
             new T.LngLat(CHINA_VIEW_BOUNDS.minLng, CHINA_VIEW_BOUNDS.minLat),
             new T.LngLat(CHINA_VIEW_BOUNDS.maxLng, CHINA_VIEW_BOUNDS.maxLat)
@@ -1192,8 +1204,12 @@ export default function MapView({
         mapRef.current = map;
 
         // 2026-11-11 用户要求：缩放按钮（上加下减）用；把 zoom 同步给 App 控制禁用态
-        const notifyZoom = () =>
-          onZoomChangeRef.current?.(Math.round(Number(map.getZoom()) || MAP_MIN_ZOOM));
+        // D-381：允许半级缩放，所以这里保留小数（如 4.5），不要取整
+        const notifyZoom = () => {
+          const z = Number(map.getZoom());
+          if (!Number.isFinite(z)) return;
+          onZoomChangeRef.current?.(Math.round(z * 100) / 100);
+        };
         notifyZoom();
 
         // 缩放策略：先试一次直达，没到位再逐级补。
@@ -1225,13 +1241,28 @@ export default function MapView({
         };
         flyRef.current = flyStepped;
 
-        /** 按钮缩放：当前中心不动，逐级 +/-1（到上下限就不动） */
-        const zoomStep = (delta: number) => {
-          const cur = Math.round(Number(map.getZoom()) || MAP_MIN_ZOOM);
-          const next = Math.max(MAP_MIN_ZOOM, Math.min(MAP_MAX_ZOOM, cur + delta));
-          if (next === cur) return;
+        /**
+         * 按钮缩放（D-381：每次半级）：当前中心不动，逐级 ±0.5（到上下限就不动）。
+         * 兜底：若某天 SDK 不认小数粒度、把 zoom 取整回整级，自动退化为整级步进。
+         */
+        let zoomStepSize = MAP_ZOOM_STEP;
+        let zoomFallbackTimer = 0;
+        const zoomStep = (dir: 1 | -1) => {
+          const raw = Number(map.getZoom());
+          const base = Number.isFinite(raw) ? raw : MAP_MIN_ZOOM;
+          const cur = zoomStepSize === 1 ? Math.round(base) : Math.round(base / zoomStepSize) * zoomStepSize;
+          const next = Math.max(MAP_MIN_ZOOM, Math.min(MAP_MAX_ZOOM, cur + dir * zoomStepSize));
+          if (Math.abs(next - cur) < 1e-6) return;
           const center = map.getCenter();
           map.centerAndZoom(new T.LngLat(center.getLng(), center.getLat()), next);
+          window.clearTimeout(zoomFallbackTimer);
+          zoomFallbackTimer = window.setTimeout(() => {
+            const got = Number(map.getZoom());
+            if (!Number.isFinite(got)) return;
+            if (Math.abs(got - next) > 0.01 && Math.abs(got - Math.round(next)) < 0.01) {
+              zoomStepSize = 1;
+            }
+          }, 500);
         };
 
         apiRef.current = {
