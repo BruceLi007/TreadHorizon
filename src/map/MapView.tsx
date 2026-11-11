@@ -20,6 +20,14 @@ import {
   markerSize,
   type Cluster,
 } from './cluster';
+import {
+  COVER_W,
+  COVER_H,
+  COVER_GAP,
+  coverIdOf,
+  clusterCoverId,
+  makeCover,
+} from './cover';
 import type { Place, ProvinceBoundaryData, ProvinceBoundaryFeature, ProvinceLight } from '../lib/types';
 import {
   PROVINCE_FILLS,
@@ -267,6 +275,18 @@ export const MAP_MIN_ZOOM = 4;
 export const MAP_MAX_ZOOM = 17;
 
 /**
+ * 「总览」默认视野（2026-11-12 用户要求，D-397）：
+ * - 总览默认缩放 4 → **5**（中国地图视觉上大一点；仍可手动缩到 4）；
+ * - 默认中心：经度 104 → **116.789**、纬度 35 → **38.755**（地图整体往左下移动）；
+ *   经度换算：zoom 5 下 1° ≈ 22.755px → 相对最初 (104,35) 共左移约 291px
+ *   （第一次左移 91px + 用户再次要求「再左移 200px」）；
+ *   纬度：zoom 5 下 1° ≈ 28.49px（lat≈37 处）→ 用户先要求下移（+2°≈52px），
+ *   再要求「再整体往下移 50px」→ 37 + 50/28.49 ≈ 38.755（相对最初共下移约 102px）。
+ * - 初始化「没有上次视野」与顶栏「总览」按钮都用这个，两处保持一致。
+ */
+export const MAP_OVERVIEW = { lng: 116.789, lat: 38.755, zoom: 5 } as const;
+
+/**
  * 2026-11-11 D-381 用户反馈「地图放大一级有点太大」：缩放粒度改为**半级（0.5）**。
  * 天地图 T.Map 引擎内部用构造 options 里的 AW（缩放取整粒度）/ aW（zoomIn / zoomOut 默认步长）
  * 控制档位粒度，默认 1 = 整级；传 0.5 后 setZoom / 滚轮 / zoomIn 都按半级步进，
@@ -342,7 +362,16 @@ interface PinNode {
   anchorBottom: boolean;
   /** 普通地点节点记下 place.id：选中态改为「原地更新尺寸 / class」，不再靠 key 变化重建节点 */
   placeId?: string;
+  /** 2026-11-12 T12：飞镖本体尺寸（不含上方封面）；选中 30↔38 时总高要跟着重算 */
+  dartSize?: number;
+  /** 是否带封面缩略图（决定总高 = 飞镖 + COVER_H + COVER_GAP） */
+  hasCover?: boolean;
 }
+
+/** 2026-11-12 T12：悬停气泡延迟出现（等封面先放大），离开立即隐藏 */
+const TIP_DELAY_MS = 140;
+/** 气泡与 pin 顶部的间距（用户拍板：封面顶部再上移 12px） */
+const TIP_GAP = 12;
 
 export default function MapView({
   tk,
@@ -453,13 +482,27 @@ export default function MapView({
     }
   }, []);
 
-  // ── 聚合点悬停气泡 ──
+  // ── 悬停气泡 ──
+  /** 悬停 pin 后延迟出气泡的 timer（2026-11-12 T12：先放大封面，再出气泡，避免打架） */
+  const tipTimer = useRef<number | null>(null);
   const hideTip = useCallback(() => {
+    if (tipTimer.current != null) {
+      window.clearTimeout(tipTimer.current);
+      tipTimer.current = null;
+    }
     if (tipRef.current) tipRef.current.style.opacity = '0';
   }, []);
 
   const showTip = useCallback(
-    (title: string, sub: string, lng: number, lat: number, anchorTop: number, dist = '') => {
+    (
+      title: string,
+      sub: string,
+      lng: number,
+      lat: number,
+      anchorTop: number,
+      dist = '',
+      gap = 10
+    ) => {
       const map = mapRef.current;
       const T = TRef.current;
       const layer = layerRef.current;
@@ -489,10 +532,33 @@ export default function MapView({
         const h = tip.offsetHeight || 28;
         tip.style.transform =
           `translate(${Math.round(pt.x - w / 2)}px, ` +
-          `${Math.round(pt.y - anchorTop - h - 10)}px)`;
+          `${Math.round(pt.y - anchorTop - h - gap)}px)`;
       } catch {
         /* ignore */
       }
+    },
+    []
+  );
+
+  /**
+   * 2026-11-12 T12：pin 悬停气泡延迟出现（~140ms）——先让封面放大，再出气泡；
+   * 离开时由 hideTip 立即隐藏并清掉未触发的 timer，保证不残留。
+   */
+  const showTipSoon = useCallback(
+    (...args: Parameters<typeof showTip>) => {
+      if (tipTimer.current != null) window.clearTimeout(tipTimer.current);
+      tipTimer.current = window.setTimeout(() => {
+        tipTimer.current = null;
+        showTip(...args);
+      }, TIP_DELAY_MS);
+    },
+    [showTip]
+  );
+
+  // 卸载时清掉未触发的气泡 timer
+  useEffect(
+    () => () => {
+      if (tipTimer.current != null) window.clearTimeout(tipTimer.current);
     },
     []
   );
@@ -828,10 +894,12 @@ export default function MapView({
       // 去过和想去一起参与聚合：同位置的两个标记不会再叠在一起；
       // 簇的配色/文案按「纯去过 / 纯想去 / 混合」区分（D-32）。
       // 家是普通地点，但**不参与聚合**（2026-11-04）：先剔除，下面单独画。
+      // 2026-11-12 T12：聚合网格半径取 max(60, COVER_W+8) —— 封面变窄（45px）后回到原来的 60；
+      // 若以后封面再变宽，再按 COVER_W 自动加大，避免邻近聚合点/单点的封面互相压住。
       clusters = clusterPlaces(
         placesRef.current.filter((p) => p.home !== 1),
         map.getZoom(),
-        60
+        Math.max(60, COVER_W + 8)
       );
     } catch {
       clusters = [];
@@ -855,18 +923,22 @@ export default function MapView({
     for (const c of clusters) {
       const isCluster = c.count > 1;
       const kind = clusterKind(c);
+      // 2026-11-12 T12：封面 id（秘密基地 / 想去 / 无照片为 null）；进 key，封面变了要重建节点。
+      const coverId = isCluster ? clusterCoverId(c) : coverIdOf(c.place);
       // key 里带上会显示出来的可变字段：数据一变就重建节点。
       // 否则改名 / 删除 / 改变类型后，复用旧节点会留着过时的配色和 tooltip。
       const key = isCluster
         ? `c:${c.lng.toFixed(3)},${c.lat.toFixed(3)}:${c.count}:${c.visitedCount}:${c.wishCount}:${
             c.visits
-          }:${c.latestDate ?? ''}:${lang}:${markerColorsKey(markerColors)}`
+          }:${c.latestDate ?? ''}:${lang}:${markerColorsKey(markerColors)}:${coverId ?? ''}`
         // 注意：key 里不再带选中态（D-150）。选中只改尺寸/class，由下方 syncSelection 原地更新，
         // 节点不再重建——否则点击动画会被截断，也容易产生视觉重叠。
         // D-164：带当前类型配色，改设置后按新颜色重建图标。
         : `p:${c.place.id}:${c.place.name}:${c.place.kind}:${c.place.visit_count ?? 1}:${
             c.place.last_date ?? ''
-          }:${c.place.secret ? 1 : 0}:${lang}:${markerColors[markerKindOf(c.place)] ?? 'default'}:${homeTipSig}`;
+          }:${c.place.secret ? 1 : 0}:${lang}:${markerColors[markerKindOf(c.place)] ?? 'default'}:${homeTipSig}:${
+            coverId ?? ''
+          }`;
 
       alive.add(key);
 
@@ -881,8 +953,14 @@ export default function MapView({
         // 两色 + 3 图标时「单独那个颜色」放中间；三色时中间放秘密基地紫。
         // 左 / 右内倾 ±20°、缩到 0.76；中间 0.80 最后画（z 序在上）。
         const size = markerSize(c.count);
+        // 2026-11-12 T12：聚合点也显示封面（簇内最近去过的成员封面）；有封面时总高 = 封面 + 间隙 + 飞镖
+        const hasCover = coverId !== null;
+        const w = hasCover ? COVER_W : size;
+        const h = hasCover ? size + COVER_H + COVER_GAP : size;
         el.classList.add('cluster');
-        el.style.width = el.style.height = `${size}px`;
+        if (hasCover) el.classList.add('has-cover');
+        el.style.width = `${w}px`;
+        el.style.height = `${h}px`;
         const clusterBody = document.createElement('div');
         clusterBody.className = 'cluster-body';
         applyPhase(el, 'pulse', key);
@@ -902,12 +980,39 @@ export default function MapView({
         const anim = document.createElement('div');
         anim.className = 'pin-anim';
         anim.appendChild(clusterBody);
-        el.appendChild(anim);
+        if (hasCover) anim.style.width = anim.style.height = `${size}px`;
         newAnims.push(anim);
         const label = clusterLabel(c, t, tp);
         const sub = kind === 'wishlist' ? '' : clusterSub(c, t);
-        // 3 个图标共底尖，容器也改为底尖对齐坐标点（anchorBottom: true），tooltip 抬到整组上方
-        el.addEventListener('mouseenter', () => showTip(label, sub, c.lng, c.lat, size));
+        // 3 个图标共底尖，容器也改为底尖对齐坐标点（anchorBottom: true）；
+        // 2026-11-12 T12：加了封面后气泡锚点 = pin 总高，再上移 TIP_GAP(12)；气泡延迟出现等封面放大。
+        const node: PinNode = {
+          el,
+          lng: c.lng,
+          lat: c.lat,
+          w,
+          h,
+          anchorBottom: true,
+          dartSize: size,
+          hasCover,
+        };
+        const cover = makeCover(coverId, () => {
+          // 封面 404（视频没抽到 poster 等）→ 回退成无封面尺寸，不留空白
+          node.hasCover = false;
+          node.w = node.dartSize ?? size;
+          node.h = node.w;
+          el.classList.remove('has-cover');
+          el.style.width = `${node.w}px`;
+          el.style.height = `${node.h}px`;
+          anim.style.width = '';
+          anim.style.height = '';
+          positionAll();
+        });
+        if (cover) el.appendChild(cover);
+        el.appendChild(anim);
+        el.addEventListener('mouseenter', () =>
+          showTipSoon(label, sub, c.lng, c.lat, node.h, '', TIP_GAP)
+        );
         el.addEventListener('mouseleave', hideTip);
         el.addEventListener('click', (ev) => {
           ev.stopPropagation();
@@ -919,11 +1024,18 @@ export default function MapView({
           const target = zoomToSpread(c.members, Number(map.getZoom()));
           flyRef.current(c.lng, c.lat, target);
         });
-        pins.current.set(key, { el, lng: c.lng, lat: c.lat, w: size, h: size, anchorBottom: true });
+        pins.current.set(key, node);
       } else {
         const p = c.place;
         const size = p.id === selectedRef.current ? 38 : markerSize(1);
-        el.style.width = el.style.height = `${size}px`;
+        // 2026-11-12 T12：单点也显示封面（秘密基地 / 想去 / 无照片不显示）；
+        // 有封面时外层 = 封面 + 间隙 + 飞镖，飞镖尖仍精确落在坐标点（anchorBottom 语义不变）。
+        const hasCover = coverId !== null;
+        const w = hasCover ? COVER_W : size;
+        const h = hasCover ? size + COVER_H + COVER_GAP : size;
+        if (hasCover) el.classList.add('has-cover');
+        el.style.width = `${w}px`;
+        el.style.height = `${h}px`;
         if (p.kind === 'wishlist') el.classList.add('wish');
         // F-PLC-11：秘密基地飞镖用不同颜色（用户确认：形状不变，只颜色区分）
         if (p.secret) el.classList.add('secret');
@@ -951,7 +1063,7 @@ export default function MapView({
         const anim = document.createElement('div');
         anim.className = 'pin-anim';
         anim.appendChild(pinBody);
-        el.appendChild(anim);
+        if (hasCover) anim.style.width = anim.style.height = `${size}px`;
         newAnims.push(anim);
         el.title = p.secret ? t('{name}（秘密基地）', { name: p.name }) : p.name;
 
@@ -977,7 +1089,36 @@ export default function MapView({
             : '';
         const sub = bits.join(' · ');
 
-        el.addEventListener('mouseenter', () => showTip(p.name, sub, p.lng, p.lat, size, homeDist));
+        const node: PinNode = {
+          el,
+          lng: p.lng,
+          lat: p.lat,
+          w,
+          h,
+          anchorBottom: true,
+          placeId: p.id,
+          dartSize: size,
+          hasCover,
+        };
+        const cover = makeCover(coverId, () => {
+          // 封面 404（视频没抽到 poster 等）→ 回退成无封面尺寸，不留空白
+          node.hasCover = false;
+          node.w = node.dartSize ?? size;
+          node.h = node.w;
+          el.classList.remove('has-cover');
+          el.style.width = `${node.w}px`;
+          el.style.height = `${node.h}px`;
+          anim.style.width = '';
+          anim.style.height = '';
+          positionAll();
+        });
+        if (cover) el.appendChild(cover);
+        el.appendChild(anim);
+
+        // 2026-11-12 T12：气泡锚点 = pin 总高（封面顶部）再上移 TIP_GAP；延迟出现等封面先放大
+        el.addEventListener('mouseenter', () =>
+          showTipSoon(p.name, sub, p.lng, p.lat, node.h, homeDist, TIP_GAP)
+        );
         el.addEventListener('mouseleave', hideTip);
 
         el.addEventListener('click', (ev) => {
@@ -988,15 +1129,7 @@ export default function MapView({
           spawnRipple(p.lng, p.lat, size, markerHex(markerKind, markerColors));
           cbs.current.onPick(p.id);
         });
-        pins.current.set(key, {
-          el,
-          lng: p.lng,
-          lat: p.lat,
-          w: size,
-          h: size,
-          anchorBottom: true,
-          placeId: p.id,
-        });
+        pins.current.set(key, node);
       }
 
       layer.appendChild(el);
@@ -1011,15 +1144,23 @@ export default function MapView({
 
     // D-150：选中态原地更新（节点不再因选中重建）——只改尺寸 + selected 类，
     // 这样点击压扁回弹能在原节点上完整播完，也不会出现「底下多一层图标」的重叠。
+    // 2026-11-12 T12：飞镖 30↔38 时总高要同步（封面保持 45×40 不变），否则热点/气泡锚点会错位。
     for (const node of pins.current.values()) {
       if (!node.placeId) continue;
       const on = node.placeId === selectedRef.current;
-      const size = on ? 38 : markerSize(1);
-      if (node.w !== size) {
-        node.w = size;
-        node.h = size;
-        node.el.style.width = `${size}px`;
-        node.el.style.height = `${size}px`;
+      const dart = on ? 38 : markerSize(1);
+      if (node.dartSize !== dart) {
+        node.dartSize = dart;
+        const hasCover = node.hasCover === true;
+        node.w = hasCover ? COVER_W : dart;
+        node.h = hasCover ? dart + COVER_H + COVER_GAP : dart;
+        node.el.style.width = `${node.w}px`;
+        node.el.style.height = `${node.h}px`;
+        const anim = node.el.querySelector<HTMLElement>('.pin-anim');
+        if (hasCover && anim) {
+          anim.style.width = `${dart}px`;
+          anim.style.height = `${dart}px`;
+        }
       }
       node.el.classList.toggle('selected', on);
     }
@@ -1029,8 +1170,12 @@ export default function MapView({
     const homePlace = placesRef.current.find((p) => p.home === 1) ?? null;
     // 家同样不在 key 里带选中态：选中只原地改尺寸 / class（D-150）
     // D-161：key 里带上 homeColor，切换配色时重建家的节点（<img> 不能靠 CSS 改色）
+    // 2026-11-12 T12：家也显示封面（有 cover_id 且非秘密基地时）；封面变了要重建 → 进 key
+    const homeCoverId = coverIdOf(homePlace);
     const homeKey = homePlace
-      ? `h:${homePlace.id}:${homePlace.name}:${homePlace.lng}:${homePlace.lat}:${lang}:${homeColor}`
+      ? `h:${homePlace.id}:${homePlace.name}:${homePlace.lng}:${homePlace.lat}:${lang}:${homeColor}:${
+          homeCoverId ?? ''
+        }`
       : null;
     if (!homePlace) {
       homePin.current?.el.remove();
@@ -1042,9 +1187,15 @@ export default function MapView({
     } else {
       homePin.current?.el.remove();
       const size = homePlace.id === selectedRef.current ? 38 : markerSize(1);
+      // 2026-11-12 T12：家有封面时同样「封面 + 间隙 + 房子飞镖」，尖仍落坐标点
+      const hasCover = homeCoverId !== null;
+      const w = hasCover ? COVER_W : size;
+      const h = hasCover ? size + COVER_H + COVER_GAP : size;
       const el = document.createElement('div');
       el.className = 'pin home';
-      el.style.width = el.style.height = `${size}px`;
+      if (hasCover) el.classList.add('has-cover');
+      el.style.width = `${w}px`;
+      el.style.height = `${h}px`;
       if (homePlace.id === selectedRef.current) el.classList.add('selected');
       // D-150：与普通单点一致的呼吸/悬停/点击动效
       applyPhase(el, 'breath', homePlace.id);
@@ -1061,7 +1212,7 @@ export default function MapView({
       const anim = document.createElement('div');
       anim.className = 'pin-anim';
       anim.appendChild(pinBody);
-      el.appendChild(anim);
+      if (hasCover) anim.style.width = anim.style.height = `${size}px`;
       newAnims.push(anim);
       el.title = t('{name}（家）', { name: homePlace.name });
       const region = [tp(homePlace.province), homePlace.city].filter(Boolean).join(' · ');
@@ -1074,13 +1225,39 @@ export default function MapView({
           t('最近 {date}', { date: homePlace.last_date.slice(0, 7).replace('-', '.') })
         );
       }
+      const homeNode: PinNode = {
+        el,
+        lng: homePlace.lng,
+        lat: homePlace.lat,
+        w,
+        h,
+        anchorBottom: true,
+        dartSize: size,
+        hasCover,
+      };
+      const cover = makeCover(homeCoverId, () => {
+        // 封面 404 → 回退成无封面尺寸，不留空白
+        homeNode.hasCover = false;
+        homeNode.w = homeNode.dartSize ?? size;
+        homeNode.h = homeNode.w;
+        el.classList.remove('has-cover');
+        el.style.width = `${homeNode.w}px`;
+        el.style.height = `${homeNode.h}px`;
+        anim.style.width = '';
+        anim.style.height = '';
+        positionAll();
+      });
+      if (cover) el.appendChild(cover);
+      el.appendChild(anim);
       el.addEventListener('mouseenter', () =>
-        showTip(
+        showTipSoon(
           t('{name}（家）', { name: homePlace.name }),
           bits.join(' · '),
           homePlace.lng,
           homePlace.lat,
-          size
+          homeNode.h,
+          '',
+          TIP_GAP
         )
       );
       el.addEventListener('mouseleave', hideTip);
@@ -1094,26 +1271,26 @@ export default function MapView({
         cbs.current.onPick(homePlace.id);
       });
       layer.appendChild(el);
-      homePin.current = {
-        el,
-        lng: homePlace.lng,
-        lat: homePlace.lat,
-        w: size,
-        h: size,
-        anchorBottom: true,
-      };
+      homePin.current = homeNode;
       homePinKey.current = homeKey;
     }
 
-    // 家的选中态也原地更新（不重建节点）
+    // 家的选中态也原地更新（不重建节点）；2026-11-12 T12：飞镖尺寸变了总高同步更新
     if (homePin.current && homePlace) {
       const on = homePlace.id === selectedRef.current;
-      const size = on ? 38 : markerSize(1);
-      if (homePin.current.w !== size) {
-        homePin.current.w = size;
-        homePin.current.h = size;
-        homePin.current.el.style.width = `${size}px`;
-        homePin.current.el.style.height = `${size}px`;
+      const dart = on ? 38 : markerSize(1);
+      if (homePin.current.dartSize !== dart) {
+        homePin.current.dartSize = dart;
+        const hasCover = homePin.current.hasCover === true;
+        homePin.current.w = hasCover ? COVER_W : dart;
+        homePin.current.h = hasCover ? dart + COVER_H + COVER_GAP : dart;
+        homePin.current.el.style.width = `${homePin.current.w}px`;
+        homePin.current.el.style.height = `${homePin.current.h}px`;
+        const homeAnim = homePin.current.el.querySelector<HTMLElement>('.pin-anim');
+        if (hasCover && homeAnim) {
+          homeAnim.style.width = `${dart}px`;
+          homeAnim.style.height = `${dart}px`;
+        }
       }
       homePin.current.el.classList.toggle('selected', on);
     }
@@ -1186,11 +1363,11 @@ export default function MapView({
             new T.LngLat(CHINA_VIEW_BOUNDS.maxLng, CHINA_VIEW_BOUNDS.maxLat)
           ),
         });
-        // 上次的视野优先，没有或非法就回中国全境
+        // 上次的视野优先，没有或非法就回「总览」默认视野（2026-11-12：zoom 5 / 中心 106,35）
         const savedView = readView();
         map.centerAndZoom(
-          new T.LngLat(savedView?.lng ?? 104.0, savedView?.lat ?? 35.0),
-          savedView?.zoom ?? 4
+          new T.LngLat(savedView?.lng ?? MAP_OVERVIEW.lng, savedView?.lat ?? MAP_OVERVIEW.lat),
+          savedView?.zoom ?? MAP_OVERVIEW.zoom
         );
         map.enableScrollWheelZoom();
         map.enableDrag();

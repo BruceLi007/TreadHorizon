@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import MapView, { type MapApi, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from './map/MapView';
+import MapView, { type MapApi, MAP_MIN_ZOOM, MAP_MAX_ZOOM, MAP_OVERVIEW } from './map/MapView';
 import type { Cluster } from './map/cluster';
 
 /** 地点详情从哪一层打开（D-290）：决定标题栏左上「← 返回」回到哪一层 */
@@ -1528,7 +1528,8 @@ export default function App() {
     commitUploads([]);
   }, [commitUploads, patchUpload, clearUploadAutoClose]);
 
-  const backToChina = () => mapApi.current?.flyTo(104.0, 35.0, 4);
+  // 2026-11-12 用户要求（D-397）：总览默认 zoom 4→5、中心经度 104→106（地图整体往左一点），与 MapView 初始化共用 MAP_OVERVIEW
+  const backToChina = () => mapApi.current?.flyTo(MAP_OVERVIEW.lng, MAP_OVERVIEW.lat, MAP_OVERVIEW.zoom);
 
   // ── 统计模式（F-STA / D-60）──
   const enterStats = useCallback(async () => {

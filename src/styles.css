@@ -403,6 +403,11 @@ code {
   position: absolute;
   top: 0;
   left: 0;
+  /* 2026-11-12 T12：标记盒 = 「封面（可选）+ 飞镖」纵向列，飞镖尖仍在盒子底部中心（= 坐标点） */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
   will-change: transform;
   pointer-events: auto;
   cursor: pointer;
@@ -411,7 +416,61 @@ code {
   padding: 0;
 }
 
-.pin img {
+/* 悬停 / 选中的 pin 提到最上面：封面放大后才不会被邻居压住 */
+.pin:hover,
+.pin.selected {
+  z-index: 5;
+}
+
+/* 2026-11-12 T12：标记上方封面缩略图（单点 / 聚合 / 家共用；45×40、圆角 6、细白边 + 投影）。
+   注意：放大用 .pin-cover 自己的 transform（.pin 的 transform 由 positionAll() 独占）。 */
+.pin-cover {
+  flex: none;
+  width: 45px;
+  height: 40px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(18, 21, 26, 0.55);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  transform-origin: 50% 100%;
+  transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+  /* 悬停命中交给外层 .pin（cover 只负责画图，不单独吃事件） */
+  pointer-events: none;
+}
+
+/* 用户要求：鼠标移上去照片稍微放大一点（先放大，再出气泡） */
+.pin:hover .pin-cover {
+  transform: scale(1.08) translateY(-2px);
+}
+
+.pin-cover img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+  opacity: 0;
+  filter: none;
+  transition: opacity 120ms ease;
+}
+
+.pin-cover img.loaded {
+  opacity: 1;
+}
+
+/* 有封面时 .pin-anim（飞镖本体）由 JS 显式给 30/38/聚合尺寸，不能拉伸到封面宽度 */
+.pin.has-cover .pin-anim {
+  flex: none;
+}
+
+/* 行内图片（飞镖本体 / 聚合图标 / 草稿）：2026-11-12 T12 收窄 ——
+   原来是 .pin img，会给封面也套上 100% 尺寸和 drop-shadow；封面样式见 .pin-cover img。 */
+.pin-media img,
+.cluster-pin,
+.pin.draft img {
   width: 100%;
   height: 100%;
   display: block;
@@ -422,10 +481,6 @@ code {
    - 左 / 右两个内倾 ±20°、缩到 0.76；中间一个 0.80 最后画、盖在最上面；
    - 纯去过 = 3 琥珀 / 纯想去 = 3 冷蓝 / 混合 = 多数色 2 + 少数色 1（由 MapView 选 img.src）；
    - 外层 .pin 的 transform 由 positionAll() 独占定位，内层 .cluster-body 做轻微脉冲。 */
-.pin.cluster {
-  transition: filter 140ms ease;
-}
-
 .cluster-body {
   position: relative;
   width: 100%;
@@ -434,6 +489,8 @@ code {
   transform-origin: 50% 100%;
   /* D-150：常驻轻微脉冲（相位由聚合 key 哈希出，错峰）；幅度远小于单点呼吸 */
   animation: cluster-pulse var(--pulse-dur, 5.6s) ease-in-out var(--pulse-delay, 0s) infinite;
+  /* 2026-11-12 T12：hover 提亮只作用在聚合飞镖本体（.pin 里还有封面，别把照片也提亮） */
+  transition: filter 140ms ease;
 }
 
 .cluster-pin {
@@ -446,7 +503,7 @@ code {
   transform-origin: 50% 100%;
 }
 
-.pin.cluster:hover {
+.pin.cluster:hover .cluster-body {
   filter: brightness(1.12);
 }
 
@@ -4420,11 +4477,11 @@ html:is([data-theme='light'], [data-theme='white']) .trash-row.on {
    顶栏「统计」的选中态已统一走 .ghost.on 的反色实底（2026-11-04，D-118），不再单独用琥珀底。
    2026-11-05 D-164：秘密基地也能在设置里选配色，发光颜色由 MapView 按当前色写到
    img 的内联 `--pin-glow / --pin-glow-strong` 变量上（这里保留默认色「品红」作兜底）。 */
-.pin.secret img {
+.pin.secret .pin-media img {
   filter: drop-shadow(0 3px 9px var(--pin-glow, rgba(232, 121, 249, 0.55)));
 }
 
-.pin.secret.selected img {
+.pin.secret.selected .pin-media img {
   filter: drop-shadow(0 1px 14px var(--pin-glow-strong, rgba(232, 121, 249, 0.75)));
 }
 
@@ -4454,7 +4511,7 @@ html:is([data-theme='light'], [data-theme='white']) .backup-dot {
    独立点位：不参与聚合、不在清单/统计里。
    家图标有 7 种颜色，不再用固定绿色发光；没选中的沿用全局 .pin img 深色投影，
    选中时只加深一点中性投影，避免珊瑚红 / 天蓝房子配绿色光晕。 */
-.pin.home.selected img {
+.pin.home.selected .pin-media img {
   filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.6));
 }
 
@@ -4808,7 +4865,9 @@ html[lang='en'] .topbar .actions .ghost.on:hover {
 }
 
 /* 尖端在底部中心：所有变换都绕杖尖进行，呼吸时坐标点不会漂 */
-.pin img {
+.pin-media img,
+.cluster-pin,
+.pin.draft img {
   transform-origin: 50% 100%;
 }
 
@@ -4822,8 +4881,10 @@ html[lang='en'] .topbar .actions .ghost.on:hover {
   animation-name: pin-breathe-strong;
 }
 
-/* 悬停：内层 img 轻跳一下（与呼吸分层，互不覆盖） */
-.pin:not(.draft):hover img {
+/* 悬停：内层飞镖 img 轻跳一下（与呼吸分层，互不覆盖）。
+   2026-11-12 T12：收窄到 .pin-media img / .cluster-pin —— 上方封面不跳，只做 scale 放大。 */
+.pin:not(.draft):hover .pin-media img,
+.pin:not(.draft):hover .cluster-pin {
   animation: pin-hop 340ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -4867,13 +4928,13 @@ html[lang='en'] .topbar .actions .ghost.on:hover {
 /* 暂停：缩放中 / 页面切后台 */
 .pin-layer.zooming .pin-body,
 .pin-layer.zooming .pin-media,
-.pin-layer.zooming .pin img,
+.pin-layer.zooming .pin-media img,
 .pin-layer.zooming .cluster-body,
 .pin-layer.zooming .pin-ripple::before,
 .pin-layer.zooming .pin-ripple::after,
 .pin-layer.is-hidden .pin-body,
 .pin-layer.is-hidden .pin-media,
-.pin-layer.is-hidden .pin img,
+.pin-layer.is-hidden .pin-media img,
 .pin-layer.is-hidden .cluster-body,
 .pin-layer.is-hidden .pin-ripple::before,
 .pin-layer.is-hidden .pin-ripple::after {
@@ -4884,7 +4945,7 @@ html[lang='en'] .topbar .actions .ghost.on:hover {
    拖动平移时只暂停、松手恢复，避免 26 个标记的呼吸和地图平移抢合成资源。 */
 .pin-layer.zooming .pin-body,
 .pin-layer.zooming .pin-media,
-.pin-layer.zooming .pin img,
+.pin-layer.zooming .pin-media img,
 .pin-layer.zooming .cluster-body,
 .pin-layer.zooming .pin-ripple::before,
 .pin-layer.zooming .pin-ripple::after {
@@ -4893,7 +4954,7 @@ html[lang='en'] .topbar .actions .ghost.on:hover {
 
 .pin-layer.interacting .pin-body,
 .pin-layer.interacting .pin-media,
-.pin-layer.interacting .pin img,
+.pin-layer.interacting .pin-media img,
 .pin-layer.interacting .cluster-body {
   animation-play-state: paused;
 }
@@ -4989,10 +5050,18 @@ html[lang='en'] .topbar .actions .ghost.on:hover {
 @media (prefers-reduced-motion: reduce) {
   .pin-body,
   .pin-media,
-  .pin img,
+  .pin-media img,
   .pin-anim,
   .cluster-body {
     animation: none !important;
+  }
+  /* 2026-11-12 T12：封面放大 / 淡入在减少动态效果时直接跳过 */
+  .pin-cover,
+  .pin-cover img {
+    transition: none !important;
+  }
+  .pin:hover .pin-cover {
+    transform: none;
   }
   .pin-ripple {
     display: none;
