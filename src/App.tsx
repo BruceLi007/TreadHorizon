@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import MapView, { type MapApi } from './map/MapView';
+import MapView, { type MapApi, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from './map/MapView';
 import type { Cluster } from './map/cluster';
 
 /** 地点详情从哪一层打开（D-290）：决定标题栏左上「← 返回」回到哪一层 */
@@ -423,6 +423,8 @@ export default function App() {
                 : -1;
 
   const mapApi = useRef<MapApi | null>(null);
+  /** 地图缩放按钮（2026-11-11 用户要求「上加下减」）：当前缩放级别，用于按钮禁用态 */
+  const [mapZoom, setMapZoom] = useState<number>(MAP_MIN_ZOOM);
   const geoTimer = useRef<number | null>(null);
   /** 顶栏搜索展开区（点外面收起，D-130） */
   const hudSearchRef = useRef<HTMLDivElement | null>(null);
@@ -1721,6 +1723,7 @@ export default function App() {
           provinceStats={provinceStats}
           homeColor={homeColor}
           markerColors={markerColors}
+          onZoomChange={setMapZoom}
           onStatus={(s) => {
             if (!s.ready && s.error) {
               setBoot('error');
@@ -1728,6 +1731,36 @@ export default function App() {
             }
           }}
         />
+      )}
+
+      {/* 地图缩放按钮（2026-11-11 用户要求：上加下减、鼠标点击；左侧垂直居中，避开右侧抽屉） */}
+      {boot === 'ready' && (
+        <div className="map-zoom" role="group" aria-label={t('地图缩放')} data-zoom={mapZoom}>
+          <button
+            type="button"
+            className="map-zoom-btn"
+            onClick={() => mapApi.current?.zoomIn()}
+            disabled={mapZoom >= MAP_MAX_ZOOM}
+            title={t('放大地图')}
+            aria-label={t('放大地图')}
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M8 3.2v9.6M3.2 8h9.6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="map-zoom-btn"
+            onClick={() => mapApi.current?.zoomOut()}
+            disabled={mapZoom <= MAP_MIN_ZOOM}
+            title={t('缩小地图')}
+            aria-label={t('缩小地图')}
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M3.2 8h9.6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
       )}
 
       <header className="topbar">

@@ -316,6 +316,69 @@ code {
   background: var(--bg-map);
 }
 
+/* ── 地图缩放按钮（2026-11-11 用户要求：上加下减、鼠标点击）──
+   左侧垂直居中，避开右侧抽屉；层级在地图之上、顶栏 / 面板之下（z12 < 面板 30）。 */
+.map-zoom {
+  position: absolute;
+  left: clamp(12px, 1.2vw, 22px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-raised);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.2);
+}
+
+.map-zoom-btn {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.map-zoom-btn + .map-zoom-btn {
+  border-top: 1px solid var(--line);
+}
+
+.map-zoom-btn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.map-zoom-btn:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--text-1);
+}
+
+.map-zoom-btn:active:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+.map-zoom-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+@media (max-width: 760px) {
+  .map-zoom-btn {
+    width: 34px;
+    height: 34px;
+  }
+}
+
 /* 标记层：不用天地图的覆盖物，自己用绝对定位的 div 画。
    必须给一个高于天地图内部图层（Leaflet 系的 pane 用到 600+）的 z-index，
    否则会被底图盖住 —— 标签层默认 no z-index 是画在它们下面的。 */

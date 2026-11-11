@@ -251,10 +251,19 @@
 
 .st-field-label {
   flex: none;
-  width: 34px;
+  /* 2026-11-11 修复（用户截图反馈「字怎么竖着了」）：原来固定 34px，
+     字号大档（--fs-scale 1.5 → 11.5*1.5=17.25px）下两个汉字约 34.5px > 34px，
+     标签被逐字换行成竖排。改成按标签自身字号换算（2em ≈ 两个汉字）+ 留 4px 余量；
+     英文标签（Year / Granularity…）另给足够宽度，保证不换行且各行列对齐。 */
+  width: calc(2em + 4px);
   font-size: calc(11.5px * var(--fs-scale));
   color: var(--text-3);
   line-height: 30px;
+  white-space: nowrap;
+}
+
+html[lang='en'] .st-field-label {
+  width: 7em;
 }
 
 .st-field.is-top .st-field-label {

@@ -239,6 +239,9 @@ function readZoomAnimationTiming(map: any): { dur: number; ease: (t: number) => 
 export interface MapApi {
   flyTo(lng: number, lat: number, zoom?: number): void;
   getZoom(): number;
+  /** 2026-11-11 用户要求：地图上加下减两个按钮，点击逐级缩放 */
+  zoomIn(): void;
+  zoomOut(): void;
 }
 
 // ── 记住上次视野（F-MAP-06）──
@@ -258,6 +261,10 @@ const CHINA_VIEW_BOUNDS = {
   maxLng: 180.0,
   maxLat: 75.0,
 };
+
+/** 2026-11-11：缩放按钮的上下限（与地图 minZoom / 上次视野校验保持一致） */
+export const MAP_MIN_ZOOM = 4;
+export const MAP_MAX_ZOOM = 17;
 
 function readView(): { lng: number; lat: number; zoom: number } | null {
   try {
@@ -313,6 +320,8 @@ interface Props {
   homeColor?: HomeColor;
   /** 去过 / 想去 / 秘密基地的图标配色（2026-11-05 D-164）：7 色可选；null = 原色 */
   markerColors?: MarkerColorPrefs;
+  /** 2026-11-11：地图缩放变化（zoomend / 初始化）时通知 App，用于更新缩放按钮禁用态 */
+  onZoomChange?: (zoom: number) => void;
 }
 
 interface PinNode {
@@ -343,6 +352,7 @@ export default function MapView({
   provinceStats,
   homeColor = 'teal',
   markerColors = DEFAULT_MARKER_COLORS,
+  onZoomChange,
 }: Props) {
   const t = useT();
   const tp = useTp();
@@ -356,6 +366,9 @@ export default function MapView({
   const flyRef = useRef<(lng: number, lat: number, zoom: number) => void>(() => {});
   const placesRef = useRef<Place[]>([]);
   const selectedRef = useRef<string | null>(null);
+  /** 2026-11-11：缩放变化回调（避免地图初始化 effect 捕获旧 props） */
+  const onZoomChangeRef = useRef(onZoomChange);
+  onZoomChangeRef.current = onZoomChange;
   /** 家（普通地点，不参与聚合）：单独一个 DOM 节点，key 变化时重建 */
   const homePin = useRef<PinNode | null>(null);
   const homePinKey = useRef<string | null>(null);
@@ -1155,7 +1168,7 @@ export default function MapView({
           // 2026-11-06 用户要求（中国以外不能打点 → 地图也不展示国外区域）：
           // maxBounds 把地图限制在中国范围附近（含南海海域），拖出范围会弹回；
           // 平移范围 30~180°E / -30~75°N；D-196（用户要求）最小缩放回到 4，和「总览」默认一致。
-          minZoom: 4,
+          minZoom: MAP_MIN_ZOOM,
           maxBounds: new T.LngLatBounds(
             new T.LngLat(CHINA_VIEW_BOUNDS.minLng, CHINA_VIEW_BOUNDS.minLat),
             new T.LngLat(CHINA_VIEW_BOUNDS.maxLng, CHINA_VIEW_BOUNDS.maxLat)
@@ -1177,6 +1190,11 @@ export default function MapView({
         }
 
         mapRef.current = map;
+
+        // 2026-11-11 用户要求：缩放按钮（上加下减）用；把 zoom 同步给 App 控制禁用态
+        const notifyZoom = () =>
+          onZoomChangeRef.current?.(Math.round(Number(map.getZoom()) || MAP_MIN_ZOOM));
+        notifyZoom();
 
         // 缩放策略：先试一次直达，没到位再逐级补。
         // 这套 SDK 多级跳有时只生效 1 级，直接逐级飞的话 +2 级就会看到两段动画。
@@ -1207,9 +1225,20 @@ export default function MapView({
         };
         flyRef.current = flyStepped;
 
+        /** 按钮缩放：当前中心不动，逐级 +/-1（到上下限就不动） */
+        const zoomStep = (delta: number) => {
+          const cur = Math.round(Number(map.getZoom()) || MAP_MIN_ZOOM);
+          const next = Math.max(MAP_MIN_ZOOM, Math.min(MAP_MAX_ZOOM, cur + delta));
+          if (next === cur) return;
+          const center = map.getCenter();
+          map.centerAndZoom(new T.LngLat(center.getLng(), center.getLat()), next);
+        };
+
         apiRef.current = {
           flyTo: (lng, lat, zoom) => flyStepped(lng, lat, zoom ?? map.getZoom()),
           getZoom: () => map.getZoom(),
+          zoomIn: () => zoomStep(1),
+          zoomOut: () => zoomStep(-1),
         };
 
         // 恢复的视野可能被 SDK 的「多级跳只生效一级」吃掉，稍后校验补级（F-MAP-06）
@@ -1448,6 +1477,7 @@ export default function MapView({
         };
         map.addEventListener('moveend', saveView);
         map.addEventListener('zoomend', saveView);
+        map.addEventListener('zoomend', notifyZoom);
 
         setReady(true);
         onStatus({ ready: true });

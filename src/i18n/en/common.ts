@@ -159,6 +159,9 @@ const dict: Dict = {
   '照片墙': 'Photo wall',
   '设置 · 该备份了：{text}': 'Settings · backup due: {text}',
   '该备份了：{text}': 'Backup due: {text}',
+  '地图缩放': 'Map zoom',
+  '放大地图': 'Zoom in',
+  '缩小地图': 'Zoom out',
   '设置 · 发现新版本 {v}': 'Settings · new version {v} available',
   '设置 · 该备份了：{text} · 发现新版本 {v}':
     'Settings · backup due: {text} · new version {v} available',
