@@ -342,3 +342,40 @@
   height: 30px;
   padding: 0 12px;
 }
+
+/* ── 下载我的数据（2026-11-11 D-369：云端普通用户取消备份 / 恢复，只保留「从云端下载到本地」）──
+   三行勾选（应用数据必选 / 缩略图默认 / 照片视频可选）+「下载到本地」链接按钮（<a> 当按钮用）。 */
+.acc-dl-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 8px 0;
+  font-size: calc(13px * var(--fs-scale));
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.acc-dl-check input {
+  flex: none;
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+
+.acc-dl-check input:disabled {
+  cursor: default;
+}
+
+.acc-dl-check small {
+  display: block;
+  margin-top: 1px;
+  color: var(--text-3);
+  font-size: calc(11.5px * var(--fs-scale));
+}
+
+.acc-dl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  margin: 10px 0 8px;
+}

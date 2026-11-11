@@ -98,15 +98,8 @@ import {
   startRestoreJob,
   storeInspectToken,
 } from './backup.mjs';
-// M6 P2-3：普通用户导出自己的数据（另一位工程师并行实现的模块）+ zip 层错误类型（消息可直接给用户看）
+// M6 P2-3：普通用户「下载我的数据」（zip 导出 / 下载；2026-11-11 D-369 起云端不再提供自助恢复）
 import { UserExportError, buildUserExportZip, userExportFileName } from './user-export.mjs';
-// M6 P2-3+（2026-11-07 D-210）：普通用户「从我的备份恢复」（按账号范围替换自己的数据）
-import {
-  UserRestoreError,
-  inspectUserBackupZip,
-  restoreUserBackup,
-  storeUserRestoreToken,
-} from './user-restore.mjs';
 import { ZipError } from './zip.mjs';
 // 首次初始化示例足迹（2026-11-09）：local 启动时 / multi 首次登录注册后生成 34 省省会示例数据
 import { ensureStarterData } from './starter.mjs';
@@ -1089,7 +1082,8 @@ app.post('/api/admin/users/:id/password', async (req, reply) => {
 });
 
 /**
- * 导出自己的数据（P2-3）：临时 zip → 流式下载 → 响应结束后删临时文件。
+ * 下载我的数据（P2-3；2026-11-11 D-369 起云端普通用户只保留「下载到本地」，不再提供自助恢复）：
+ * 临时 zip → 流式下载 → 响应结束后删临时文件。
  * thumbs 默认包含（=0 排除）；media 需显式 =1（体积大，交由前端勾选，与备份导出口径一致）。
  * 中文文件名走 RFC 5987 filename*，同时给 ASCII fallback 兼容旧客户端。
  */
@@ -1137,89 +1131,6 @@ app.get('/api/account/export', async (req, reply) => {
       `attachment; filename="user-export.zip"; filename*=UTF-8''${encodeURIComponent(filename)}`
     )
     .send(stream);
-});
-
-/**
- * 从「我的数据导出」zip 恢复（2026-11-07 D-210，普通用户自己恢复自己的数据）：
- * 第一步上传 zip → 全套校验 → 返回 10 分钟有效的 token + 摘要。
- * multi-only：local 模式本来就有完整的「备份与恢复」（管理员整库恢复），不需要这个接口。
- */
-app.post('/api/account/restore/inspect', async (req, reply) => {
-  const user = requireAuth(req, reply);
-  if (!user) return;
-
-  const declaredBytes = Number(req.headers['content-length']);
-  if (Number.isFinite(declaredBytes) && declaredBytes > 0) {
-    if (declaredBytes > BACKUP_UPLOAD_MAX_BYTES) {
-      return reply.code(400).send({
-        error: `备份包超过上限（${(BACKUP_UPLOAD_MAX_BYTES / 1024 ** 3).toFixed(0)} GB）`,
-      });
-    }
-    try {
-      const st = statfsSync(resolve(CONFIG.dataDir));
-      const available = Number(st.bavail) * Number(st.bsize);
-      if (Number.isFinite(available) && available < declaredBytes + 200 * 1024 * 1024) {
-        return reply.code(400).send({
-          error: `磁盘空间不足：读取备份包需要约 ${(declaredBytes / 1024 ** 3).toFixed(2)} GB（另需预留 200 MB），当前可用 ${(available / 1024 ** 3).toFixed(2)} GB`,
-        });
-      }
-    } catch {
-      /* statfs 不可用就交给写入失败兜底 */
-    }
-  }
-
-  let part;
-  try {
-    part = await req.file({ limits: { fileSize: BACKUP_UPLOAD_MAX_BYTES } });
-  } catch (e) {
-    return reply.code(400).send({ error: '无法读取上传的备份包：' + (e?.message || e) });
-  }
-  if (!part) return reply.code(400).send({ error: '缺少备份包文件（multipart 字段名 file）' });
-  if (part.fieldname !== 'file') {
-    part.file.resume();
-    return reply.code(400).send({ error: '备份文件字段名必须是 file' });
-  }
-
-  const zipPath = newTmpZipPath('user-restore');
-  try {
-    await pipeline(part.file, createWriteStream(zipPath));
-    if (part.file.truncated) {
-      throw new UserRestoreError(
-        400,
-        `备份包超过上限（${(BACKUP_UPLOAD_MAX_BYTES / 1024 ** 3).toFixed(0)} GB）`
-      );
-    }
-    const inspected = await inspectUserBackupZip(zipPath, user);
-    const tokenInfo = storeUserRestoreToken(zipPath, inspected.summary, user.id);
-    return { token: tokenInfo.token, expiresAt: tokenInfo.expiresAt, summary: inspected.summary };
-  } catch (e) {
-    try {
-      unlinkSync(zipPath);
-    } catch {
-      /* ignore */
-    }
-    if (e instanceof UserRestoreError) return reply.code(e.status || 400).send({ error: e.message });
-    if (e instanceof ZipError) return reply.code(400).send({ error: e.message });
-    return reply.code(400).send({ error: '备份包校验失败：' + (e?.message || String(e)) });
-  }
-});
-
-/** 从「我的数据导出」zip 恢复（D-210）：第二步带 token + confirm:true 执行；只替换当前账号自己的数据 */
-app.post('/api/account/restore/apply', async (req, reply) => {
-  const user = requireAuth(req, reply);
-  if (!user) return;
-  const body = req.body || {};
-  try {
-    return await restoreUserBackup({ token: body.token, confirm: body.confirm === true, user });
-  } catch (e) {
-    if (e instanceof UserRestoreError) {
-      return reply.code(e.status || 500).send({ error: e.message });
-    }
-    if (e instanceof BackupError) return reply.code(e.status || 500).send({ error: e.message });
-    return reply
-      .code(500)
-      .send({ error: '恢复失败，已回滚，当前数据保持原样：' + (e?.message || String(e)) });
-  }
 });
 
 // ───────────── 地名搜索（服务端代理） ─────────────
@@ -2560,20 +2471,19 @@ function walkMediaFiles(root, limit = 200000) {
   return out;
 }
 
-// 素材库管理（换电脑 / 换路径后的重连）。
-// 2026-11-07（D-212 / D-213，用户要求）：素材库路径是**每个账号自己的管理**（含管理员）：
-//   - multi：每个账号可查看自己的素材库状态、打开自己的素材库文件夹（资源管理器）、
-//     重新关联、切换**自己账号**的素材库根目录（存 user_setting.media_root；只影响自己）；
-//     切换 / 恢复默认路径时默认把该账号现有素材同步到新位置（见 migrateMediaRoot）；
-//   - local：仍是服务器默认素材库路径（切换时同步整个库），并新增「打开本地文件夹」；
-//   - 普通用户未自定义路径时不下发服务器绝对路径（D-205）。
-// 已知边界（D-212）：管理员整库备份 / 恢复、scan、运维脚本仍只认服务器默认素材库路径。
+// 素材库管理（本地模式）：查看状态、切换路径、打开文件夹、重新关联。
+// 2026-11-11 D-370（用户要求）：云端（multi）素材库改为只读——不暴露服务器绝对路径，
+// 也不允许在网页上切换路径 / 打开服务器文件夹 / 重新关联；以下接口在 multi 一律 403
+// （普通用户的素材出口是 设置 → 账号 →「下载我的数据」；管理员查服务器路径去「关于 → 服务器信息」）。
+// 本地模式行为与以前完全一致。
+// 已知边界：管理员整库备份 / 恢复、scan、运维脚本只认服务器默认素材库路径。
 app.get('/api/library', async (req, reply) => {
-  const owner = ownerOf(req);
   if (CONFIG.authMode === 'multi') {
-    const user = requireAuth(req, reply);
-    if (!user) return;
+    return reply.code(403).send({
+      error: '云端版不提供素材库路径与状态接口（素材保存在服务器，按账号隔离）',
+    });
   }
+  const owner = ownerOf(req);
   const root = resolve(mediaBaseFor(owner));
   const customized = mediaBaseCustomized(owner);
   const thumbRoot = thumbRootFor(owner);
@@ -2589,7 +2499,7 @@ app.get('/api/library', async (req, reply) => {
     return !cached || !existsSync(join(thumbRoot, cached));
   });
   return {
-    // 2026-11-07（D-215，用户要求）：素材库就是用户机器上的一个文件夹，当前路径对所有人都直接显示
+    // 本地模式：当前路径直接显示（D-215）；云端（multi）已在上面 403（D-370）
     root,
     customized,
     total: rows.length,
@@ -2622,34 +2532,30 @@ function prepareMediaRoot(p) {
 }
 
 /**
- * 切换素材库根目录（D-212 / D-213）：
- * - multi：每个账号（含管理员）只改自己的素材库根目录，并把现有素材同步到新位置；
+ * 切换素材库根目录（仅本地模式；D-212 / D-213 的多用户按账号切换能力已在 D-370 移除）：
  * - local：改服务器默认素材库路径，并把整个素材库同步到新位置。
+ * - multi：403（云端路径由服务器管理员维护）。
  * 响应里的 synced = { files, moved, skipped, bytes, mode }。
  */
 app.post('/api/library/root', async (req, reply) => {
+  // 2026-11-11 D-370（用户要求）：云端不提供素材库路径设置（不暴露 / 不允许写服务器路径）
+  if (CONFIG.authMode === 'multi') {
+    return reply.code(403).send({ error: '云端版不提供素材库路径设置；素材库由服务器管理员维护' });
+  }
   const p = String(req.body?.root || '').trim();
   if (!p) return reply.code(400).send({ error: '路径不能为空' });
-  const isMulti = CONFIG.authMode === 'multi';
-  let user = null;
-  if (isMulti) {
-    user = requireAuth(req, reply);
-    if (!user) return;
-  }
-  const owner = ownerOf(req);
   let abs;
   try {
     abs = prepareMediaRoot(p);
   } catch (e) {
     return reply.code(400).send({ error: e.message });
   }
-  const oldBase = resolve(mediaBaseFor(owner));
+  const oldBase = resolve(CONFIG.mediaRoot);
   try {
-    // 默认把当前账号 / 当前库的素材同步到新位置（同盘 rename，跨盘复制并校验后删旧文件）
-    const synced = migrateMediaRoot(owner, oldBase, abs);
-    if (isMulti) saveUserSetting(user.id, { media_root: abs });
-    else setMediaRoot(abs);
-    return { ok: true, root: abs, customized: isMulti, synced };
+    // 把整个素材库同步到新位置（同盘 rename，跨盘复制并校验后删旧文件）
+    const synced = migrateMediaRoot(null, oldBase, abs);
+    setMediaRoot(abs);
+    return { ok: true, root: abs, customized: false, synced };
   } catch (e) {
     return reply.code(400).send({
       error: e.message,
@@ -2661,39 +2567,25 @@ app.post('/api/library/root', async (req, reply) => {
   }
 });
 
-/** 恢复默认素材库路径（multi：清掉自己的自定义路径，并把素材同步回默认位置） */
+/** （仅本地模式占位）云端已移除按账号恢复默认路径（D-370） */
 app.delete('/api/library/root', async (req, reply) => {
-  if (CONFIG.authMode !== 'multi') {
-    return reply.code(400).send({ error: '本地模式没有账号素材库路径' });
+  if (CONFIG.authMode === 'multi') {
+    return reply.code(403).send({ error: '云端版不提供素材库路径设置；素材库由服务器管理员维护' });
   }
-  const user = requireAuth(req, reply);
-  if (!user) return;
-  const oldBase = resolve(mediaBaseFor(user.id));
-  const defaultBase = resolve(CONFIG.mediaRoot);
-  try {
-    const synced = migrateMediaRoot(user.id, oldBase, defaultBase);
-    saveUserSetting(user.id, { media_root: null });
-    return { ok: true, root: defaultBase, customized: false, synced };
-  } catch (e) {
-    return reply.code(400).send({ error: e.message, retryable: true });
-  }
+  return reply.code(400).send({ error: '本地模式没有账号素材库路径' });
 });
 
 /**
- * 打开素材库文件夹（D-213，用户要求「当前路径边上加一个链接到本地文件夹的按钮」）：
- * multi = 打开当前账号的素材库目录（自定义路径或默认路径下的账号目录，不存在会自动创建）；
- * local = 打开服务器默认素材库目录。绝对路径不下发前端。
- * 注意：这是「在服务器所在机器上打开资源管理器」，云端部署时只对能登录服务器的人有意义。
+ * 打开素材库文件夹（仅本地模式；2026-11-11 D-370 起云端 403——网页用户点「打开本地文件夹」
+ * 只会试着在服务器上开资源管理器，没有意义）。
  */
 app.post('/api/library/reveal', async (req, reply) => {
   if (CONFIG.authMode === 'multi') {
-    const user = requireAuth(req, reply);
-    if (!user) return;
+    return reply.code(403).send({ error: '云端版不提供打开服务器文件夹' });
   }
-  const owner = ownerOf(req);
   try {
-    const base = resolve(mediaBaseFor(owner));
-    const dir = owner ? join(base, owner) : base;
+    const base = resolve(mediaBaseFor(null));
+    const dir = base;
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     if (req.body?.dryRun) return { ok: true, dryRun: true };
     // 启动系统文件管理器时等一小会，把「起不来」的错误报给前端（否则会静默失败）
@@ -2740,13 +2632,16 @@ app.post('/api/library/reveal', async (req, reply) => {
  *   2. 同名多个时，再用文件大小区分
  *   3. 还找不到的，算 sha256 按内容匹配（改名也能找回来）
  *
- * multi（D-202）：只处理当前账号的记录；扫描范围限定在 mediaRoot/<owner>，
- * 命中的路径仍存相对 mediaRoot 的形式（带 owner 前缀）。
+ * 2026-11-11 D-370（用户要求）：云端（multi）网页不展示、普通用户不可调用；仅管理员可调
+ * （接口保留作运维兜底）。本地模式行为不变。
  */
 app.post('/api/library/relink', async (req, reply) => {
   if (CONFIG.authMode === 'multi') {
     const user = requireAuth(req, reply);
     if (!user) return;
+    if (user.role !== 'admin') {
+      return reply.code(403).send({ error: '云端版仅管理员可调用重新关联' });
+    }
   }
   const owner = ownerOf(req);
   // D-212：按账号自己的素材库根目录（普通用户可自定义；默认 = 服务器 mediaRoot）
@@ -2880,7 +2775,8 @@ app.get('/api/scan/preview', async (req, reply) => {
 // 大文件用两阶段导出任务（start → status 轮询进度 → download），旧的 one-shot 导出保留作兼容。
 //
 // M6 P2-2（D-202）：备份提醒按用户（getBackupStatus/snooze/settings 传 owner）；
-// 导出 / 恢复 / inspect / 导出任务 / 素材库管理在 P2-3 前仅管理员，普通用户 403。
+// 整库导出 / 恢复 / inspect / 导出任务 / 素材库管理在 multi 下仅管理员，普通用户 403。
+// 2026-11-11 D-369（用户要求）：云端普通用户的「备份 / 恢复」整体取消（改为 设置 → 账号 → 下载我的数据）。
 
 /** 备份提醒状态（F-SYS-05）：上次备份 / 距今天数 / 阈值 / 稍后提醒 / 是否该备份了（每账号独立） */
 app.get('/api/backup/status', async (req) => getBackupStatus(ownerOf(req)));

@@ -185,13 +185,16 @@ const run = async () => {
     eq('素材库记录数 1', lib.total, 1);
     eq('磁盘上只有 1 个上传文件', walkFiles(mediaRoot).length, 1, walkFiles(mediaRoot).join(','));
 
-    // 同一内容传到另一个到访：按 D-46 允许（跨到访去重只提示不拦）
+    // 同一内容传到另一个到访：2026-11-10 D-354 起上传查重从「同一到访」扩到「同账号全库」，
+    // 跨到访也会跳过（旧的 D-46 断言已过时，这里按 D-354 更新）
     const b = await createPlace('冒烟 B', { province_code: '156330000', city_code: '156330100' });
     const vb = b.visits[0].id;
     const up3 = await uploadOne(vb, 'a.jpg', img1);
-    eq('同一内容传到另一个到访：仍新增', up3.added.length, 1);
+    eq('同一内容传到另一个到访：新增 0（D-354 全库查重）', up3.added.length, 0);
+    eq('同一内容传到另一个到访：跳过 1', up3.skipped.length, 1);
+    eq('跳过原因是 duplicate', up3.skipped[0]?.reason, 'duplicate');
     const lib2 = await fetch(`${BASE}/api/library`).then(j);
-    eq('素材库记录数 2（两个到访各一份）', lib2.total, 2);
+    eq('素材库记录数 1（D-354 全库查重不新增）', lib2.total, 1);
 
     // 不同内容正常新增
     const up4 = await uploadOne(va, 'b.jpg', img2);

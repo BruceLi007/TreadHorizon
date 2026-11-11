@@ -368,6 +368,11 @@ export default function App() {
    * 服务端对写请求一律 403，前端据此隐藏所有写入口（添加足迹 / 编辑 / 上传 / 删除 / 批量 / 备份恢复等）。
    */
   const readOnly = authMe?.user?.readOnly === true;
+  /**
+   * 2026-11-11 D-369（用户要求）：云端（multi）普通用户不再有备份 / 恢复功能，改为 设置 → 账号 →
+   * 「下载我的数据」。备份提醒（顶栏红点 / 统计「去备份」）/ 备份分类只对 本地模式 与 云端管理员 生效。
+   */
+  const backupAvailable = !(authMe?.mode === 'multi') || authMe?.user?.role === 'admin';
   /** 只读样板标识旁的「退出」按钮忙状态 */
   const [readonlyExitBusy, setReadonlyExitBusy] = useState(false);
   /** multi 模式已登录、但当前账号还没填自己的天地图 Key → 全屏「配置 Key」引导页（P2-4，D-205） */
@@ -502,12 +507,17 @@ export default function App() {
 
   /** 备份提醒状态（F-SYS-05）：失败静默（顶栏不显示红点，不影响主流程） */
   const refreshBackupStatus = useCallback(async () => {
+    // 2026-11-11 D-369：云端普通用户没有备份功能，不请求 / 不显示备份提醒
+    if (!backupAvailable) {
+      setBackupStatus(null);
+      return;
+    }
     try {
       setBackupStatus(await api.backupStatus());
     } catch {
       setBackupStatus(null);
     }
-  }, []);
+  }, [backupAvailable]);
 
   /** 应用更新检查（2026-11-09 D-327）：失败静默；关于页 / 顶栏 / 设置导航共用这一份状态 */
   const refreshUpdateCheck = useCallback(async () => {
@@ -1550,8 +1560,9 @@ export default function App() {
     [closePanels, exitAdd]
   );
 
-  // ── 备份提醒（F-SYS-05）：due 时顶栏「设置」按钮加红点 ──
-  const backupDue = backupStatus?.due === true;
+  // ── 备份提醒（F-SYS-05）：due 时顶栏「设置」按钮加红点；
+  //    2026-11-11 D-369：云端普通用户不做备份，不显示备份提醒 ──
+  const backupDue = backupAvailable && backupStatus?.due === true;
   const backupDueText = !backupStatus
     ? ''
     : backupStatus.reason === 'never'
@@ -2285,9 +2296,10 @@ export default function App() {
         <StatsPanel
           homeKey={homePlace ? `${homePlace.id}:${homePlace.lng}:${homePlace.lat}` : ''}
           readOnly={readOnly}
+          showBackup={backupAvailable}
           onClose={() => setStatsOpen(false)}
           onOpenBackup={
-            readOnly
+            readOnly || !backupAvailable
               ? undefined
               : () => {
                   setStatsOpen(false);

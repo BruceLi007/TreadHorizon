@@ -323,11 +323,11 @@ export default function AboutSettings({
                     </div>
                   )}
                   <div className="field-static about-span">
-                    <span>{t('数据备份')}</span>
+                    <span>{t('数据下载 / 备份')}</span>
                     <div className="value">
                       {isAdmin
-                        ? t('管理员可在「备份与恢复」里导出全量备份 / 恢复；普通用户可在那里导出自己的数据。')
-                        : t('可在 设置 → 备份与恢复 里导出「我的数据」；需要恢复数据请联系管理员。')}
+                        ? t('管理员可在「备份与恢复」里导出全量备份 / 恢复；普通用户可在「账号」里下载自己的数据。')
+                        : t('在「账号」里可以把你的数据下载到本地；云端不提供自助恢复，需要恢复请联系管理员。')}
                     </div>
                   </div>
                 </div>
@@ -383,7 +383,7 @@ export default function AboutSettings({
               <h3 className="set-section-title">{t('数据与备份说明（云端）')}</h3>
             </div>
             <p className="set-section-desc">
-              {t('云端数据按账号隔离保存在服务器上，请不要直接在服务器上修改。备份与恢复由管理员处理，普通用户请使用「导出我的数据」。')}
+              {t('云端数据按账号隔离保存在服务器上，请不要直接在服务器上修改。服务器备份由管理员负责；普通用户可在「账号」里把自己的数据下载到本地。')}
             </p>
             <p className="hint">
               {t('换电脑 / 换浏览器不需要迁移数据：用同一个账号登录即可；界面偏好（主题 / 字体等）只存本机浏览器。')}

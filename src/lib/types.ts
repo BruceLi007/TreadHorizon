@@ -754,47 +754,6 @@ export interface BackupRestoreResult {
   warnings: string[];
 }
 
-// ── M6 P2-3+（2026-11-07，D-210）：普通用户「从我的备份恢复」 ──
-
-/** POST /api/account/restore/inspect：个人导出 zip 的检查摘要 */
-export interface UserRestoreSummary {
-  username: string;
-  displayName: string;
-  exportedAtISO: string | null;
-  appVersion: string | null;
-  zipBytes: number;
-  counts: { places: number; visits: number; media: number };
-  /** 回收站里（软删）的行数 */
-  trashed: { places: number; visits: number; media: number };
-  includes: { thumbs: boolean; media: boolean };
-  filesInZip: { thumbs: number; media: number; total: number };
-  /** 数据库引用了、但 zip 里没带素材文件的数量（「最小导出」= 全部） */
-  missingMedia: number;
-  homeSet: boolean;
-  secretConfigured: boolean;
-  tdtKeyConfigured: boolean;
-  warnings: string[];
-}
-
-/** POST /api/account/restore/inspect：token 10 分钟内有效，用于随后的 apply */
-export interface UserRestoreInspectResult {
-  token: string;
-  expiresAt: number;
-  summary: UserRestoreSummary;
-}
-
-/** POST /api/account/restore/apply：按账号范围恢复的结果 */
-export interface UserRestoreResult {
-  ok: boolean;
-  restored: { places: number; visits: number; media: number };
-  autoBackup: { name: string; bytes: number } | null;
-  media: { packaged: number; written: number; skipped: number; failed: number };
-  thumbFiles: number;
-  missingMedia: number;
-  homeSet: boolean;
-  warnings: string[];
-}
-
 /** POST /api/backup/export/start：两阶段导出的任务信息（F-SYS-03 v2） */
 export interface BackupExportStart {
   jobId: string;

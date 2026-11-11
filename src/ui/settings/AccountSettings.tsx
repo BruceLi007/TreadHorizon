@@ -101,6 +101,10 @@ export default function AccountSettings({
     void loadSummary();
   }, [loadSummary]);
 
+  // ── 下载我的数据（2026-11-11 D-369 用户要求：云端普通用户取消备份 / 恢复，只保留「从云端下载到本地」）──
+  const [dlThumbs, setDlThumbs] = useState(true);
+  const [dlMedia, setDlMedia] = useState(false);
+
   // ── 存储配额 + 扩容申请（2026-11-08 D-310：云端默认 1 GB，可申请扩容）──
   const [quota, setQuota] = useState<QuotaOverview | null>(null);
   const [quotaErr, setQuotaErr] = useState<string | null>(null);
@@ -581,6 +585,58 @@ export default function AccountSettings({
           </>
         )}
       </section>
+
+      {/* 下载我的数据（2026-11-11 D-369 用户要求：云端普通用户不再有备份 / 恢复，
+          只保留「从云端下载到本地」；管理员有完整备份页，这里不重复显示） */}
+      {!isAdmin && (
+        <section className="set-section">
+          <div className="set-section-head">
+            <h3 className="set-section-title">{t('下载我的数据')}</h3>
+            <span className="acc-badge">{t('云端 → 本地')}</span>
+          </div>
+          <p className="set-section-desc">
+            {t('你的旅迹数据保存在云端服务器上，日常使用不需要自己备份（服务器数据由管理员负责备份）。这里可以把你的数据打包下载到本地，用于换电脑 / 留档；云端不提供自助恢复，如果需要恢复数据请联系管理员。')}
+          </p>
+          <label className="acc-dl-check">
+            <input type="checkbox" checked readOnly disabled />
+            <span>
+              {t('应用数据（必选）')}
+              <small>{t('地点 / 到访 / 笔记 / 评分 / 回收站')}</small>
+            </span>
+          </label>
+          <label className="acc-dl-check">
+            <input
+              type="checkbox"
+              checked={dlThumbs}
+              onChange={(e) => setDlThumbs(e.currentTarget.checked)}
+            />
+            <span>
+              {t('包含缩略图 / 预览（推荐，体积小）')}
+              <small>{t('下载后不联网也能浏览缩略图')}</small>
+            </span>
+          </label>
+          <label className="acc-dl-check">
+            <input
+              type="checkbox"
+              checked={dlMedia}
+              onChange={(e) => setDlMedia(e.currentTarget.checked)}
+            />
+            <span>
+              {t('包含照片 / 视频文件（体积可能很大）')}
+              <small>{t('勾选后打包会久一点；受账号存储配额限制')}</small>
+            </span>
+          </label>
+          <a
+            className="primary full acc-dl-btn"
+            href={api.userExportUrl({ thumbs: dlThumbs, media: dlMedia })}
+          >
+            {t('下载到本地')}
+          </a>
+          <p className="hint">
+            {t('下载包是一个 zip：包含你的应用数据、说明文件，以及可选的缩略图与照片视频文件；只包含你自己的账号数据，不会包含其他账号。')}
+          </p>
+        </section>
+      )}
 
       <section className="set-section">
         <div className="set-section-head">

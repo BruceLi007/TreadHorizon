@@ -325,16 +325,21 @@ export default function SettingsModal({
   const [resizing, setResizing] = useState(false);
   const dragRef = useRef<{ sx: number; sy: number; w: number; h: number } | null>(null);
   // 账号 / 用户管理分类只在多用户模式出现；本地模式（默认）左侧导航与以前完全一致。
-  // P2-3（D-204）：多用户模式的「备份与恢复」对普通用户只显示自己的导出 / 恢复（BackupSettings 内部分流）。
+  // 2026-11-11 D-369（用户要求）：云端普通用户的「备份 / 恢复」整体取消，改为 设置 → 账号 →「下载我的数据」；
+  // 「备份与恢复」分类只对 本地模式 / 云端管理员 显示。
   // 2026-11-07（D-211）：按用户要求「让普通用户也能看到素材库信息」——素材库分类改为所有角色可见；
   // 普通用户只读（LibrarySettings 内部分流），路径 / 重新关联 / 切换路径仍仅管理员。
   const multi = authMode === 'multi';
   const isAdmin = currentUser?.role === 'admin';
+  const backupTabVisible = !multi || isAdmin;
   // 2026-11-09 D-335：只读样板会话只保留「通用 / 天地图 Key / 关于」——
   // 备份恢复、素材库、回收站、安全、账号都涉及写操作或会暴露隐藏内容，直接不展示。
+  const visibleMainTabs = backupTabVisible
+    ? MAIN_TABS
+    : MAIN_TABS.filter((item) => item.id !== 'backup');
   const mainTabs = readOnly
-    ? MAIN_TABS.filter((item) => item.id === 'general' || item.id === 'tdt')
-    : MAIN_TABS;
+    ? visibleMainTabs.filter((item) => item.id === 'general' || item.id === 'tdt')
+    : visibleMainTabs;
   // 2026-11-07 用户要求（D-221 修订）：回收站放回分类列表、位于「关于」上面；multi 下「账号」固定到左下角单独显示。
   const tabs = readOnly
     ? [...mainTabs, ABOUT_TAB]
@@ -346,13 +351,13 @@ export default function SettingsModal({
           ABOUT_TAB,
         ]
       : [...mainTabs, TRASH_TAB, ABOUT_TAB];
-  // 普通用户的「素材库」分类说明改成只读信息（不给「路径、重新关联」的暗示）
-  const tabsShown =
-    multi && !isAdmin
-      ? tabs.map((item) =>
-          item.id === 'library' ? { ...item, desc: t('我的素材库路径、重新关联与用量') } : item
-        )
-      : tabs;
+  // 2026-11-11 D-370（用户要求）：云端（multi）素材库只读——不显示服务器路径、不能切换路径，
+  // 分类说明统一改成「我的素材使用量」；本地模式说明不变。
+  const tabsShown = multi
+    ? tabs.map((item) =>
+        item.id === 'library' ? { ...item, desc: t('我的素材使用量') } : item
+      )
+    : tabs;
   // 账号不在上面的分类列表里（固定在左下角），但标题栏仍要能显示它的名称 / 说明
   const allTabs = multi && !readOnly ? [...tabsShown, ACCOUNT_TAB] : tabsShown;
   const activeTab: TabId = allTabs.some((item) => item.id === tab) ? tab : allTabs[0].id;

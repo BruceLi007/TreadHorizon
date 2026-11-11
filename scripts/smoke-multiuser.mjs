@@ -331,11 +331,24 @@ const run = async () => {
     section('5) 多用户模式权限（普通用户 403 / 未登录 401）');
     eq('alice GET 邀请码列表', await alice.statusOf('GET', '/api/admin/invites'), 403);
     eq('alice 备份导出', await alice.statusOf('POST', '/api/backup/export/start', { includeThumbs: false }), 403);
-    // D-212（2026-11-07）：素材库管理改为按账号可用（普通用户看 / 切自己的素材库）；
-    // 邀请码、管理员备份导出等仍是管理员专属。
-    eq('alice 素材库（D-212 按账号可用）', await alice.statusOf('GET', '/api/library'), 200);
-    const aliceLib = await alice.get('/api/library');
-    check('alice 素材库只统计自己的文件', aliceLib.total >= 1 && aliceLib.customized === false);
+    // 2026-11-11 D-370（用户要求）：云端素材库只读化——普通用户不能查看服务器路径、
+    // 不能切路径 / 打开服务器文件夹 / 重新关联；邀请码、管理员备份导出等仍是管理员专属。
+    eq('alice GET /api/library → 403（云端不下发路径）', await alice.statusOf('GET', '/api/library'), 403);
+    eq(
+      'alice POST /api/library/root → 403',
+      await alice.statusOf('POST', '/api/library/root', { root: '/tmp/should-fail' }),
+      403
+    );
+    eq(
+      'alice POST /api/library/reveal → 403',
+      await alice.statusOf('POST', '/api/library/reveal', { dryRun: true }),
+      403
+    );
+    eq(
+      'alice POST /api/library/relink → 403（仅管理员）',
+      await alice.statusOf('POST', '/api/library/relink'),
+      403
+    );
     eq('未登录 GET places', await makeClient(PORT).statusOf('GET', '/api/places'), 401);
 
     // ══ 6) 回收站隔离 ══

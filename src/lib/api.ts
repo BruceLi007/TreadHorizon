@@ -41,8 +41,6 @@ import type {
   TrashSelection,
   UpdateCheckResult,
   UploadResult,
-  UserRestoreInspectResult,
-  UserRestoreResult,
 } from './types';
 
 /** 同行人参数：多选时拼成逗号分隔（后端按 OR 匹配任意一人） */
@@ -595,31 +593,15 @@ export const api = {
       body: JSON.stringify({ newPassword }),
     }).then((r) => json<{ ok: boolean }>(r)),
 
-  /** 普通用户导出自己的数据（zip 下载地址；GET 带 Cookie，直接给 <a href> 用） */
+  /**
+   * 下载我的数据到本地（2026-11-11 D-369：云端普通用户取消备份 / 恢复，只保留导出 / 下载）：
+   * zip 下载地址（GET 带 Cookie，直接给 <a href> 用）；thumbs 默认包含，media 需显式勾选。
+   */
   userExportUrl: (opts: { thumbs?: boolean; media?: boolean } = {}) => {
     const p = new URLSearchParams();
     p.set('thumbs', opts.thumbs === false ? '0' : '1');
     p.set('media', opts.media ? '1' : '0');
     return `/api/account/export?${p.toString()}`;
-  },
-
-  /** 普通用户检查「我的数据导出」zip（D-210）：multipart 字段名 file，返回 token + 摘要 */
-  inspectUserRestore: (file: File) => {
-    const fd = new FormData();
-    fd.append('file', file, file.name);
-    return fetch('/api/account/restore/inspect', { method: 'POST', body: fd }).then((r) =>
-      json<UserRestoreInspectResult>(r)
-    );
-  },
-
-  /** 普通用户从自己的导出 zip 恢复（D-210）：事务替换当前账号自己的数据 */
-  restoreUserBackup: async (token: string): Promise<UserRestoreResult> => {
-    const r = await fetch('/api/account/restore/apply', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ token, confirm: true }),
-    });
-    return json<UserRestoreResult>(r);
   },
 
   // ── M4：备份 / 恢复 / 提醒（F-SYS-03/04/05） ──

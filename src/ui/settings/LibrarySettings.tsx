@@ -8,22 +8,14 @@ import DuplicateMediaSettings from './DuplicateMediaSettings';
 interface Props {
   /** 素材库路径 / 关联关系变化后通知 App 刷新地点与侧栏 */
   onChanged: () => void;
-  /** 多用户模式（2026-11-07 用户要求：普通用户也要能看到素材库信息，只读） */
+  /** 多用户（云端）模式：素材库改为只读展示（2026-11-11 D-370 用户要求） */
   multi?: boolean;
-  /** 多用户模式下的管理员：保留原来的路径 / 重新关联 / 切换路径界面 */
+  /** 多用户模式下的管理员：云端同样不显示服务器路径，只在说明里多一句指引 */
   isAdmin?: boolean;
 }
 
 /**
- * 普通用户（multi + 非管理员）的素材库页（2026-11-07 D-211 / D-212）。
- * 用户要求「普通用户也要能看到并操作素材库信息（路径输入框 / 切换按钮）」——按账号独立：
- * - 看自己的用量 / 状态；
- * - 可以把**自己账号**的素材库根目录切到自己的文件夹（存 user_setting.media_root，不影响其他账号）；
- * - 可以重新关联自己的文件 / 恢复默认路径；
- * - 看自己的用量 / 状态；当前路径直接显示本机文件夹（D-215 用户要求），可打开本地文件夹；
- */
-/**
- * 2026-11-10（用户要求）：设置 → 素材库 展示「支持上传的格式」。
+ * 设置 → 素材库 展示「支持上传的格式」。
  * 格式清单来自 /api/config 的 mediaFormats（后端由上传白名单 PHOTO_EXT / VIDEO_EXT 生成），
  * 以后增删格式只改 server/importer.mjs 一处，设置页会自动跟着变。
  */
@@ -85,124 +77,37 @@ function UploadFormats() {
   );
 }
 
-function UserLibraryInfo({ onChanged }: { onChanged: () => void }) {
+/**
+ * 云端（multi）素材库：只读用量 + 说明（2026-11-11 D-370 用户要求）。
+ *
+ * 背景：2026-11-07 P2 验收时（多用户实例还在本机跑）做过「普通用户可看 / 切自己的素材库路径」
+ * （D-212 / D-213 / D-215）；搬到真实云服务器后，页面会显示服务器绝对路径（如 /srv/tread-horizon/media），
+ * 「打开本地文件夹」等于在服务器上开资源管理器，「切换路径」等于让网页用户往服务器写路径——都不合适。
+ * 现在云端统一只读：不显示路径、不能切路径 / 打开服务器文件夹 / 重新关联（服务端接口已 403，D-370）；
+ * 需要把素材带走用 设置 → 账号 →「下载我的数据」（可选包含照片视频）。
+ */
+function CloudLibraryInfo({ onChanged, isAdmin }: { onChanged: () => void; isAdmin: boolean }) {
   const t = useT();
   const [usage, setUsage] = useState<UserUsage | null>(null);
-  const [lib, setLib] = useState<{
-    root: string;
-    customized: boolean;
-    total: number;
-    deleted: number;
-    missing: number;
-    thumbMissing: number;
-  } | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [input, setInput] = useState('');
-  const [busy, setBusy] = useState<string | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const [sum, s] = await Promise.all([api.accountSummary(), api.library()]);
-      setUsage(sum.usage);
-      setLib({
-        root: s.root,
-        customized: Boolean(s.customized),
-        total: s.total,
-        deleted: s.deleted ?? 0,
-        missing: s.missing,
-        thumbMissing: s.thumbMissing,
-      });
-      setErr(null);
-    } catch (e: any) {
-      setErr(tr('读取失败：') + (e?.message || e));
-    }
-  }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
-
-  const doRelink = async () => {
-    setBusy(t('正在扫描素材库…'));
-    setMsg(null);
-    try {
-      const r = await api.relink();
-      setMsg(
-        t('扫描 {scanned} 个文件 · 重新关联 {matched} 个 · 仍缺失 {stillMissing} 个（{ms}ms）', {
-          scanned: r.scanned,
-          matched: r.matched,
-          byName: r.byName,
-          byHash: r.byHash,
-          stillMissing: r.stillMissing,
-          ms: r.ms,
-        })
-      );
-      await load();
-      onChanged();
-    } catch (e: any) {
-      setMsg(t('失败：') + (e?.message || e));
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const syncText = (synced?: { files: number; bytes: number } | null) => {
-    if (!synced || synced.files <= 0) return t('没有需要同步的素材文件');
-    return t('已同步 {n} 个素材文件（{size}）', {
-      n: synced.files,
-      size: formatBytes(synced.bytes),
-    });
-  };
-
-  const openFolder = async () => {
-    setMsg(null);
-    try {
-      await api.openLibraryFolder();
-      setMsg(t('已在资源管理器中打开你的素材库文件夹（若没看到，请查看任务栏）'));
-    } catch (e: any) {
-      setMsg(t('打开本地文件夹失败：{msg}', { msg: e?.message || String(e) }));
-    }
-  };
-
-  const useNewRoot = async () => {
-    const p = input.trim();
-    if (!p) return;
-    setBusy(t('切换路径…'));
-    setMsg(null);
-    try {
-      const r = await api.setLibraryRoot(p);
-      if (r.error) {
-        setMsg(t('切换失败：') + r.error);
-      } else {
-        setInput('');
-        await load();
-        onChanged();
-        setMsg(t('已切换素材库路径 · ') + syncText(r.synced));
-      }
-    } catch (e: any) {
-      setMsg(t('失败：') + (e?.message || e));
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const resetRoot = async () => {
-    setBusy(t('切换路径…'));
-    setMsg(null);
-    try {
-      const r = await api.resetLibraryRoot();
-      await load();
-      onChanged();
-      setMsg(t('已恢复默认素材库位置 · ') + syncText(r.synced));
-    } catch (e: any) {
-      setMsg(t('失败：') + (e?.message || e));
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const ok = (lib?.missing ?? 0) === 0;
+    let dead = false;
+    api
+      .accountSummary()
+      .then((s) => {
+        if (!dead) {
+          setUsage(s.usage);
+          setErr(null);
+        }
+      })
+      .catch((e: any) => {
+        if (!dead) setErr(tr('读取失败：') + (e?.message || e));
+      });
+    return () => {
+      dead = true;
+    };
+  }, []);
 
   return (
     <div className="set-pane">
@@ -211,9 +116,8 @@ function UserLibraryInfo({ onChanged }: { onChanged: () => void }) {
           <h3 className="set-section-title">{t('我的素材')}</h3>
         </div>
         <p className="set-section-desc">
-          {t('你的照片 / 视频保存在你账号专属的素材库里（按账号隔离，其他账号看不到也访问不到），按「省 / 市 / 区县 / 日期_地点名」归档。当前路径就是素材库在你电脑上的文件夹，可以直接打开，也可以换成别的文件夹（只影响你自己的账号）。')}
+          {t('照片 / 视频上传时会复制一份到服务器素材库，按你的账号独立保存（其他账号看不到也访问不到）；缩略图、预览和播放都读这份副本，你电脑上的原文件不会被移动或修改。')}
         </p>
-
         {err && <p className="hint err">{err}</p>}
         {!usage && !err && <p className="hint">{t('读取中…')}</p>}
         {usage && (
@@ -229,80 +133,14 @@ function UserLibraryInfo({ onChanged }: { onChanged: () => void }) {
                 n: usage.mediaCount,
               })}
             </p>
+            <p className="hint">
+              {t('想把素材拿到本地：到「账号 → 下载我的数据」里勾选「包含照片 / 视频文件」下载 zip。')}
+            </p>
           </>
         )}
       </section>
 
       <UploadFormats />
-
-      <section className="set-section">
-        <div className="set-section-head">
-          <h3 className="set-section-title">{t('素材库路径（仅你的账号）')}</h3>
-        </div>
-        <p className="set-section-desc">
-          {t('每个账号可以把自己素材库的存放位置切到自己的文件夹；切换只影响你自己的账号，其他账号的素材库不受影响。')}
-        </p>
-
-        <div className="field-static">
-          <span>{t('当前路径')}</span>
-          <div className="value" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <span className="lib-path-text">{lib ? lib.root : '…'}</span>
-            {/* 2026-11-07（D-213 / D-214 / D-215）：直接显示本机文件夹路径 + 打开文件夹按钮 */}
-            <button className="lib-open-btn" onClick={() => void openFolder()} disabled={!!busy}>
-              {t('打开本地文件夹')}
-            </button>
-          </div>
-          <p className="hint" style={{ marginTop: 6 }}>
-            {t('提示：素材实际存放在这个文件夹下以你账号命名的子目录里；点「打开本地文件夹」会直接打开那个子目录。')}
-          </p>
-        </div>
-
-        {lib && (
-          <div className="field-static">
-            <span>{t('状态')}</span>
-            <div className="value">
-              {t('{total} 个文件 · 丢失 ', { total: lib.total })}
-              <b style={{ color: ok ? '#4cc38a' : '#e06c75' }}>{lib.missing}</b>
-              {t(' 个')}
-              {lib.deleted > 0 && t(' · 回收站 {n} 个', { n: lib.deleted })}
-              {lib.thumbMissing > 0 && t(' · {n} 张缩略图待重建', { n: lib.thumbMissing })}
-            </div>
-          </div>
-        )}
-
-        <button className="ghost full" onClick={() => void doRelink()} disabled={!!busy}>
-          {busy ? busy : t('重新关联（按文件名 → 大小 → 内容比对）')}
-        </button>
-
-        <label className="field" style={{ marginTop: 18 }}>
-          <span>{t('换电脑 / 想放到自己的文件夹？输入你的素材库新路径')}</span>
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="E:\Photos\MyTravelMedia"
-            spellCheck={false}
-          />
-        </label>
-
-        <button className="primary full" onClick={useNewRoot} disabled={!!busy || !input.trim()}>
-          {t('切换路径（自动同步素材）')}
-        </button>
-        <p className="hint" style={{ marginTop: 8 }}>
-          {t('所选文件夹下会自动创建你的账号专属文件夹；切换时会自动把当前账号的素材同步到新位置。')}
-        </p>
-
-        {lib?.customized && (
-          <button className="text-btn" onClick={() => void resetRoot()} disabled={!!busy} style={{ marginTop: 8 }}>
-            {t('恢复默认路径')}
-          </button>
-        )}
-
-        {msg && (
-          <p className="hint" style={{ marginTop: 14 }}>
-            {msg}
-          </p>
-        )}
-      </section>
 
       <DuplicateMediaSettings onChanged={onChanged} />
 
@@ -311,17 +149,22 @@ function UserLibraryInfo({ onChanged }: { onChanged: () => void }) {
           <h3 className="set-section-title">{t('说明')}</h3>
         </div>
         <p className="set-section-desc">
-          {t('视频封面、预览和缩略图会自动生成；上传只是把电脑里的文件复制一份到素材库，你电脑上的原文件不会被移动、修改或删除。')}
+          {t('云端素材库按账号隔离保存在服务器上，路径、迁移与重新关联由服务器管理员维护；网页端不提供路径设置，也不会显示服务器文件夹位置。')}
         </p>
+        {isAdmin && (
+          <p className="hint">
+            {t('你是管理员：服务器数据目录 / 素材库路径可在「关于 → 服务器信息（仅管理员可见）」查看；调整素材库位置请按云部署流程在服务器上操作。')}
+          </p>
+        )}
         <p className="set-section-desc">
-          {t('想完整带走素材：到「备份与恢复」里导出含素材的备份（也可以再恢复回来）。')}
+          {t('视频封面、预览和缩略图会自动生成；上传只是把文件复制一份到素材库，你电脑上的原文件不会被移动、修改或删除。')}
         </p>
       </section>
     </div>
   );
 }
 
-/** 素材库分类：路径、状态、重新关联、切换路径，以及视频封面（ffmpeg）状态 */
+/** 本地模式素材库：路径、状态、重新关联、切换路径，以及视频封面（ffmpeg）状态 */
 export default function LibrarySettings({ onChanged, multi = false, isAdmin = false }: Props) {
   const t = useT();
   const [root, setRoot] = useState('');
@@ -333,18 +176,11 @@ export default function LibrarySettings({ onChanged, multi = false, isAdmin = fa
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  /** 多用户：当前账号是否自定义过素材库路径（可「恢复默认路径」） */
-  const [customized, setCustomized] = useState(false);
-
-  // 普通用户（multi 非管理员）：按账号独立的素材库页（可看自己的路径 / 状态 / 重新关联 / 切换自己的路径）
-  const userOnly = multi && !isAdmin;
 
   const load = useCallback(async () => {
-    if (userOnly) return;
     try {
       const [s, h] = await Promise.all([api.library(), api.health()]);
       setRoot(s.root);
-      setCustomized(Boolean(s.customized));
       setTotal(s.total);
       setDeleted(s.deleted ?? 0);
       setMissing(s.missing);
@@ -353,11 +189,12 @@ export default function LibrarySettings({ onChanged, multi = false, isAdmin = fa
     } catch (e: any) {
       setMsg(tr('读取失败：') + (e?.message || e));
     }
-  }, [userOnly]);
+  }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    // 2026-11-11 D-370：云端不调 /api/library（服务端已 403），直接走只读视图
+    if (!multi) void load();
+  }, [multi, load]);
 
   const doRelink = async (silent = false) => {
     if (!silent) {
@@ -429,25 +266,10 @@ export default function LibrarySettings({ onChanged, multi = false, isAdmin = fa
     }
   };
 
-  const resetRoot = async () => {
-    setBusy(t('切换路径…'));
-    setMsg(null);
-    try {
-      const r = await api.resetLibraryRoot();
-      await load();
-      onChanged();
-      setMsg(t('已恢复默认素材库位置 · ') + syncText(r.synced));
-    } catch (e: any) {
-      setMsg(t('失败：') + (e?.message || e));
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const ok = missing === 0;
 
-  // 普通用户：按账号独立的素材库页
-  if (userOnly) return <UserLibraryInfo onChanged={onChanged} />;
+  // 云端（multi）：只读展示，不暴露服务器路径、不提供路径操作
+  if (multi) return <CloudLibraryInfo onChanged={onChanged} isAdmin={isAdmin} />;
 
   return (
     <div className="set-pane">
@@ -458,9 +280,7 @@ export default function LibrarySettings({ onChanged, multi = false, isAdmin = fa
           <h3 className="set-section-title">{t('素材库')}</h3>
         </div>
         <p className="set-section-desc">
-          {multi
-            ? t('多用户模式下素材库按账号独立：这里显示/修改的是你自己账号的素材库位置；切换路径会把你的素材同步过去，不影响其他账号。照片 / 视频上传时会把文件复制到素材库，缩略图、预览和播放都读素材库，你电脑上的原文件永远不动。')
-            : t('素材库的位置。照片 / 视频上传时会把文件复制到素材库；缩略图、预览和播放都读素材库，你电脑上的原文件永远不动。切换路径时会把整个素材库同步到新位置。')}
+          {t('素材库的位置。照片 / 视频上传时会把文件复制到素材库；缩略图、预览和播放都读素材库，你电脑上的原文件永远不动。切换路径时会把整个素材库同步到新位置。')}
         </p>
 
         <div className="field-static">
@@ -472,11 +292,6 @@ export default function LibrarySettings({ onChanged, multi = false, isAdmin = fa
               {t('打开本地文件夹')}
             </button>
           </div>
-          {multi && (
-            <p className="hint" style={{ marginTop: 6 }}>
-              {t('提示：素材实际存放在这个文件夹下以你账号命名的子目录里；点「打开本地文件夹」会直接打开那个子目录。')}
-            </p>
-          )}
         </div>
 
         <div className="field-static">
@@ -507,11 +322,6 @@ export default function LibrarySettings({ onChanged, multi = false, isAdmin = fa
         <button className="primary full" onClick={useNewRoot} disabled={!!busy || !input.trim()}>
           {t('切换路径（自动同步素材）')}
         </button>
-        {multi && customized && (
-          <button className="text-btn" onClick={() => void resetRoot()} disabled={!!busy} style={{ marginTop: 8 }}>
-            {t('恢复默认路径')}
-          </button>
-        )}
 
         {msg && (
           <p className="hint" style={{ marginTop: 14 }}>
@@ -520,9 +330,7 @@ export default function LibrarySettings({ onChanged, multi = false, isAdmin = fa
         )}
 
         <p className="hint" style={{ marginTop: 18 }}>
-          {multi
-            ? t('切换路径时会把你自己账号的素材同步到新位置；换电脑后也可以先把素材库拷过去、再切换路径。')
-            : t('切换路径时会把整个素材库同步到新位置；换电脑也可以先把素材库文件夹拷到新机器，再切换路径并重新关联。')}
+          {t('切换路径时会把整个素材库同步到新位置；换电脑也可以先把素材库文件夹拷到新机器，再切换路径并重新关联。')}
         </p>
       </section>
 
@@ -531,7 +339,8 @@ export default function LibrarySettings({ onChanged, multi = false, isAdmin = fa
       <section className="set-section">
         <div className="set-section-head">
           <h3 className="set-section-title">{t('视频 · 封面帧')}</h3>
-        </div>        <div className="field-static">
+        </div>
+        <div className="field-static">
           <span>{t('视频封面组件')}</span>
           <div className="value">
             {ffmpeg === null

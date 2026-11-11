@@ -171,8 +171,6 @@ const dict: Dict = {
   '切换失败：': 'Switch failed: ',
   '素材库的位置。照片 / 视频上传时会把文件复制到素材库；缩略图、预览和播放都读素材库，你电脑上的原文件永远不动。切换路径时会把整个素材库同步到新位置。':
     'Location of the media library. On upload, photos/videos are copied into the media library; thumbnails, previews and playback all read from it, and the original files on your computer are never touched. Switching the path syncs the whole media library to the new location.',
-  '多用户模式下素材库按账号独立：这里显示/修改的是你自己账号的素材库位置；切换路径会把你的素材同步过去，不影响其他账号。照片 / 视频上传时会把文件复制到素材库，缩略图、预览和播放都读素材库，你电脑上的原文件永远不动。':
-    'In multi-user mode the media library is per-account: this page shows/changes your own account\'s location; switching it syncs your media over and does not affect other accounts. On upload, photos/videos are copied into the media library; thumbnails, previews and playback all read from it, and the original files on your computer are never touched.',
   '当前路径': 'Current path',
   '状态': 'Status',
   '{total} 个文件 · 丢失 ': '{total} files · missing ',
@@ -182,16 +180,11 @@ const dict: Dict = {
   '重新关联（按文件名 → 大小 → 内容比对）': 'Relink (by name → size → content comparison)',
   '换电脑了？输入素材库的新路径': 'New PC? Enter the new media library path',
   '切换路径（自动同步素材）': 'Switch path (sync media automatically)',
-  '切换路径时会把你自己账号的素材同步到新位置；换电脑后也可以先把素材库拷过去、再切换路径。':
-    'Switching the path syncs your own account\'s media to the new location. When moving to a new PC you can also copy the media library over first, then switch the path.',
   '切换路径时会把整个素材库同步到新位置；换电脑也可以先把素材库文件夹拷到新机器，再切换路径并重新关联。': 'Switching the path syncs the whole media library to the new location. When moving to a new PC you can also copy the media library folder to the new machine first, then switch the path and relink.',
-  '恢复默认路径': 'Restore default location',
   '没有需要同步的素材文件': 'No media files needed syncing',
   '已同步 {n} 个素材文件（{size}）': 'Synced {n} media files ({size})',
   '已切换素材库路径 · ': 'Media library path switched · ',
-  '已恢复默认素材库位置 · ': 'Default media library location restored · ',
   '已在资源管理器中打开素材库文件夹（若没看到，请查看任务栏）': 'Opened the media library folder in File Explorer (check the taskbar if you do not see it)',
-  '已在资源管理器中打开你的素材库文件夹（若没看到，请查看任务栏）': 'Opened your media library folder in File Explorer (check the taskbar if you do not see it)',
   '视频 · 封面帧': 'Video · Cover frame',
   '检测中…': 'Checking…',
   '已就绪：视频会生成封面帧和时长': 'Ready: videos get a cover frame and duration',
@@ -199,27 +192,22 @@ const dict: Dict = {
   '安装视频封面组件后重启应用即可；不装也不影响视频播放。':
     'Install the video-cover component and restart the app; videos still play without it.',
 
-  // ── LibrarySettings · 普通用户素材库信息（2026-11-07，D-211 / D-212 / D-213）──
+  // ── LibrarySettings · 云端只读 / 本地路径（2026-11-07 D-211~D-215；2026-11-11 D-370 云端只读化）──
   '我的素材': 'My media',
-  '你的照片 / 视频保存在你账号专属的素材库里（按账号隔离，其他账号看不到也访问不到），按「省 / 市 / 区县 / 日期_地点名」归档。当前路径就是素材库在你电脑上的文件夹，可以直接打开，也可以换成别的文件夹（只影响你自己的账号）。':
-    'Your photos / videos are stored in your account\'s own media library (isolated per account — other accounts cannot see or access it), organized by province / city / county / date_place. The current path is the media library folder on your computer — you can open it directly or switch it to another folder (affects your account only).',
-  '提示：素材实际存放在这个文件夹下以你账号命名的子目录里；点「打开本地文件夹」会直接打开那个子目录。':
-    'Note: the media actually lives in a subfolder named after your account inside this folder; "Open local folder" opens that subfolder directly.',
+  '我的素材使用量': 'My media usage',
+  '照片 / 视频上传时会复制一份到服务器素材库，按你的账号独立保存（其他账号看不到也访问不到）；缩略图、预览和播放都读这份副本，你电脑上的原文件不会被移动或修改。':
+    'When you upload photos / videos, a copy is stored in the server media library under your own account (other accounts cannot see or access it). Thumbnails, previews and playback all read that copy; the original files on your computer are never moved or modified.',
+  '想把素材拿到本地：到「账号 → 下载我的数据」里勾选「包含照片 / 视频文件」下载 zip。':
+    'To get your media onto your computer: go to "Account → Download my data" and check "Include photo / video files" to download a zip.',
+  '云端素材库按账号隔离保存在服务器上，路径、迁移与重新关联由服务器管理员维护；网页端不提供路径设置，也不会显示服务器文件夹位置。':
+    'The cloud media library is stored on the server, isolated per account. Paths, migration and relinking are handled by the server admin; the web UI does not offer path settings and never shows server folder locations.',
+  '你是管理员：服务器数据目录 / 素材库路径可在「关于 → 服务器信息（仅管理员可见）」查看；调整素材库位置请按云部署流程在服务器上操作。':
+    'You are the admin: the server data directory / media library path can be viewed under "About → Server info (admin only)"; to move the media library, follow the cloud deployment process on the server.',
   '{photos} 张照片 · {videos} 段视频（共 {n} 个素材文件）':
     '{photos} photos · {videos} videos ({n} media files in total)',
   '说明': 'Notes',
-  '视频封面、预览和缩略图会自动生成；上传只是把电脑里的文件复制一份到素材库，你电脑上的原文件不会被移动、修改或删除。':
-    'Video covers, previews and thumbnails are generated automatically. Uploading only copies the file from your computer into the media library; the original files on your computer are never moved, modified or deleted.',
-  '想完整带走素材：到「备份与恢复」里导出含素材的备份（也可以再恢复回来）。':
-    'To take your media with you: export a backup that includes media from "Backup & restore" (you can restore it again later).',
-  '素材库路径（仅你的账号）': 'Media library path (your account only)',
-  '我的素材库路径、重新关联与用量': 'My media library path, relink and usage',
-  '每个账号可以把自己素材库的存放位置切到自己的文件夹；切换只影响你自己的账号，其他账号的素材库不受影响。':
-    'Each account can switch its own media library location to its own folder; the change only affects your account, other accounts are untouched.',
-  '换电脑 / 想放到自己的文件夹？输入你的素材库新路径':
-    'New PC / prefer your own folder? Enter your new media library path',
-  '所选文件夹下会自动创建你的账号专属文件夹；切换时会自动把当前账号的素材同步到新位置。':
-    'A folder for your account is created automatically under the chosen path; switching automatically syncs your account\'s media to the new location.',
+  '视频封面、预览和缩略图会自动生成；上传只是把文件复制一份到素材库，你电脑上的原文件不会被移动、修改或删除。':
+    'Video covers, previews and thumbnails are generated automatically. Uploading only copies the file into the media library; the original files on your computer are never moved, modified or deleted.',
 
   // ── SecuritySettings ──
   '读取秘密基地状态失败：': 'Failed to read secret spot status: ',
@@ -402,33 +390,19 @@ const dict: Dict = {
     '{places} places · {visits} visits · {photos} photos · {videos} videos',
   '管理员备份包含服务器上所有账号的数据（可选缩略图 / 素材）。恢复会覆盖整个服务器的数据，请先确认。':
     'The admin backup contains every account\'s data on the server (optional thumbnails / media). Restoring replaces all server data — please confirm first.',
-  '导出我的数据': 'Export my data',
-  '导出只包含你自己的账号数据（地点 / 到访 / 笔记 / 媒体记录，可选缩略图，可选照片视频文件），不会包含其他账号的数据。这个备份可以在下面「从我的备份恢复」里恢复回你自己的账号。':
-    'The export contains only your own account data (places / visits / notes / media records, optional thumbnails, optional photo and video files) and never other accounts\' data. You can restore this backup into your own account with "Restore from my backup" below.',
-  '从我的备份恢复': 'Restore from my backup',
-  '选择你之前用「导出我的数据」下载的备份文件，检查通过后可以把地点 / 到访 / 照片视频记录恢复回当前账号。恢复会替换当前账号的全部数据（其他账号不受影响）；恢复前会自动导出当前数据作为备份。秘密基地密码和天地图 Key 不随导出恢复，需要的话恢复后请重新设置。':
-    'Choose a backup file previously downloaded via "Export my data". After the check passes you can restore the places / visits / photo and video records back into your own account. Restoring replaces ALL data of your account (other accounts are untouched); the current data is exported automatically as a backup first. The secret-base password and Tianditu key are not part of the export — re-enter them in Settings if needed.',
-  '检查失败：': 'Check failed: ',
-  '导出时间': 'Exported at',
-  '包含 {n} 个文件': '{n} files included',
-  '不含（只恢复记录）': 'Not included (records only)',
-  '缺 {n} 个素材文件': '{n} media files missing',
-  '包含「家」设置（恢复后会跟着回来）': 'Includes the "Home" setting (it will be restored too)',
-  '秘密基地密码 / 天地图 Key 不随导出恢复，需要的话请在设置里重新填写。':
-    'The secret-base password and Tianditu key are not part of the export; re-enter them in Settings if needed.',
-  '恢复会替换当前账号的全部数据，确定继续？':
-    'Restoring will replace all data of your account. Continue?',
-  '确认恢复（覆盖当前账号数据）': 'Restore now (replace my data)',
-  '恢复失败：': 'Restore failed: ',
-  '已恢复 {places} 个地点 / {visits} 次到访 / {media} 个媒体；恢复前自动备份：{name}':
-    'Restored {places} places / {visits} visits / {media} media files; pre-restore backup: {name}',
-  '恢复只替换你自己的账号数据；其他账号不受影响。恢复前会自动备份当前数据，恢复后如需回退可以用它再恢复一次。':
-    'Restore only replaces your own account data; other accounts are untouched. The current data is backed up automatically before restoring; you can restore it again to roll back.',
+  // 2026-11-11 D-369（用户要求）：云端普通用户取消备份 / 恢复，改为「下载我的数据」（账号页）
+  '下载我的数据': 'Download my data',
+  '云端 → 本地': 'Cloud → local',
+  '你的旅迹数据保存在云端服务器上，日常使用不需要自己备份（服务器数据由管理员负责备份）。这里可以把你的数据打包下载到本地，用于换电脑 / 留档；云端不提供自助恢复，如果需要恢复数据请联系管理员。':
+    'Your travel data is stored on the cloud server, so you do not need to back it up yourself (server backups are handled by the admin). Here you can download your data to your computer for keeping or moving to another device; cloud mode does not offer self-service restore — contact the admin if you need data restored.',
+  '地点 / 到访 / 笔记 / 评分 / 回收站': 'Places / visits / notes / ratings / recycle bin',
+  '下载后不联网也能浏览缩略图': 'Browse thumbnails offline after downloading',
+  '勾选后打包会久一点；受账号存储配额限制': 'Packing takes longer when checked; limited by your account storage quota',
+  '下载到本地': 'Download to local',
+  '下载包是一个 zip：包含你的应用数据、说明文件，以及可选的缩略图与照片视频文件；只包含你自己的账号数据，不会包含其他账号。':
+    'The download is a zip file: your app data, a readme, and optional thumbnails and photo / video files. It contains only your own account data, never other accounts\'.',
   '包含缩略图 / 预览（推荐，体积小）': 'Include thumbnails / previews (recommended, small)',
   '包含照片 / 视频文件（体积可能很大）': 'Include photo / video files (may be large)',
-  '下载导出包': 'Download export package',
-  '文件包含应用数据、说明文件，以及可选的缩略图与素材；素材多时打包会久一点。':
-    'The package contains app data, a readme, and optional thumbnails and media; packing takes longer with many media files.',
   '用户管理': 'User management',
   '账号、状态、已用空间、重置密码与邀请码': 'Accounts, status, used space, password resets and invite codes',
   '操作': 'Actions',
@@ -510,16 +484,16 @@ const dict: Dict = {
   '已配置（你账号自己的 Key）': 'Configured (your own account key)',
   '未配置：请到 设置 → 天地图 Key 填写（每个账号一份）':
     'Not configured: fill it under Settings → Tianditu key (one per account)',
-  '数据备份': 'Data backup',
-  '管理员可在「备份与恢复」里导出全量备份 / 恢复；普通用户可在那里导出自己的数据。':
-    'The admin can export a full backup / restore under "Backup & Restore"; regular users can export their own data there.',
-  '可在 设置 → 备份与恢复 里导出「我的数据」；需要恢复数据请联系管理员。':
-    'You can export "My data" under Settings → Backup & Restore; contact the admin if you need to restore data.',
+  '数据下载 / 备份': 'Data download / backup',
+  '管理员可在「备份与恢复」里导出全量备份 / 恢复；普通用户可在「账号」里下载自己的数据。':
+    'The admin can export a full backup / restore under "Backup & restore"; regular users can download their own data under "Account".',
+  '在「账号」里可以把你的数据下载到本地；云端不提供自助恢复，需要恢复请联系管理员。':
+    'You can download your data to your computer under "Account"; cloud mode does not offer self-service restore — contact the admin if you need data restored.',
   '服务器信息（仅管理员可见）': 'Server info (admin only)',
   '全局数据量（所有账号）': 'Global data (all accounts)',
   '数据与备份说明（云端）': 'Data and backups (cloud)',
-  '云端数据按账号隔离保存在服务器上，请不要直接在服务器上修改。备份与恢复由管理员处理，普通用户请使用「导出我的数据」。':
-    'In cloud mode data is isolated per account on the server; do not edit it on the server. Backups and restores are handled by the admin; regular users should use "Export my data".',
+  '云端数据按账号隔离保存在服务器上，请不要直接在服务器上修改。服务器备份由管理员负责；普通用户可在「账号」里把自己的数据下载到本地。':
+    'In cloud mode data is isolated per account on the server; do not edit it on the server. Server backups are handled by the admin; regular users can download their own data to their computer under "Account".',
   '换电脑 / 换浏览器不需要迁移数据：用同一个账号登录即可；界面偏好（主题 / 字体等）只存本机浏览器。':
     'Moving to a new PC / browser needs no data migration: just sign in with the same account. Interface preferences (theme / font, etc.) are stored only in the local browser.',
   '。Key 只保存在你自己的账号设置里，其他账号看不到；请不要把 Key 发到聊天或截图里。':

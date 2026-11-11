@@ -158,32 +158,6 @@ const uploadOne = async (client, port, visitId, name, buf, type = 'image/jpeg') 
   return json;
 };
 
-/** multipart 上传一个 zip（个人导出恢复检查用）；失败抛出带 body 的错误 */
-const uploadZip = async (client, port, path, name, buf) => {
-  const fd = new FormData();
-  fd.append('file', new Blob([buf], { type: 'application/zip' }), name);
-  const res = await fetch(S(port) + path, {
-    method: 'POST',
-    body: fd,
-    headers: { cookie: client.cookies.header() },
-  });
-  client.cookies.capture(res);
-  const text = await res.text();
-  let json = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    /* ignore */
-  }
-  if (!res.ok) {
-    const err = new Error(`HTTP ${res.status}: ${json?.error || text.slice(0, 200)}`);
-    err.status = res.status;
-    err.body = json;
-    throw err;
-  }
-  return json;
-};
-
 const startServer = ({ port, dataDir, mediaRoot, authMode, adminUser, adminPwd }) => {
   const logPath = join(dirname(dataDir), `server-${port}.log`);
   const fd = openSync(logPath, 'a');
@@ -452,143 +426,64 @@ const run = async () => {
     check('最小导出不含缩略图', !scanned2.names.some((n) => n.startsWith('thumbs/')));
     check('最小导出不含素材', !scanned2.names.some((n) => n.startsWith('media/')));
 
-    // ══ 6b) 普通用户从自己的导出 zip 恢复（D-210，按账号范围）══
-    section('6b) 普通用户从自己的导出 zip 恢复（只替换自己的数据）');
-    const baseStats = await alice4.get('/api/stats');
-    const baseMediaCount = (baseStats.totals.photos ?? 0) + (baseStats.totals.videos ?? 0);
-    const basePlacesResp = await alice4.get('/api/places');
-    const basePlaces = Array.isArray(basePlacesResp) ? basePlacesResp : basePlacesResp.places ?? [];
-    const baseNames = basePlaces.map((p) => p.name).sort();
-    // 先制造「恢复前和导出时不一样」：再加一个地点
-    await alice4.post('/api/places', {
-      name: '恢复时应被替换掉的地点',
-      lng: 100.1,
-      lat: 20.1,
-      kind: 'visited',
-      date: '2022-02-02',
-    });
+    // ══ 6b) 云端普通用户不再有备份 / 恢复（2026-11-11 D-369 用户要求）══
+    section('6b) 普通用户备份 / 恢复已取消（接口移除），只保留「下载我的数据」');
     eq(
-      '恢复前地点数 = 基线 +1',
-      (await alice4.get('/api/stats')).totals.places,
-      baseStats.totals.places + 1
-    );
-
-    const exportBytes = readFileSync(zipPath); // 第 6 段生成的「含缩略图 + 原片」导出包
-    const inspectedZip = await uploadZip(
-      alice4,
-      PORT,
-      '/api/account/restore/inspect',
-      'alice-export.zip',
-      exportBytes
-    );
-    check('恢复检查返回 token', typeof inspectedZip.token === 'string' && inspectedZip.token.length > 10);
-    eq('恢复摘要地点数 = 导出时', inspectedZip.summary.counts.places, baseStats.totals.places);
-    eq('恢复摘要到访数 = 导出时', inspectedZip.summary.counts.visits, baseStats.totals.visits);
-    eq('恢复摘要媒体数 = 导出时', inspectedZip.summary.counts.media, baseMediaCount);
-    eq('恢复摘要包含素材', inspectedZip.summary.includes.media, true);
-    eq('恢复摘要账号 = alice', inspectedZip.summary.username, 'alice');
-    eq('恢复摘要无缺失素材文件', inspectedZip.summary.missingMedia, 0);
-
-    eq(
-      '不确认（confirm 缺失）→ 400',
-      await alice4.statusOf('POST', '/api/account/restore/apply', { token: inspectedZip.token }),
-      400
+      '普通用户 /api/account/restore/inspect 已移除 → 404',
+      await alice4.statusOf('POST', '/api/account/restore/inspect'),
+      404
     );
     eq(
-      '错误 token → 400',
-      await alice4.statusOf('POST', '/api/account/restore/apply', { token: 'bad-token', confirm: true }),
-      400
+      '普通用户 /api/account/restore/apply 已移除 → 404',
+      await alice4.statusOf('POST', '/api/account/restore/apply', { token: 'x', confirm: true }),
+      404
     );
-    const restored = await alice4.post('/api/account/restore/apply', {
-      token: inspectedZip.token,
-      confirm: true,
-    });
-    eq('恢复成功 ok=true', restored.ok, true);
-    eq('恢复返回地点数', restored.restored.places, baseStats.totals.places);
+    const readmeText = (await readEntryBuffer(zipPath, 'README.txt')).toString('utf8');
     check(
-      '恢复前自动备份已生成',
-      typeof restored.autoBackup?.name === 'string' && restored.autoBackup.name.startsWith('pre-user-restore-'),
-      JSON.stringify(restored.autoBackup)
+      '下载包 README 说明「下载到本地」且不再提示从备份恢复',
+      readmeText.includes('下载到本地') && !readmeText.includes('从我的备份恢复'),
+      readmeText.slice(0, 120)
     );
-    eq('恢复后地点数回到基线', (await alice4.get('/api/stats')).totals.places, baseStats.totals.places);
-    const afterPlacesResp = await alice4.get('/api/places');
-    const afterPlaces = Array.isArray(afterPlacesResp) ? afterPlacesResp : afterPlacesResp.places ?? [];
-    eq('恢复后地点名与导出时一致', afterPlaces.map((p) => p.name).sort(), baseNames);
     check(
-      '「恢复时应被替换掉的地点」已消失',
-      !afterPlaces.some((p) => p.name === '恢复时应被替换掉的地点')
+      '下载包 README 写明云端不提供自助恢复',
+      readmeText.includes('云端不提供') && readmeText.includes('管理员'),
+      readmeText.slice(0, 120)
     );
-    const afterStats = await alice4.get('/api/stats');
+    check(
+      '下载包 manifest 说明已改为下载到本地留档',
+      String(manifest.note || '').includes('下载到本地'),
+      String(manifest.note || '')
+    );
+
+    // ══ 6c) 云端素材库接口收紧（2026-11-11 D-370 用户要求：不暴露服务器路径、不能切路径）══
+    section('6c) 云端素材库只读：不暴露路径 / 不能切路径 / 不能开服务器文件夹');
+    eq('alice GET /api/library → 403（云端不下发服务器路径）', await alice4.statusOf('GET', '/api/library'), 403);
     eq(
-      '恢复后媒体数回到基线',
-      (afterStats.totals.photos ?? 0) + (afterStats.totals.videos ?? 0),
-      baseMediaCount
+      'alice POST /api/library/root → 403',
+      await alice4.statusOf('POST', '/api/library/root', { root: join(tmp, 'alice-should-fail') }),
+      403
     );
-    const mediaFiles = [];
-    const mediaOwnerDir = join(mediaRoot, aliceId);
-    if (existsSync(mediaOwnerDir)) {
-      for (const f of readdirSync(mediaOwnerDir, { recursive: true })) {
-        const p = join(mediaOwnerDir, String(f));
-        try {
-          if (statSync(p).isFile()) mediaFiles.push(String(f));
-        } catch {
-          /* ignore */
-        }
-      }
-    }
-    eq('恢复后素材文件写回 alice 目录', mediaFiles.length, baseMediaCount);
-    const thumbDir = join(dataDir, 'thumbs', aliceId);
-    check('恢复后缩略图缓存存在', existsSync(thumbDir) && readdirSync(thumbDir).length > 0);
-
-    // 其他账号的导出包不能恢复到 alice
-    const adminExportRes = await admin.rawGet('/api/account/export?thumbs=0&media=0');
-    const adminExportBuf = Buffer.from(await adminExportRes.arrayBuffer());
-    let mismatchErr = null;
-    try {
-      await uploadZip(alice4, PORT, '/api/account/restore/inspect', 'admin-export.zip', adminExportBuf);
-    } catch (e) {
-      mismatchErr = e;
-    }
-    eq('恢复其他账号的导出包 → 400', mismatchErr?.status, 400);
-    check(
-      '错误提示说明属于其他账号',
-      String(mismatchErr?.body?.error || '').includes('属于账号'),
-      String(mismatchErr?.body?.error || '')
+    eq('alice DELETE /api/library/root → 403', await alice4.statusOf('DELETE', '/api/library/root'), 403);
+    eq(
+      'alice POST /api/library/reveal → 403（不在服务器上开文件夹）',
+      await alice4.statusOf('POST', '/api/library/reveal', { dryRun: true }),
+      403
     );
-
-    // 不含素材的「最小导出」也能恢复（素材文件仍在磁盘上，路径一致）
-    const minBytes = readFileSync(zipPath2);
-    const minInspected = await uploadZip(
-      alice4,
-      PORT,
-      '/api/account/restore/inspect',
-      'alice-export-min.zip',
-      minBytes
+    eq('alice POST /api/library/relink → 403（仅管理员）', await alice4.statusOf('POST', '/api/library/relink'), 403);
+    eq('管理员 GET /api/library → 403（云端统一不显示路径）', await admin.statusOf('GET', '/api/library'), 403);
+    eq(
+      '管理员 POST /api/library/root → 403',
+      await admin.statusOf('POST', '/api/library/root', { root: join(tmp, 'admin-should-fail') }),
+      403
     );
-    eq('最小导出可被恢复检查通过', minInspected.summary.includes.media, false);
-    const minRestored = await alice4.post('/api/account/restore/apply', {
-      token: minInspected.token,
-      confirm: true,
-    });
-    eq('最小导出恢复成功', minRestored.ok, true);
-    eq('最小导出恢复后地点数不变', (await alice4.get('/api/stats')).totals.places, baseStats.totals.places);
-
-    // ══ 6c) 每个账号自定义素材库路径 + 切换时自动同步（D-212 / D-213）══
-    section('6c) 素材库路径按账号独立 + 切换时自动同步素材');
-    // 当前 alice 在默认素材库 mediaRoot/<aliceId> 下有 2 个素材（6b 恢复回来的）
-    const baseMediaCountBefore = 2;
-    const customMedia = join(tmp, 'alice-custom-media');
-    mkdirSync(customMedia, { recursive: true });
-    const setRootRes = await alice4.post('/api/library/root', { root: customMedia });
-    eq('普通用户切换自己的素材库路径 ok', setRootRes.ok, true);
-    eq('切换路径时把已有素材同步过去', setRootRes.synced?.files, baseMediaCountBefore);
-    const lib1 = await alice4.get('/api/library');
-    eq('素材库状态 customized=true', lib1.customized, true);
-    eq('素材库状态 root = 自定义路径', lib1.root.toLowerCase(), customMedia.toLowerCase());
-    eq('切换后素材库不再缺失', lib1.missing, 0);
-    const customUp = await uploadOne(alice4, PORT, aliceVisit, 'alice-custom-root.jpg', await makeJpg({ width: 300, height: 220 }));
-    eq('自定义路径后上传成功', customUp.added?.length ?? 0, 1);
-    eq('自定义路径后媒体可读（orig 200）', (await alice4.rawGet(`/api/media/${customUp.added[0].id}/orig`)).status, 200);
+    eq(
+      '管理员 POST /api/library/reveal → 403',
+      await admin.statusOf('POST', '/api/library/reveal', { dryRun: true }),
+      403
+    );
+    const adminRelink = await admin.post('/api/library/relink');
+    check('管理员可调用重新关联（接口保留作运维兜底）', typeof adminRelink.scanned === 'number', adminRelink);
+    // 拒绝切路径不影响已有素材：仍在服务器默认素材库目录下、可读取
     const countFiles = (dir) => {
       if (!existsSync(dir)) return 0;
       let n = 0;
@@ -601,54 +496,13 @@ const run = async () => {
       }
       return n;
     };
-    eq('文件落在自定义路径/<账号ID>/ 下', countFiles(join(customMedia, aliceId)), baseMediaCountBefore + 1);
-    eq('默认素材库下该账号目录已清空', countFiles(join(mediaRoot, aliceId)), 0);
-
-    // 再次切到另一个路径：素材继续自动同步过去（本次含刚上传的那张）
-    const customMedia2 = join(tmp, 'alice-custom-media-2');
-    mkdirSync(customMedia2, { recursive: true });
-    const setRoot2 = await alice4.post('/api/library/root', { root: customMedia2 });
-    eq('再次切换路径 ok', setRoot2.ok, true);
-    eq('再次切换同步全部素材', setRoot2.synced?.files, baseMediaCountBefore + 1);
-    eq('文件同步到第二个自定义路径', countFiles(join(customMedia2, aliceId)), baseMediaCountBefore + 1);
-    eq('第一个自定义路径已清空', countFiles(join(customMedia, aliceId)), 0);
+    const aliceStatsFinal = await alice4.get('/api/stats');
+    const aliceMediaFinal = (aliceStatsFinal.totals.photos ?? 0) + (aliceStatsFinal.totals.videos ?? 0);
+    check('alice 素材数仍为 2', aliceMediaFinal === 2, { aliceMediaFinal });
+    eq('素材仍在服务器默认素材库（mediaRoot/<账号ID>）下', countFiles(join(mediaRoot, aliceId)), aliceMediaFinal);
     eq(
-      '切换后媒体仍可读（orig 200）',
-      (await alice4.rawGet(`/api/media/${customUp.added[0].id}/orig`)).status,
-      200
-    );
-
-    // 打开本地文件夹接口（dryRun，避免冒烟测试真的弹资源管理器）
-    const reveal = await alice4.post('/api/library/reveal', { dryRun: true });
-    eq('打开本地文件夹接口 ok（dryRun）', reveal.ok, true);
-
-    // 其他账号不受影响：admin 自己的素材库统计仍是自己的（admin 本次没传媒体 = 0）
-    const adminLib = await admin.get('/api/library');
-    eq('管理员素材库统计不受 alice 自定义路径影响', adminLib.total, 0);
-
-    // 管理员自己也是「按账号管理素材库路径」（D-213）：可切换自己的路径，不影响他人
-    const adminCustom = join(tmp, 'admin-custom-media');
-    mkdirSync(adminCustom, { recursive: true });
-    const adminSet = await admin.post('/api/library/root', { root: adminCustom });
-    eq('管理员也可切换自己账号的素材库路径', adminSet.ok, true);
-    eq('管理员路径 customized=true', (await admin.get('/api/library')).customized, true);
-    const adminReset = await admin.del('/api/library/root');
-    eq('管理员恢复默认路径 ok', adminReset.ok, true);
-    eq('管理员恢复默认后 customized=false', (await admin.get('/api/library')).customized, false);
-
-    // 普通用户恢复默认路径：素材自动同步回默认素材库
-    const resetRoot = await alice4.del('/api/library/root');
-    eq('恢复默认路径 ok', resetRoot.ok, true);
-    eq('恢复默认路径时把素材同步回默认位置', resetRoot.synced?.files, baseMediaCountBefore + 1);
-    const lib2 = await alice4.get('/api/library');
-    eq('恢复默认后 customized=false', lib2.customized, false);
-    // D-215（用户要求）：当前路径直接显示本机文件夹（不再隐藏默认素材库路径）
-    eq('未自定义时也直接显示素材库路径', lib2.root.toLowerCase(), resolve(mediaRoot).toLowerCase());
-    eq('素材已同步回默认素材库', countFiles(join(mediaRoot, aliceId)), baseMediaCountBefore + 1);
-    eq('第二个自定义路径已清空', countFiles(join(customMedia2, aliceId)), 0);
-    eq(
-      '恢复默认后媒体仍可读（orig 200）',
-      (await alice4.rawGet(`/api/media/${customUp.added[0].id}/orig`)).status,
+      '已有素材仍可读取（orig 200）',
+      (await alice4.rawGet(`/api/media/${aliceMedia.added[0].id}/orig`)).status,
       200
     );
 
@@ -715,8 +569,8 @@ const run = async () => {
     await stopServer(srv);
     srv = null;
 
-    // ══ 8) local 模式：新接口 400、旧行为不变 ══
-    section('8) local 模式：新接口 400 / 旧接口不变');
+    // ══ 8) local 模式：账号接口 400、已移除接口 404、旧行为不变 ══
+    section('8) local 模式：账号接口 400 / 已移除接口 404 / 旧行为不变');
     local = startServer({ port: LOCAL_PORT, dataDir: localData, mediaRoot: localMedia, authMode: 'local' });
     await waitUp(LOCAL_PORT, local.readLogs);
     const localClient = makeClient(LOCAL_PORT);
@@ -724,14 +578,14 @@ const run = async () => {
     eq('local /api/account/summary → 400', await localClient.statusOf('GET', '/api/account/summary'), 400);
     eq('local /api/account/export → 400', await localClient.statusOf('GET', '/api/account/export'), 400);
     eq(
-      'local /api/account/restore/inspect → 400',
+      'local /api/account/restore/inspect 已移除 → 404',
       await localClient.statusOf('POST', '/api/account/restore/inspect'),
-      400
+      404
     );
     eq(
-      'local /api/account/restore/apply → 400',
+      'local /api/account/restore/apply 已移除 → 404',
       await localClient.statusOf('POST', '/api/account/restore/apply', { token: 'x', confirm: true }),
-      400
+      404
     );
     // D-213：local 模式也能查素材库 / 打开文件夹（dryRun）
     eq('local /api/library → 200', await localClient.statusOf('GET', '/api/library'), 200);
