@@ -233,7 +233,7 @@ const dict: Dict = {
   '查看原图': 'View original',
   '在照片墙中查看': 'Show on the photo wall',
   '文件不在了，已打开所在文件夹': 'The file is gone; its folder was opened instead',
-  '已在资源管理器中定位': 'Revealed in File Explorer',
+  '已在文件管理器中定位': 'Revealed in your file manager',
   '打开失败：{msg}': 'Failed to open: {msg}',
   '已移到回收站（可在回收站恢复）': 'Moved to Trash (restore it in Trash)',
   '滚轮 / 双指缩放 · 双击放大 · 拖动平移':

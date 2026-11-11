@@ -14,6 +14,8 @@ import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, extname, join, relative, sep } from 'node:path';
+// 2026-11-11 D-388：数据库里的 rel_path 一律 POSIX `/`，比较前统一走 normalizeRel
+import { normalizeRel } from './paths.mjs';
 
 export const PHOTO_EXT = new Set([
   '.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.heic', '.heif', '.avif',
@@ -37,8 +39,11 @@ const isIgnoredName = (name) => name.startsWith('.') || IGNORE_FILE.has(name.toL
 const isIgnoredDir = (name) => name.startsWith('.') || IGNORE_DIR.has(name.toLowerCase());
 const isInbox = (name) => INBOX_NAMES.has(name.toLowerCase());
 
-/** 数据库里的 rel_path 用平台分隔符（Windows 是反斜杠），比较前统一成正斜杠 */
-export const normPath = (p) => String(p || '').replace(/\\/g, '/');
+/**
+ * 数据库里的 rel_path 一律 POSIX `/`（2026-11-11 D-388）；本地模式历史值是 Windows `\`。
+ * 比较前统一成正斜杠（并折叠重复斜杠 / 去掉首尾 `/`），两边都用它做 key。
+ */
+export const normPath = normalizeRel;
 
 /** sha256 前 16 位（和上传时用的算法一致，F-MED-07） */
 export function hashFile16(absPath) {
@@ -248,12 +253,13 @@ export function scanLibrary(mediaRoot) {
         }
         out.files += 1;
         out.unclassified.push({
-          relPath: join(relSegs.join(sep), e.name),
+          // D-388：对外统一 POSIX `/`
+          relPath: normPath(join(relSegs.join(sep), e.name)),
           name: e.name,
           kind: PHOTO_EXT.has(ext) ? 'photo' : 'video',
           size,
           reason: inboxContext ? 'inbox' : relSegs.length ? 'folder' : 'root',
-          folder: relSegs.join(sep),
+          folder: normPath(relSegs.join(sep)),
         });
         continue;
       }
@@ -295,7 +301,8 @@ export function scanLibrary(mediaRoot) {
     if (!acc.files.length) acc.warnings.push('没有可导入的媒体文件');
 
     out.visits.push({
-      relDir,
+      // D-388：对外统一 POSIX `/`（与 DB 存储口径一致；磁盘操作仍用 absDir）
+      relDir: normPath(relDir),
       absDir,
       date,
       name,
@@ -303,8 +310,8 @@ export function scanLibrary(mediaRoot) {
       needsConfirm,
       region,
       dirMtime,
-      files: acc.files,
-      cover: acc.cover,
+      files: acc.files.map((f) => ({ ...f, relPath: normPath(f.relPath) })),
+      cover: acc.cover ? { ...acc.cover, relPath: normPath(acc.cover.relPath) } : null,
       note: acc.note,
       warnings: acc.warnings,
       errors: acc.errors,

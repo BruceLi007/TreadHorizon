@@ -134,7 +134,7 @@ const USERS_TAB: { id: TabId; label: string; desc: string } = {
 /** 通用分类（不含回收站 / 账号 / 关于：回收站在「关于」上面，账号固定在左下角） */
 const MAIN_TABS: { id: TabId; label: string; desc: string }[] = [
   { id: 'general', label: '通用', desc: '外观明暗、界面语言、主题与字体' },
-  { id: 'backup', label: '备份与恢复', desc: '导出备份 / 从备份恢复 / 备份提醒' },
+  { id: 'backup', label: '备份与恢复', desc: '导出到备份目录 / 从备份恢复 / 备份提醒' },
   { id: 'library', label: '素材库', desc: '素材库路径、重新关联与视频封面' },
   // 2026-11-10 D-350（用户要求）：上传队列单独成板块，按地点 · 到访分组显示进度 / 失败重试
   { id: 'upload', label: '上传', desc: '上传队列、进度与失败重试' },
@@ -325,13 +325,13 @@ export default function SettingsModal({
   const [resizing, setResizing] = useState(false);
   const dragRef = useRef<{ sx: number; sy: number; w: number; h: number } | null>(null);
   // 账号 / 用户管理分类只在多用户模式出现；本地模式（默认）左侧导航与以前完全一致。
-  // 2026-11-11 D-369（用户要求）：云端普通用户的「备份 / 恢复」整体取消，改为 设置 → 账号 →「下载我的数据」；
-  // 「备份与恢复」分类只对 本地模式 / 云端管理员 显示。
+  // 2026-11-11 用户拍板（v1.1.0 修订）：**云端（multi，含管理员）不再显示「备份与恢复」分类**——
+  // 云端数据备份由管理员在服务器侧完成；普通用户仍可在 设置 → 账号 →「下载我的数据」下载自己的数据。
   // 2026-11-07（D-211）：按用户要求「让普通用户也能看到素材库信息」——素材库分类改为所有角色可见；
   // 普通用户只读（LibrarySettings 内部分流），路径 / 重新关联 / 切换路径仍仅管理员。
   const multi = authMode === 'multi';
   const isAdmin = currentUser?.role === 'admin';
-  const backupTabVisible = !multi || isAdmin;
+  const backupTabVisible = !multi;
   // 2026-11-09 D-335：只读样板会话只保留「通用 / 天地图 Key / 关于」——
   // 备份恢复、素材库、回收站、安全、账号都涉及写操作或会暴露隐藏内容，直接不展示。
   const visibleMainTabs = backupTabVisible
@@ -526,12 +526,7 @@ export default function SettingsModal({
               />
             )}
             {activeTab === 'backup' && (
-              <BackupSettings
-                onRestored={onRestored}
-                onBackupStatus={onBackupStatus}
-                multi={multi}
-                isAdmin={isAdmin}
-              />
+              <BackupSettings onRestored={onRestored} onBackupStatus={onBackupStatus} />
             )}
             {activeTab === 'library' && (
               <LibrarySettings onChanged={onChanged} multi={multi} isAdmin={isAdmin} />

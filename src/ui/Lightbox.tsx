@@ -382,7 +382,7 @@ export default function Lightbox({ items, index, onClose, onIndex, onGotoWall, o
             setMsg(null);
             try {
               const r = await api.revealMedia(cur.id);
-              setMsg(r.missing ? t('文件不在了，已打开所在文件夹') : t('已在资源管理器中定位'));
+              setMsg(r.missing ? t('文件不在了，已打开所在文件夹') : t('已在文件管理器中定位'));
             } catch (e: any) {
               setMsg(t('打开失败：{msg}', { msg: e?.message || e }));
             }

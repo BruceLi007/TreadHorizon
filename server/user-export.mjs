@@ -31,6 +31,8 @@ import { db } from './db.mjs';
 import { appVersion } from './backup.mjs';
 import { mediaBaseFor } from './media-root.mjs';
 import { formatBytes, writeZip } from './zip.mjs';
+// 2026-11-11 D-388：rel_path 存 POSIX `/`；历史库可能还带 `\`，校验前先归一化
+import { normalizeRel } from './paths.mjs';
 
 export const USER_EXPORT_FORMAT = 'travel-horizon-user-export';
 export const USER_EXPORT_VERSION = 1;
@@ -334,7 +336,8 @@ export async function buildUserExportZip({
     // D-212：每个账号可能自定义了自己的素材库根目录（默认 = 服务器 CONFIG.mediaRoot）
     const mediaRoot = resolve(mediaBaseFor(userId));
     for (const row of mediaRows) {
-      const segs = safeRelSegments(row.rel_path);
+      // D-388：先归一化成 POSIX `/` 再校验（老库 / 恢复中的库可能还是 Windows `\`）
+      const segs = safeRelSegments(normalizeRel(row.rel_path));
       if (!segs || segs.length < 2 || segs[0] !== userId) {
         // 路径不合法 / 不属于当前账号：绝不打包（宁可记缺失，也不读别的账号目录）
         missingMedia += 1;

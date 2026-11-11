@@ -1,7 +1,7 @@
 {
   "name": "tread-horizon",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "description": "Tread Horizon · 个人旅行足迹地图 —— 步履踏向山海天地，在天地图上记录去过的地方和照片",
   "license": "MIT",
@@ -14,6 +14,9 @@
     "build:starter-photos": "node scripts/build-starter-photos.mjs",
     "start": "npm run build && node server/index.mjs",
     "serve": "node server/index.mjs",
+    "launch": "node scripts/launch.mjs",
+    "stop": "node scripts/stop.mjs",
+    "update": "node scripts/update.mjs",
     "check": "node scripts/check-tk.mjs",
     "smoke": "node scripts/smoke.mjs",
     "smoke:m1": "node scripts/smoke-m1.mjs",
@@ -34,10 +37,12 @@
     "smoke:admin": "node scripts/smoke-admin.mjs",
     "init:admin": "node scripts/init-admin.mjs",
     "migrate:multiuser": "node scripts/migrate-multiuser.mjs",
+    "migrate:paths": "node scripts/migrate-paths.mjs",
+    "smoke:crossplatform": "node scripts/smoke-crossplatform.mjs",
     "i18n:check": "node scripts/i18n-check.mjs"
   },
   "engines": {
-    "node": ">=22.5"
+    "node": ">=22.13"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",

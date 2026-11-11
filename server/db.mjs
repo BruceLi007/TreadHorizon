@@ -2,6 +2,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { CONFIG } from './config.mjs';
+// 2026-11-11 D-388：历史路径启动自愈（`\` → POSIX `/`；换电脑 / 换系统后素材才能读出来）
+import { healStoredPaths } from './path-heal.mjs';
 
 export const db = new DatabaseSync(resolve(CONFIG.dataDir, 'travel.db'));
 
@@ -235,6 +237,29 @@ function cleanupWishlistAutoVisits() {
 }
 
 cleanupWishlistAutoVisits();
+
+/**
+ * 跨平台路径自愈（2026-11-11 D-388，LOCAL-CROSSPLATFORM-BRIEF §3.4）：
+ * 老库的 media.rel_path / thumb / poster 可能存的是本机分隔符（Windows `\`）。
+ * 从本版起数据库里统一 POSIX `/`，所以建表 / 补列 / 旧数据清理之后在这里归一化一次。
+ * - 幂等：已经是 `/` 的库不写任何行；
+ * - 事务：多条 UPDATE 一个事务，失败整体回滚；
+ * - UNIQUE 冲突跳过不覆盖（healStoredPaths 内处理，日志给出 id）；
+ * - 失败只打日志，绝不影响服务启动（旧库不需要迁移也能启动）。
+ */
+try {
+  const healed = healStoredPaths(db, { log: (message) => console.log(message) });
+  const normalizedPaths =
+    healed.media.normalized + healed.thumb.normalized + healed.poster.normalized;
+  if (normalizedPaths > 0) {
+    console.log(
+      `[paths] 已归一化 ${normalizedPaths} 条历史路径` +
+        `（rel_path ${healed.media.normalized} / thumb ${healed.thumb.normalized} / poster ${healed.poster.normalized}）`
+    );
+  }
+} catch (e) {
+  console.error('[paths] 历史路径归一化失败（不影响服务启动）：', e?.message || e);
+}
 
 export const now = () => Date.now();
 

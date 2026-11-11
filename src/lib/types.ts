@@ -778,6 +778,19 @@ export interface BackupExportJobStatus {
   zipBytes: number;
   error: string | null;
   createdAt: number;
+  /**
+   * 2026-11-11 用户拍板（v1.1.0 修订）：本地模式导出**只保存到「备份目录」**，
+   * done 时本字段一定有值（zip 的绝对路径，如 `D:\图片\My旅迹素材备份-2026-11-11-（备份勿删）.zip`）；
+   * 导出失败时 state=error（本字段为空）；multi（云端）不提供应用内备份，恒为 null。
+   * 类型保留可选 / null 仅用于旧服务端 / 防御性渲染。
+   */
+  savedPath?: string | null;
+  /** 本地模式 done 时保存到备份目录的文件名（savedPath 的 basename）；失败 / 云端为 null */
+  savedName?: string | null;
+  /** 本地模式导出失败的原因（state=error 时与 error 同源；成功 / 云端为 null） */
+  saveError?: string | null;
+  /** 本地模式下的备份目录绝对路径（云端版为 null）；「打开备份目录」/ 目录展示的兜底 */
+  backupDir?: string | null;
 }
 
 /**

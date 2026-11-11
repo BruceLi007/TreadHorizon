@@ -23,7 +23,7 @@
  * - multi 模式：/api/auth/login、/api/auth/register 成功后按 user.id 调用。
  */
 import { copyFileSync, existsSync, mkdirSync, statSync, unlinkSync } from 'node:fs';
-import { basename, extname, join, relative, resolve, sep } from 'node:path';
+import { basename, extname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import sharp from 'sharp';
 import { CONFIG } from './config.mjs';
@@ -31,6 +31,7 @@ import { db, now } from './db.mjs';
 import { mediaBaseFor } from './media-root.mjs';
 import { hashFile16 } from './importer.mjs';
 import { isSecretConfigured, setInitialSecretPassword } from './secret.mjs';
+import { absToRel } from './paths.mjs';
 
 /** 34 个省级行政区省会 / 首府 / 特别行政区的示例数据（顺序 = 照片 key 顺序） */
 const PROVINCE_DATA = [
@@ -307,10 +308,9 @@ async function seed({ owner, scope }) {
         .toFile(previewOut);
       createdCacheFiles.push(previewOut);
 
-      // rel_path 一律相对素材库根：multi 带 `<owner>/` 前缀并用 `/` 分隔（与上传路由一致，D-202）；
-      // local 不带前缀、保持平台分隔符（Windows 反斜杠），与旧行为一致。
-      const relToRoot = relative(mediaBase, dest);
-      const relPath = owner ? relToRoot.split(sep).join('/') : relToRoot;
+      // 2026-11-11 D-388：rel_path 一律相对素材库根 / POSIX `/`（local 与 multi 写法统一），
+      // 同一份库拷到 Windows / macOS 都能按分段拼回本机路径；多用户模式带 `<owner>/` 前缀。
+      const relPath = absToRel(mediaBase, dest);
 
       entries.push({
         p,
@@ -322,8 +322,8 @@ async function seed({ owner, scope }) {
         relPath,
         hash,
         bytes,
-        thumb: relative(thumbRoot, thumbOut),
-        preview: relative(thumbRoot, previewOut),
+        thumb: absToRel(thumbRoot, thumbOut),
+        preview: absToRel(thumbRoot, previewOut),
       });
     }
 

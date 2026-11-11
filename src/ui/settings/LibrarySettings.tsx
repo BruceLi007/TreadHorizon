@@ -238,7 +238,7 @@ export default function LibrarySettings({ onChanged, multi = false, isAdmin = fa
     setMsg(null);
     try {
       await api.openLibraryFolder();
-      setMsg(t('已在资源管理器中打开素材库文件夹（若没看到，请查看任务栏）'));
+      setMsg(t('已在文件管理器中打开素材库文件夹（若没看到，请切换到文件管理器窗口）'));
     } catch (e: any) {
       setMsg(t('打开本地文件夹失败：{msg}', { msg: e?.message || String(e) }));
     }

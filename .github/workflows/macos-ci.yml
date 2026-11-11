@@ -1,0 +1,50 @@
+# 跨平台（Windows / macOS）回归：验证本地版备份 / 恢复 + 路径自愈在两种系统上一致（D-385 / T2）
+#
+# 用户没有 Mac 实机（D-385）：macOS 侧靠 GitHub Actions 的 macos-latest runner 自动回归。
+# 该工作流只跑「不需要浏览器」的 CrossPlatform smoke（scripts/smoke-crossplatform.mjs）：
+#   临时目录 + 随机空闲端口起隔离实例（不碰仓库 data/、.dev-media/），
+#   造 Windows 反斜杠旧库 → 启动自愈 → 导出备份 → 全新目录恢复 → 断言素材可用。
+# 推送由用户侧 GitHub 会话执行（开发会话只写文件、不推送）。
+name: cross-platform-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: smoke-crossplatform (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # 用 lockfile 精确安装（sharp 等含平台原生包：npm 会按当前平台装对应预编译版本）
+      - name: Install dependencies
+        run: npm ci
+
+      # 前端构建产物 dist/ 不进发布包，但 npm run build 同时验证 macOS 上 Vite 构建可用
+      - name: Build web
+        run: npm run build
+
+      # Windows + macOS 双向验证：路径自愈 / 备份导出（含 D-386 备份目录落盘）/ 恢复归一化
+      - name: Cross-platform backup smoke
+        run: node scripts/smoke-crossplatform.mjs

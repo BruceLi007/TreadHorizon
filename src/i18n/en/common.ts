@@ -18,7 +18,7 @@ const dict: Dict = {
   '拖动调整大小（双击恢复默认）': 'Drag to resize (double-click to reset)',
   '通用': 'General',
   '备份与恢复': 'Backup & Restore',
-  '导出备份 / 从备份恢复 / 备份提醒': 'Export, restore and backup reminders',
+  '导出到备份目录 / 从备份恢复 / 备份提醒': 'Export to backup folder, restore and backup reminders',
   '素材库': 'Media Library',
   '素材库路径、重新关联与视频封面': 'Library path, relinking and video covers',
   '回收站': 'Trash',

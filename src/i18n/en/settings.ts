@@ -19,7 +19,7 @@ const dict: Dict = {
   '读取备份状态失败。': 'Failed to read backup status.',
   // 2026-11-11 D-364：设置 → 备份 → 备份目录（仅本地安装版）
   '备份目录': 'Backup folder',
-  '恢复前自动备份（pre-restore 包）会存到这个目录；想换到空间更大的磁盘（比如移动硬盘）就在这里选择。只影响以后生成的备份，不移动已有文件。': 'Automatic pre-restore backups are stored in this folder. Choose another disk (for example an external drive) here if you need more space. This only affects future backups; existing files are not moved.',
+  '恢复前自动备份（pre-restore 包）与手动导出的备份包都会存到这个目录；想换到空间更大的磁盘（比如移动硬盘）就在这里选择。只影响以后生成的备份，不移动已有文件。': 'Automatic pre-restore backups and manual export packages are stored in this folder. Choose another disk (for example an external drive) here if you need more space. This only affects future backups; existing files are not moved.',
   '选择备份目录': 'Choose backup folder',
   '正在选择…': 'Choosing…',
   '打开备份目录': 'Open backup folder',
@@ -35,11 +35,11 @@ const dict: Dict = {
   '打开备份目录失败：': 'Failed to open backup folder: ',
   '保存备份目录失败：': 'Failed to save backup folder: ',
   '备份目录已保存：{path}': 'Backup folder saved: {path}',
-  '提示：备份目录可以放在 U 盘 / 移动硬盘等其它盘，但请确保该目录可写。仅本地安装版可修改，云端版不显示此项。': 'Tip: the backup folder can be on another disk such as a USB drive — just make sure it is writable. Only the local edition allows changing it; the cloud edition hides this section.',
+  '提示：备份目录可以放在 U 盘 / 移动硬盘等其它盘，但请确保该目录可写。': 'Tip: the backup folder can be on another disk such as a USB drive — just make sure it is writable.',
+  '手动导出的备份包直接保存在这里（不经过浏览器下载）。': 'Manual export packages are saved directly here (no browser download).',
   // 2026-11-11 D-365：备份 / 恢复改为可恢复的后台任务
   '正在恢复…（任务在服务端后台继续，关掉设置不会中断；重新打开设置可继续查看）': 'Restoring… (the task keeps running on the server — closing settings does not interrupt it, and progress resumes when you reopen settings)',
-  '导出任务正在后台打包，关掉设置不会中断；完成后会自动开始下载。': 'The export is packing in the background — closing settings does not interrupt it; the download starts automatically when it finishes.',
-  '上次导出已打包完成，点击下方「下载备份包」即可保存。': 'The previous export finished packing. Click "Download backup" below to save it.',
+  '导出任务正在后台打包，关掉设置不会中断；完成后会保存到「备份目录」。': 'The export is packing in the background — closing settings does not interrupt it; it is saved to the "Backup folder" when it finishes.',
   '读取恢复进度失败：': 'Failed to read restore progress: ',
   '上次备份': 'Last backup',
   '从未备份': 'Never backed up',
@@ -61,8 +61,8 @@ const dict: Dict = {
   '修改提醒阈值失败：': 'Failed to change the reminder threshold: ',
   '最近自动备份：{name}（{size}）': 'Recent automatic backup: {name} ({size})',
 
-  // ── BackupSection：导出 ──
-  '导出备份': 'Export backup',
+  // ── BackupSection：导出（2026-11-11 用户拍板：只保存到「备份目录」，不走浏览器下载） ──
+  '导出到备份目录': 'Export to backup folder',
   '备份包：应用数据 + 缩略图 + 可选素材': 'Backup package: app data + thumbnails + optional media',
   '应用数据（必选）': 'App data (required)',
   '地点 / 到访 / 笔记 / 评分 / 回收站，备份的核心数据': 'Places / visits / notes / ratings / Trash — the core data of a backup',
@@ -82,24 +82,33 @@ const dict: Dict = {
   '正在打包… {pct}%（{done} / {total} · 文件 {filesDone}/{filesTotal}）': 'Packaging… {pct}% ({done} / {total} · files {filesDone}/{filesTotal})',
   '取消中…': 'Canceling…',
   '正在准备导出…': 'Preparing the export…',
-  '导出完成：备份包大小 {size}；文件名为「My旅迹素材备份-YYYY-MM-DD-（备份勿删）.zip」':
-    'Export complete: backup size {size}; filename is "My Travel Backup-YYYY-MM-DD-(do not delete).zip"',
+  '导出完成：备份包大小 {size}，已保存到备份目录。':
+    'Export complete: backup size {size}, saved to the backup folder.',
   '导出失败：': 'Export failed: ',
   '没有返回原因': 'no reason given',
   '导出已取消': 'Export canceled',
-  '导出已取消（临时文件已清理）': 'Export canceled (temporary files cleaned up)',
   '读取导出进度失败：': 'Failed to read export progress: ',
   '开始导出失败：': 'Failed to start export: ',
   '取消导出失败：': 'Failed to cancel export: ',
-  '如果浏览器没有自动开始下载，可': 'If the browser did not start downloading, ',
-  '点这里重新下载': 'click here to download again',
-  '（10 分钟内可以重新下载）。': '(you can download it again within 10 minutes).',
   '备份不会动你电脑上的原始文件。含素材时会逐个打包素材文件；恢复只写入 / 覆盖备份里的文件，不会删除素材库里的其它文件。':
     'Backups never touch the original files on your computer. With media, every media file is packaged individually; a restore only writes/overwrites files from the package and never deletes other files in the media library.',
+  // 2026-11-11 用户拍板：导出只落「备份目录」——显示文件名 / 完整路径 / 打开备份目录
+  '文件名': 'File name',
+  '完整路径': 'Full path',
+  '备份在本机「备份目录」中完成，不经过浏览器下载；大文件可能要等一会儿。':
+    'The backup is created in the local "Backup folder" — it does not go through browser download; large backups may take a while.',
+  '备份文件保存目录：': 'Backup files are saved in: ',
+  '未能保存到备份目录：{err}': 'Could not save to the backup folder: {err}',
+  '导出失败：服务端没有返回备份文件保存路径，请重试或查看服务端日志。':
+    'Export failed: the server did not return the saved file path. Try again or check the server log.',
 
   // ── BackupSection：从备份恢复 ──
   '从备份恢复': 'Restore from backup',
   '选择备份文件': 'Choose a backup file',
+  // 2026-11-11 用户拍板：导出只落「备份目录」，恢复仍是选文件 → 检查 → 恢复（不改成列表 / 原生对话框）
+  '恢复步骤：选择备份文件（默认保存在「备份目录」里，可先点「打开备份目录」查找）→ 开始检查备份包 → 确认恢复。':
+    'Restore steps: choose a backup file (by default it is in the "Backup folder" — click "Open backup folder" to find it) → inspect the backup package → confirm restore.',
+  '导出的备份包默认保存在这里。': 'Exported backup packages are saved here by default.',
   '正在检查…': 'Checking…',
   '开始检查备份包': 'Inspect backup package',
   '取消选择': 'Clear selection',
@@ -184,7 +193,7 @@ const dict: Dict = {
   '没有需要同步的素材文件': 'No media files needed syncing',
   '已同步 {n} 个素材文件（{size}）': 'Synced {n} media files ({size})',
   '已切换素材库路径 · ': 'Media library path switched · ',
-  '已在资源管理器中打开素材库文件夹（若没看到，请查看任务栏）': 'Opened the media library folder in File Explorer (check the taskbar if you do not see it)',
+  '已在文件管理器中打开素材库文件夹（若没看到，请切换到文件管理器窗口）': 'Opened the media library folder in your file manager (if you do not see it, switch to the file manager window)',
   '视频 · 封面帧': 'Video · Cover frame',
   '检测中…': 'Checking…',
   '已就绪：视频会生成封面帧和时长': 'Ready: videos get a cover frame and duration',
@@ -304,8 +313,8 @@ const dict: Dict = {
   '免费 Key 每天有调用次数限制：只要不是频繁、长时间地使用地图（大量搜索、反复拖动、批量逆地理），日常记录完全够用；万一当天额度用完，地图可能暂时加载不出来，第二天额度重置后就恢复，已记录的数据不受影响。':
     'Free keys have a daily call limit. As long as you don’t use the map heavily (lots of searches, repeated panning, bulk reverse geocoding), everyday use is plenty. If the daily quota runs out, the map may temporarily fail to load and recovers after the reset — your recorded data is unaffected.',
   '素材与数据流转': 'How media is stored',
-  '从电脑本地选择照片 / 视频上传时，应用会把原件复制一份到素材库 B，并按「省 / 市 / 区县 / 日期_地点名」的文件夹结构存放（例如 浙江省/杭州市/西湖区/2024-03-10_西湖/），方便在资源管理器里按地区和日期翻看。':
-    'When you upload photos/videos from your computer, the app copies the originals into media library B and stores them under province / city / district / date_place folders (e.g. Zhejiang/Hangzhou/Xihu/2024-03-10_West Lake), so you can browse them by region in File Explorer.',
+  '从电脑本地选择照片 / 视频上传时，应用会把原件复制一份到素材库 B，并按「省 / 市 / 区县 / 日期_地点名」的文件夹结构存放（例如 浙江省/杭州市/西湖区/2024-03-10_西湖/），方便在文件管理器里按地区和日期翻看。':
+    'When you upload photos/videos from your computer, the app copies the originals into media library B and stores them under province / city / district / date_place folders (e.g. Zhejiang/Hangzhou/Xihu/2024-03-10_West Lake), so you can browse them by region and date in your file manager.',
   '上传时你电脑上的原始文件不会被移动或修改，素材库会另存一份副本，上传前请确认磁盘空间足够。备份 / 恢复只涉及应用数据和素材库里的副本。':
     'Uploading never moves or modifies the original files on your computer — the media library keeps a copy, so make sure you have enough disk space. Backup/restore only touches app data and the copies in the media library.',
 
@@ -388,8 +397,6 @@ const dict: Dict = {
   '只做统计，不限制上传': 'Statistics only — uploads are not limited',
   '{places} 个地点 · {visits} 次到访 · {photos} 张照片 · {videos} 段视频':
     '{places} places · {visits} visits · {photos} photos · {videos} videos',
-  '管理员备份包含服务器上所有账号的数据（可选缩略图 / 素材）。恢复会覆盖整个服务器的数据，请先确认。':
-    'The admin backup contains every account\'s data on the server (optional thumbnails / media). Restoring replaces all server data — please confirm first.',
   // 2026-11-11 D-369（用户要求）：云端普通用户取消备份 / 恢复，改为「下载我的数据」（账号页）
   '下载我的数据': 'Download my data',
   '云端 → 本地': 'Cloud → local',
@@ -485,8 +492,8 @@ const dict: Dict = {
   '未配置：请到 设置 → 天地图 Key 填写（每个账号一份）':
     'Not configured: fill it under Settings → Tianditu key (one per account)',
   '数据下载 / 备份': 'Data download / backup',
-  '管理员可在「备份与恢复」里导出全量备份 / 恢复；普通用户可在「账号」里下载自己的数据。':
-    'The admin can export a full backup / restore under "Backup & restore"; regular users can download their own data under "Account".',
+  '云端版不提供应用内备份 / 恢复；服务器数据由管理员在服务器侧备份，普通用户可在「账号」里下载自己的数据。':
+    'The cloud edition does not offer in-app backup / restore. Server data is backed up by the admin on the server side; regular users can download their own data under "Account".',
   '在「账号」里可以把你的数据下载到本地；云端不提供自助恢复，需要恢复请联系管理员。':
     'You can download your data to your computer under "Account"; cloud mode does not offer self-service restore — contact the admin if you need data restored.',
   '服务器信息（仅管理员可见）': 'Server info (admin only)',

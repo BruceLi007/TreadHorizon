@@ -16,6 +16,8 @@ interface Props {
   onRestored: () => void;
   /** 状态变化（导出 / 稍后提醒 / 改阈值后）同步给 App，顶栏红点即时更新 */
   onStatus?: (s: BackupStatus) => void;
+  /** 当前「备份目录」绝对路径（设置页 /api/backup/dir 加载；导出说明与「打开备份目录」共用） */
+  backupDir?: string;
 }
 
 /** 允许的提醒阈值（天），与后端 /api/backup/settings 白名单一致 */
@@ -80,31 +82,16 @@ const errText = (e: unknown): string => {
 };
 
 /**
- * 触发浏览器原生下载：只给 URL，绝不把 zip 读进 Blob/内存
- * （含素材的备份可能 1.6GB，XHR/fetch 会直接爆内存）。
- * 文件名由服务端 content-disposition 决定，这里交给隐藏 <a download> 处理。
- */
-function triggerDownload(jobId: string) {
-  const a = document.createElement('a');
-  a.href = api.backupDownloadUrl(jobId);
-  a.setAttribute('download', '');
-  a.rel = 'noopener';
-  a.style.display = 'none';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
-
-/**
- * 设置页「备份」区块（F-SYS-03/04/05，v2 含素材）。
+ * 设置页「备份」区块（F-SYS-03/04/05，v2 含素材；2026-11-11 用户拍板改为「只落备份目录」）。
  * - 常驻：上次备份 / 提醒阈值 / 当前数据量 / due 提醒 + 稍后 24h
  * - 导出：三块可选（元数据必选 / 缩略图默认勾 / 素材默认不勾）；
- *   两阶段任务：start → 500ms 轮询进度（可取消）→ done 后浏览器原生下载，不读进内存
- * - 恢复：选 zip → inspect 摘要（含素材信息）→ 红色二次确认 → restore；
+ *   两阶段任务：start → 500ms 轮询进度（可取消）→ done 后 zip 已保存到本机「备份目录」
+ *   （**不走浏览器下载 / 不弹另存为**，前端只显示文件名 + 完整路径 + 「打开备份目录」）
+ * - 恢复：选 zip（默认在「备份目录」里）→ inspect 摘要 → 红色二次确认 → restore；
  *   含素材时写入当前素材库但绝不删除其它文件；成功后 onRestored() 全量刷新
  * 后端没起来 / 接口 404 时各区块就地报错，不崩页面。
  */
-export default function BackupSection({ onRestored, onStatus }: Props) {
+export default function BackupSection({ onRestored, onStatus, backupDir = '' }: Props) {
   const t = useT();
   // ── 备份状态（F-SYS-05 + v2 素材体积）──
   const [status, setStatus] = useState<BackupStatus | null>(null);
@@ -121,8 +108,11 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
   const [exportCanceling, setExportCanceling] = useState(false);
   const [exportJob, setExportJob] = useState<BackupExportJobStatus | null>(null);
   const [exportMsg, setExportMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  /** 已触发过下载的 jobId：轮询 done 后只触发一次原生下载 */
-  const downloadedJob = useRef<string | null>(null);
+  /** 2026-11-11「打开备份目录」按钮：导出区 / 恢复区各一个，错误原地显示（where 区分） */
+  const [openDirBusy, setOpenDirBusy] = useState(false);
+  const [openDirErr, setOpenDirErr] = useState<{ where: 'export' | 'restore'; text: string } | null>(
+    null
+  );
 
   /** 导出进行中（打包中）：与恢复互斥；done/error/canceled 后解除 */
   const exporting = exportStarting || exportJob?.state === 'building';
@@ -173,24 +163,18 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
         if (!alive) return;
         setExportJob(s);
         if (s.state === 'done') {
-          // 只触发一次下载；文件名由服务端 content-disposition 决定
-          if (downloadedJob.current !== jobId) {
-            downloadedJob.current = jobId;
-            triggerDownload(jobId);
-          }
-          setExportMsg({
-            ok: true,
-            text: tr('导出完成：备份包大小 {size}；文件名为「My旅迹素材备份-YYYY-MM-DD-（备份勿删）.zip」', {
-              size: fmtBytes(s.zipBytes),
-            }),
-          });
+          // 2026-11-11 用户拍板：zip 由服务端直接落「备份目录」（savedPath/savedName 一定有值），
+          // 前端不再触发浏览器下载；done 的「文件名 + 完整路径 + 打开备份目录」由下方渲染块负责。
+          setExportMsg(null);
           void loadStatus();
           return;
         }
         if (s.state === 'error') {
+          // 服务端本地导出失败的文案自带「导出失败：…」前缀，避免重复拼一次
+          const raw = s.error || tr('没有返回原因');
           setExportMsg({
             ok: false,
-            text: tr('导出失败：') + (s.error || tr('没有返回原因')),
+            text: /导出失败/.test(raw) ? raw : tr('导出失败：') + raw,
           });
           void loadStatus();
           return;
@@ -249,12 +233,13 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
     }
   };
 
-  // ── 两阶段导出：start → 轮询 → 原生下载 ──
+  // ── 两阶段导出：start → 轮询 → zip 已落到本机「备份目录」 ──
   const doExport = async () => {
     if (exporting || restoring) return;
     setExportStarting(true);
     setExportMsg(null);
     setExportJob(null);
+    setOpenDirErr(null);
     try {
       const start = await api.startBackupExport({ includeThumbs, includeMedia });
       setExportJob({
@@ -283,11 +268,25 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
     try {
       await api.cancelBackupExport(jobId);
       setExportJob(null);
-      setExportMsg({ ok: false, text: t('导出已取消（临时文件已清理）') });
+      setExportMsg({ ok: false, text: t('导出已取消') });
     } catch (e: unknown) {
       setExportMsg({ ok: false, text: t('取消导出失败：') + errText(e) });
     } finally {
       setExportCanceling(false);
+    }
+  };
+
+  /** 在系统文件管理器里打开「备份目录」（复用 POST /api/backup/dir/open；本地导出/恢复区共用） */
+  const openBackupDir = async (where: 'export' | 'restore') => {
+    if (openDirBusy) return;
+    setOpenDirBusy(true);
+    setOpenDirErr(null);
+    try {
+      await api.openBackupDir();
+    } catch (e: unknown) {
+      setOpenDirErr({ where, text: t('打开备份目录失败：') + errText(e) });
+    } finally {
+      setOpenDirBusy(false);
     }
   };
 
@@ -421,10 +420,12 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
         if (exp) {
           setExportJob((prev) => prev ?? exp);
           if (exp.state === 'building') {
-            setExportMsg({ ok: true, text: tr('导出任务正在后台打包，关掉设置不会中断；完成后会自动开始下载。') });
-          } else if (exp.state === 'done') {
-            setExportMsg({ ok: true, text: tr('上次导出已打包完成，点击下方「下载备份包」即可保存。') });
+            setExportMsg({
+              ok: true,
+              text: tr('导出任务正在后台打包，关掉设置不会中断；完成后会保存到「备份目录」。'),
+            });
           }
+          // done：不再提示「下载」——看下方渲染块的「文件名 / 完整路径 / 打开备份目录」
         }
       } catch {
         /* 旧服务端 / multi 权限不足：忽略，不影响手动操作 */
@@ -446,6 +447,19 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
     : 0;
 
   const summary = inspected?.summary ?? null;
+
+  /**
+   * 导出完成后的保存信息（2026-11-11 用户拍板：本地导出只落「备份目录」）：
+   * - 目录优先用设置页加载的 backupDir，其次导出状态返回的 backupDir / savedPath 的父目录兜底；
+   * - 文件名优先 savedName，旧字段缺失时从 savedPath 取 basename。
+   */
+  const shownBackupDir =
+    backupDir ||
+    exportJob?.backupDir ||
+    (exportJob?.savedPath ? exportJob.savedPath.replace(/[\\/][^\\/]+$/, '') : '');
+  const savedFileName =
+    exportJob?.savedName ||
+    (exportJob?.savedPath ? exportJob.savedPath.split(/[\\/]/).pop() || '' : '');
 
   return (
     <div className="backup-section">
@@ -545,10 +559,10 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
         )}
       </div>
 
-      {/* ── 两阶段导出（F-SYS-03 v2） ── */}
+      {/* ── 两阶段导出（F-SYS-03 v2；2026-11-11 用户拍板：只保存到「备份目录」） ── */}
       <div className="bk-card">
         <div className="bk-card-head">
-          <span className="bk-card-title">{t('导出备份')}</span>
+          <span className="bk-card-title">{t('导出到备份目录')}</span>
           <span className="bk-muted">{t('备份包：应用数据 + 缩略图 + 可选素材')}</span>
         </div>
 
@@ -613,8 +627,30 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
               ? t('正在打包…')
               : restoring
                 ? t('恢复中，暂不能导出')
-                : t('导出备份')}
+                : t('导出到备份目录')}
         </button>
+
+        {/* 2026-11-11 用户拍板：本地导出直接写本机「备份目录」，不走浏览器下载 / 不弹另存为 */}
+        <p className="hint bk-export-note">
+          {t('备份在本机「备份目录」中完成，不经过浏览器下载；大文件可能要等一会儿。')}
+        </p>
+        {shownBackupDir && (
+          <div className="bk-dir-line">
+            <span className="bk-muted">{t('备份文件保存目录：')}</span>
+            <span className="mono bk-saved-path" title={shownBackupDir}>
+              {shownBackupDir}
+            </span>
+            <button
+              type="button"
+              className="ghost bk-dir-open"
+              onClick={() => void openBackupDir('export')}
+              disabled={openDirBusy}
+            >
+              {openDirBusy ? t('正在打开…') : t('打开备份目录')}
+            </button>
+          </div>
+        )}
+        {openDirErr?.where === 'export' && <p className="hint err">{openDirErr.text}</p>}
 
         {exporting && exportJob?.state === 'building' && (
           <div className="bk-progress-row">
@@ -656,17 +692,43 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
 
         {exportMsg && <p className={exportMsg.ok ? 'hint bk-ok' : 'hint err'}>{exportMsg.text}</p>}
 
-        {exportJob?.state === 'done' && (
-          <p className="hint">
-            {t('如果浏览器没有自动开始下载，可')}
-            <a
-              className="bk-download"
-              href={api.backupDownloadUrl(exportJob.jobId)}
-              download
-            >
-              {t('点这里重新下载')}
-            </a>
-            {t('（10 分钟内可以重新下载）。')}
+        {/* 2026-11-11 用户拍板：本地导出 done 时 zip 已在「备份目录」（savedPath/savedName 一定有值），
+         * 不再有浏览器下载 / 重新下载；这里显示「文件名 + 完整路径 + 打开备份目录」。
+         * saveError / 两个字段都没有属于异常，红字提示（正常服务端不会出现）。 */}
+        {exportJob?.state === 'done' && exportJob.savedPath && (
+          <div className="bk-saved">
+            <p className="hint bk-ok">
+              {t('导出完成：备份包大小 {size}，已保存到备份目录。', {
+                size: fmtBytes(exportJob.zipBytes),
+              })}
+            </p>
+            <div className="bk-line">
+              <span className="bk-label">{t('文件名')}</span>
+              <span className="bk-value mono">{savedFileName}</span>
+            </div>
+            <div className="bk-line">
+              <span className="bk-label">{t('完整路径')}</span>
+              <span className="bk-value mono bk-saved-path" title={exportJob.savedPath}>
+                {exportJob.savedPath}
+              </span>
+            </div>
+            <div className="row bk-saved-actions">
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => void openBackupDir('export')}
+                disabled={openDirBusy}
+              >
+                {openDirBusy ? t('正在打开…') : t('打开备份目录')}
+              </button>
+            </div>
+          </div>
+        )}
+        {exportJob?.state === 'done' && !exportJob.savedPath && (
+          <p className="hint err">
+            {exportJob.saveError
+              ? t('未能保存到备份目录：{err}', { err: exportJob.saveError })
+              : t('导出失败：服务端没有返回备份文件保存路径，请重试或查看服务端日志。')}
           </p>
         )}
 
@@ -675,12 +737,29 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
         </p>
       </div>
 
-      {/* ── 从备份恢复（F-SYS-04） ── */}
+      {/* ── 从备份恢复（F-SYS-04；保持「选文件 → 检查 → 确认恢复」，不做列表 / 原生对话框） ── */}
       <div className="bk-card">
         <div className="bk-card-head">
           <span className="bk-card-title">{t('从备份恢复')}</span>
           <span className="bk-muted">{t('选择备份文件')}</span>
         </div>
+
+        {/* 2026-11-11：导出只落「备份目录」，恢复区提示去哪里找 zip；选文件逻辑口径不变 */}
+        <p className="hint">
+          {t('恢复步骤：选择备份文件（默认保存在「备份目录」里，可先点「打开备份目录」查找）→ 开始检查备份包 → 确认恢复。')}
+        </p>
+        <div className="row bk-restore-dir">
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => void openBackupDir('restore')}
+            disabled={openDirBusy}
+          >
+            {openDirBusy ? t('正在打开…') : t('打开备份目录')}
+          </button>
+          <span className="bk-muted">{t('导出的备份包默认保存在这里。')}</span>
+        </div>
+        {openDirErr?.where === 'restore' && <p className="hint err">{openDirErr.text}</p>}
 
         <input
           ref={fileRef}

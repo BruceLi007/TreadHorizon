@@ -36,10 +36,12 @@ import {
   unlinkSync,
 } from 'node:fs';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
+import { copyFile as copyFileAsync } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { CONFIG, ROOT, normalizeHome, readLocalConfig, saveLocalConfig, setHome } from './config.mjs';
 import { db } from './db.mjs';
+import { healStoredPaths } from './path-heal.mjs';
 import { getUserSetting, saveUserSetting } from './auth.mjs';
 import {
   ZipCanceledError,
@@ -196,6 +198,54 @@ export function fileStamp(date = new Date()) {
  */
 export function backupFileName(date = new Date()) {
   return `My旅迹素材备份-${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}-（备份勿删）.zip`;
+}
+
+/**
+ * T9（2026-11-11 用户拍板，替代 D-386 的「复制一份」）：
+ * **本地模式（authMode=local）导出的 zip 只保存到「备份目录」** —— 备份目录是唯一输出，
+ * 不再依赖浏览器下载。两阶段导出任务打包完成后把 data/tmp/export-<jobId>/backup.zip
+ * **移动**到 `CONFIG.backupDir/<backupFileName(createdAt)>`：
+ * - 备份目录自动创建；同名已存在加 `(2)`、`(3)`…（绝不覆盖用户以前的备份）；
+ * - 同盘用 `renameSync`，跨盘 `EXDEV` 回退「异步 copy + unlink 源文件」（大包不卡事件循环）；
+ * - 成功：job.savedPath / job.savedName 就绪，任务 state 仍为 done；
+ * - **失败：直接抛错**，由 runExportJob 把任务置 state='error'（本地模式没有下载兜底，不能静默成功）。
+ * - multi 模式不调用本函数（保持 tmp + 浏览器下载，行为完全不变）。
+ */
+async function moveExportToBackupDir(job) {
+  if (!job?.zipPath || !existsSync(job.zipPath)) {
+    throw new Error('导出临时文件不存在');
+  }
+  mkdirSync(CONFIG.backupDir, { recursive: true });
+  // 文件名与下载名一致；同名已存在时加序号（绝不能覆盖用户以前的备份）
+  const source = String(job.filename || backupFileName(new Date(job.createdAt || Date.now())));
+  const dot = source.toLowerCase().endsWith('.zip') ? source.length - 4 : source.length;
+  const stem = source.slice(0, dot);
+  const ext = source.slice(dot);
+  let dest = resolve(CONFIG.backupDir, source);
+  for (let seq = 2; existsSync(dest) && seq < 10_000; seq++) {
+    dest = resolve(CONFIG.backupDir, `${stem}(${seq})${ext}`);
+  }
+  try {
+    renameSync(job.zipPath, dest); // 同盘：原子改名
+  } catch (e) {
+    if (e?.code !== 'EXDEV') throw e;
+    // 跨盘（例如用户把备份目录设到 D:\图片）：复制后删源；复制失败要清掉半截目标文件
+    try {
+      await copyFileAsync(job.zipPath, dest);
+    } catch (e2) {
+      safeUnlink(dest);
+      throw e2;
+    }
+    try {
+      unlinkSync(job.zipPath); // 删不掉不影响备份已到位，data/tmp 由 TTL 清理
+    } catch {
+      console.warn('[backup] 跨盘保存后未能删除导出临时文件（TTL 会清理）：', job.zipPath);
+    }
+  }
+  job.savedPath = dest;
+  job.savedName = basename(dest);
+  job.saveError = null;
+  console.log(`[backup] 导出备份已保存到备份目录：${dest}`);
 }
 
 /** null / undefined / 空串 / 非数字都算「没有」 */
@@ -823,13 +873,23 @@ function normCounts(raw, label) {
   return out;
 }
 
+/**
+ * 统计「DB 引用的素材在当前素材库根目录下找不到」的行数。
+ * 2026-11-11 D-385 Phase 2：先按 `/` 分段归一（旧备份 DB 里可能是 Windows `\`），
+ * 否则在 macOS 上 inspect 一个 Windows 旧备份时会把整串 `a\b\c` 当单个文件名、误报全部缺失。
+ * 恢复流程本身会在 DB 事务提交后用 path-heal 归一化，所以恢复后的 countMissingMedia 也不会误报。
+ */
 function missingMediaForRows(rows) {
   const root = resolve(CONFIG.mediaRoot);
   let missing = 0;
   for (const m of rows) {
-    const rel = String(m.rel_path ?? '');
-    const abs = resolve(root, rel);
-    if (!rel || (abs !== root && !abs.startsWith(root + sep)) || !existsSync(abs)) missing++;
+    const key = normalizeRelKey(m.rel_path);
+    if (!key) {
+      missing++;
+      continue;
+    }
+    const abs = resolve(root, ...key.split('/'));
+    if (abs === root || !abs.startsWith(root + sep) || !existsSync(abs)) missing++;
   }
   return missing;
 }
@@ -840,7 +900,12 @@ function missingThumbsForRows(rows) {
   for (const m of rows) {
     const ref = m.kind === 'video' ? m.poster : m.thumb;
     if (!ref) continue;
-    const abs = resolve(root, String(ref));
+    const key = normalizeRelKey(ref);
+    if (!key) {
+      missing++;
+      continue;
+    }
+    const abs = resolve(root, ...key.split('/'));
     if (abs === root || !abs.startsWith(root + sep) || !existsSync(abs)) missing++;
   }
   return missing;
@@ -1317,6 +1382,11 @@ tokenTimer.unref?.();
 /** jobId → 任务状态；zip 在 data/tmp/export-<jobId>/backup.zip，TTL 到期 / DELETE 时清理 */
 const exportJobs = new Map();
 
+/**
+ * 清理任务的**临时目录**（data/tmp/export-<jobId>/）。
+ * T9（2026-11-11）：本地模式导出成功后 zip 已**移动**到 CONFIG.backupDir（job.savedPath），
+ * 这里只动 data/tmp，**绝不允许删除备份目录里的任何文件**（那是用户唯一的导出产物）。
+ */
 function cleanupJobFiles(job) {
   if (!job) return;
   if (job.dir) {
@@ -1361,11 +1431,21 @@ export function startExport({ includeThumbs = false, includeMedia = false } = {}
   const createdAt = Date.now();
   const plan = collectBackupPlan({ includeThumbs, includeMedia, createdAt });
 
-  // 磁盘空间检查：dataDir 所在盘可用空间 < 预计大小 + 预留（默认 200MB）时拒绝
+  // 磁盘空间检查：可用空间 < 预计大小 + 预留（默认 200MB）时拒绝。
+  // T9（2026-11-11）：本地模式导出 zip 的最终落点是 CONFIG.backupDir（唯一输出），所以按备份目录所在盘检查；
+  // multi 模式仍按 dataDir 检查（行为完全不变）。默认 backupDir=<dataDir>/backups 与 dataDir 同盘，m4 15b 行为不变。
   if (!SKIP_DISK_CHECK) {
     let available = null;
+    if (CONFIG.authMode === 'local') {
+      try {
+        mkdirSync(backupsDir(), { recursive: true }); // 备份目录可能还没建过
+      } catch {
+        /* 建不出来交给后面移动失败兜底 */
+      }
+    }
+    const checkDir = CONFIG.authMode === 'local' ? backupsDir() : resolve(CONFIG.dataDir);
     try {
-      const st = statfsSync(resolve(CONFIG.dataDir));
+      const st = statfsSync(checkDir);
       available = Number(st.bavail) * Number(st.bsize);
     } catch {
       /* 有的平台/沙箱不支持 statfs：不拦，交给写入失败兜底 */
@@ -1373,7 +1453,8 @@ export function startExport({ includeThumbs = false, includeMedia = false } = {}
     if (Number.isFinite(available) && available < plan.bytesTotal + DISK_RESERVE_BYTES) {
       throw new BackupError(
         400,
-        `磁盘空间不足：预计需要 ${formatBytes(plan.bytesTotal)}（另需预留 ${formatBytes(DISK_RESERVE_BYTES)}），可用 ${formatBytes(available)}`
+        `磁盘空间不足：预计需要 ${formatBytes(plan.bytesTotal)}（另需预留 ${formatBytes(DISK_RESERVE_BYTES)}），可用 ${formatBytes(available)}` +
+          (CONFIG.authMode === 'local' ? `；备份目录：${backupsDir()}` : '')
       );
     }
   }
@@ -1401,6 +1482,10 @@ export function startExport({ includeThumbs = false, includeMedia = false } = {}
     ownerId: ownerId || null,
     canceled: false,
     promise: null,
+    // T9：本地模式导出 zip 移入备份目录后的路径（唯一输出；multi 恒为 null）
+    savedPath: null,
+    savedName: null,
+    saveError: null,
   };
   exportJobs.set(jobId, job);
   job.promise = runExportJob(job);
@@ -1413,20 +1498,31 @@ async function runExportJob(job) {
     if (EXPORT_JOB_DELAY_MS > 0) await sleep(EXPORT_JOB_DELAY_MS);
     if (job.canceled) throw new ZipCanceledError();
 
-    const built = await buildBackupZip({
-      destPath: job.zipPath,
-      includeThumbs: job.includeThumbs,
-      includeMedia: job.includeMedia,
-      updateLastBackup: false, // 打包完成后由任务自己写，保证「完成即算备份」
-      ownerId: job.ownerId || null,
-      createdAt: job.createdAt,
-      shouldCancel: () => job.canceled,
-      onProgress: (p) => {
-        if (job.state !== 'building') return;
-        job.filesDone = p.filesDone;
-        job.bytesDone = p.bytesDone;
-      },
-    });
+    let built;
+    try {
+      built = await buildBackupZip({
+        destPath: job.zipPath,
+        includeThumbs: job.includeThumbs,
+        includeMedia: job.includeMedia,
+        updateLastBackup: false, // 打包完成后由任务自己写，保证「完成即算备份」
+        ownerId: job.ownerId || null,
+        createdAt: job.createdAt,
+        shouldCancel: () => job.canceled,
+        onProgress: (p) => {
+          if (job.state !== 'building') return;
+          job.filesDone = p.filesDone;
+          job.bytesDone = p.bytesDone;
+        },
+      });
+    } catch (e) {
+      if (e instanceof ZipCanceledError || job.canceled) throw e;
+      // T9：本地模式的唯一输出是备份目录，打包/建目录阶段的失败也要给用户明确中文原因
+      // （例如备份目录被占用 / 磁盘写满 / 没有写权限），不能只抛底层英文错误。
+      if (CONFIG.authMode === 'local') {
+        throw new Error(`导出失败：无法写入备份目录或临时目录（${e?.message || e}）`);
+      }
+      throw e;
+    }
     if (job.canceled) throw new ZipCanceledError();
 
     job.zipBytes = built.size;
@@ -1434,6 +1530,24 @@ async function runExportJob(job) {
     job.filesDone = built.written.filesDone;
     job.bytesTotal = built.written.bytesDone;
     job.bytesDone = built.written.bytesDone;
+    // T9（2026-11-11 用户拍板）：本地模式「备份目录」是导出的唯一输出 —— 把 zip 移过去（不再有浏览器下载兜底）。
+    // 移动失败会抛错 → 任务 state='error'（错误文案见下面 catch），不能静默成功。
+    // 放在 state='done' 之前：前端轮询到 done 时 savedPath 一定已就绪（避免竞态）。
+    if (CONFIG.authMode === 'local') {
+      try {
+        await moveExportToBackupDir(job);
+      } catch (e) {
+        throw new Error(`导出失败：无法保存到备份目录（${e?.message || e}）`);
+      }
+      if (job.canceled) {
+        // 极端竞态：移动期间用户取消了任务。备份文件已落盘（绝不删除备份目录文件），
+        // 任务按取消处理，data/tmp 由 DELETE / TTL 清理。
+        job.state = 'canceled';
+        job.error = null;
+        job.finishedAt = Date.now();
+        return;
+      }
+    }
     job.finishedAt = Date.now();
     job.state = 'done';
     // 打包完成即写 lastBackupAt（不是下载时）；multi 记到当前账号的 user_setting
@@ -1445,6 +1559,10 @@ async function runExportJob(job) {
     } else {
       job.state = 'error';
       job.error = e?.message || String(e);
+      // 本地模式失败时把明确原因同时放进 saveError（前端在 done 之外也能显示原因）；
+      // 此时 job.savedPath 必然为空，不会有「已保存」的误导。
+      if (CONFIG.authMode === 'local' && !job.savedPath) job.saveError = job.error;
+      console.error('[backup] 导出任务失败：', job.error);
     }
     cleanupJobFiles(job);
   }
@@ -1465,6 +1583,7 @@ function getJobForOwner(jobId, ownerId = null) {
 export function getExportStatus(jobId, ownerId = null) {
   pruneExportJobs();
   const job = getJobForOwner(jobId, ownerId);
+  const localMode = CONFIG.authMode === 'local';
   return {
     jobId: job.jobId,
     state: job.state,
@@ -1475,6 +1594,12 @@ export function getExportStatus(jobId, ownerId = null) {
     zipBytes: job.zipBytes,
     error: job.error,
     createdAt: job.createdAt,
+    // T9（2026-11-11）：本地模式导出 zip 已移动到备份目录（唯一输出），前端显示实际路径 + 打开备份目录。
+    // multi 模式保持浏览器下载，这几个字段恒为 null（行为不变）。
+    savedPath: localMode ? job.savedPath || null : null,
+    savedName: localMode ? job.savedName || null : null,
+    saveError: localMode ? job.saveError || null : null,
+    backupDir: localMode ? CONFIG.backupDir : null,
   };
 }
 
@@ -1486,12 +1611,21 @@ export function getExportDownload(jobId, ownerId = null) {
   if (job.state !== 'done') {
     throw new BackupError(409, `导出任务状态为「${job.state}」，无法下载`);
   }
-  if (!job.zipPath || !existsSync(job.zipPath)) {
+  // 兼容层（T9）：本地模式导出成功后 zip 已**移动**到 CONFIG.backupDir，
+  // data/tmp 里的旧路径不再存在 → 用 job.savedPath 兜底，保证既有 download API / smoke / 运维脚本继续可用。
+  // multi 模式仍走 data/tmp（savedPath 恒 null），行为不变。
+  let zipPath = job.zipPath && existsSync(job.zipPath) ? job.zipPath : null;
+  let filename = job.filename;
+  if (!zipPath && CONFIG.authMode === 'local' && job.savedPath && existsSync(job.savedPath)) {
+    zipPath = job.savedPath;
+    filename = job.savedName || basename(job.savedPath) || job.filename;
+  }
+  if (!zipPath) {
     cleanupJobFiles(job);
     throw new BackupError(404, '导出文件已被清理，请重新导出');
   }
-  const size = job.zipBytes || statSync(job.zipPath).size;
-  return { zipPath: job.zipPath, size, filename: job.filename };
+  const size = job.zipBytes || statSync(zipPath).size;
+  return { zipPath, size, filename };
 }
 
 /** DELETE /api/backup/export/:jobId —— building 取消并清理；done/error 删除临时 zip 与任务 */
@@ -1523,6 +1657,7 @@ exportJobTimer.unref?.();
 /** 列出导出任务（2026-11-11 D-365：设置关掉再打开能接着看进度）；owner 隔离同 exportJobs */
 export function listExportJobs(ownerId = null) {
   pruneExportJobs();
+  const localMode = CONFIG.authMode === 'local';
   const out = [];
   for (const job of exportJobs.values()) {
     if (ownerId && job.ownerId !== ownerId) continue;
@@ -1538,6 +1673,11 @@ export function listExportJobs(ownerId = null) {
       createdAt: job.createdAt,
       includeThumbs: job.includeThumbs,
       includeMedia: job.includeMedia,
+      // T9：与 getExportStatus 对齐，设置页重新打开时也能直接显示「已保存到备份目录」
+      savedPath: localMode ? job.savedPath || null : null,
+      savedName: localMode ? job.savedName || null : null,
+      saveError: localMode ? job.saveError || null : null,
+      backupDir: localMode ? CONFIG.backupDir : null,
     });
   }
   out.sort((a, b) => b.createdAt - a.createdAt);
@@ -1928,10 +2068,12 @@ export function countMissingThumbs() {
 /**
  * POST /api/backup/restore
  * 成功返回 { ok, restored, autoBackup, media:{packaged,written,skipped,failed}, orphans,
- *            missingMedia, missingThumbs, warnings }。
+ *            missingMedia, missingThumbs, pathsHealed, warnings }。
  * 失败抛 BackupError：400 参数/令牌/校验问题，409 并发恢复，500 已回滚（带 rolledBack:true）。
  * 含素材的恢复：先在 mediaRoot/.restore-<uuid>/ 暂存并逐条校验，DB 提交成功后才移动；
  * 只写/覆盖备份里的文件，绝不删除 B 里备份外的文件。
+ * 跨平台（D-385 Phase 2）：DB 事务提交成功后用 path-heal 把备份 DB 里的历史路径归一成 POSIX `/`，
+ * 这样 Windows 旧库的备份包恢复到 macOS 后素材也能找到（pathsHealed 回报归一化条数 / 冲突数）。
  */
 export async function restoreBackup({ token, confirm } = {}) {
   if (confirm !== true) throw new BackupError(400, '恢复备份需要确认（confirm: true）');
@@ -2025,8 +2167,44 @@ export async function restoreBackup({ token, confirm } = {}) {
           });
         }
 
-        // 4) DB 提交成功后才把暂存素材移动到最终 rel_path（只写/覆盖，不删除 B 里其它文件）
         const extraWarnings = [];
+
+        // 3.5) 跨平台（D-385 Phase 2，T2）：备份包里的 DB 原样保留导出时的分隔符
+        //      （Windows 旧库的 `media.rel_path` 是 `a\b\c`），事务提交成功后归一化成 POSIX `/`。
+        //      不做的话换到 macOS 后 `resolve(root, 'a\\b\\c')` 会把整串当单个文件名，素材全部 404。
+        //      归一化失败 / 冲突不影响已经提交的恢复结果，只记警告（启动自愈 / migrate-paths 还能再修）。
+        const pathsHealed = { mediaNormalized: 0, thumbNormalized: 0, posterNormalized: 0, conflicts: 0 };
+        try {
+          const healed = healStoredPaths(db, { log: (msg) => console.log(msg) });
+          pathsHealed.mediaNormalized = healed.media.normalized;
+          pathsHealed.thumbNormalized = healed.thumb.normalized;
+          pathsHealed.posterNormalized = healed.poster.normalized;
+          pathsHealed.conflicts = healed.media.conflicts.length;
+          if (pathsHealed.mediaNormalized || pathsHealed.thumbNormalized || pathsHealed.posterNormalized) {
+            console.log(
+              `[backup] 恢复后已归一化历史路径：rel_path ${pathsHealed.mediaNormalized} 条 / ` +
+                `thumb ${pathsHealed.thumbNormalized} 条 / poster ${pathsHealed.posterNormalized} 条`
+            );
+          }
+          if (healed.media.conflicts.length) {
+            const samples = healed.media.conflicts
+              .slice(0, 3)
+              .map((c) => `${c.id}（${c.from} → ${c.to}）`)
+              .join('、');
+            extraWarnings.push(
+              `恢复后有 ${healed.media.conflicts.length} 条素材路径归一化会与现有记录冲突，已跳过（保留原分隔符）：` +
+                `${samples}${healed.media.conflicts.length > 3 ? ' …' : ''}；` +
+                '可用 scripts/migrate-paths.mjs 人工处理。'
+            );
+          }
+        } catch (e) {
+          extraWarnings.push(
+            '恢复后素材路径归一化失败（不影响已恢复的数据）：' + (e?.message || e) +
+              '；可重启一次应用（启动自愈）或运行 scripts/migrate-paths.mjs 处理。'
+          );
+        }
+
+        // 4) DB 提交成功后才把暂存素材移动到最终 rel_path（只写/覆盖，不删除 B 里其它文件）
         let mediaReport = { packaged: 0, written: 0, skipped: 0, failed: 0 };
         if (includeMedia) {
           const moved = commitStagedMedia(staged, stageDir);
@@ -2077,6 +2255,8 @@ export async function restoreBackup({ token, confirm } = {}) {
           orphans: orphanResult.orphans,
           missingMedia,
           missingThumbs,
+          // D-385 Phase 2：恢复后对备份 DB 里历史路径的归一化结果（跨平台；见 restoreBackup 3.5 步）
+          pathsHealed,
           warnings,
         };
       } finally {

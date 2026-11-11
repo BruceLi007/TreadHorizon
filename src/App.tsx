@@ -369,10 +369,12 @@ export default function App() {
    */
   const readOnly = authMe?.user?.readOnly === true;
   /**
-   * 2026-11-11 D-369（用户要求）：云端（multi）普通用户不再有备份 / 恢复功能，改为 设置 → 账号 →
-   * 「下载我的数据」。备份提醒（顶栏红点 / 统计「去备份」）/ 备份分类只对 本地模式 与 云端管理员 生效。
+   * 2026-11-11 用户拍板（v1.1.0 修订）：**云端（multi）不再提供应用内备份 / 恢复**
+   * —— 管理员也一样（设置里不显示「备份与恢复」分类）；云端数据备份由管理员在服务器侧完成，
+   * 普通用户仍可在 设置 → 账号 →「下载我的数据」下载自己的数据。
+   * 本地模式不变：备份提醒（顶栏红点 / 统计「去备份」）只对本地生效；multi 下不拉 /api/backup/status。
    */
-  const backupAvailable = !(authMe?.mode === 'multi') || authMe?.user?.role === 'admin';
+  const backupAvailable = authMe?.mode !== 'multi';
   /** 只读样板标识旁的「退出」按钮忙状态 */
   const [readonlyExitBusy, setReadonlyExitBusy] = useState(false);
   /** multi 模式已登录、但当前账号还没填自己的天地图 Key → 全屏「配置 Key」引导页（P2-4，D-205） */

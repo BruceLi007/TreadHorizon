@@ -309,14 +309,53 @@
   color: #4cc38a;
 }
 
-/* 导出完成后的手动下载兜底链接（自动下载被浏览器拦截时用） */
-.bk-download {
-  color: var(--accent);
-  text-decoration: none;
+/* 2026-11-11 用户拍板：导出直接落「备份目录」——按钮下方的说明 + 当前目录行 */
+.bk-export-note {
+  margin: 8px 0 0;
 }
 
-.bk-download:hover {
-  text-decoration: underline;
+.bk-dir-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: calc(11.5px * var(--fs-scale));
+  line-height: 1.6;
+}
+
+.bk-dir-line .bk-saved-path {
+  min-width: 0;
+  flex: 1 1 220px;
+}
+
+.bk-dir-open {
+  flex: none;
+  height: 28px;
+  padding: 0 10px;
+  font-size: calc(12px * var(--fs-scale));
+}
+
+/* 导出完成 → 文件名 + 完整路径 +「打开备份目录」（2026-11-11：不再有浏览器下载） */
+.bk-saved {
+  margin-top: 2px;
+}
+
+.bk-saved-path {
+  color: var(--text-1);
+  word-break: break-all;
+}
+
+.bk-saved-actions {
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+/* 恢复区「打开备份目录」+ 说明（导出只进备份目录，从这里选 zip） */
+.bk-restore-dir {
+  margin: 8px 0 10px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 /* 恢复已完成：结果区里的小标题 */

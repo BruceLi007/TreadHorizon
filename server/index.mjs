@@ -7,8 +7,10 @@ import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, statSync, statfsSync, readdirSync, unlinkSync, rmSync, renameSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
-import { join, extname, basename, relative, resolve, sep, dirname } from 'node:path';
+import { join, extname, basename, resolve, sep, dirname } from 'node:path';
 import { CONFIG, clearHome, getDefaultBackupDir, setBackupDir, setHome, setMediaRoot, setTdtKey } from './config.mjs';
+// 2026-11-11 D-388：跨平台路径 helper —— 数据库里路径一律 POSIX `/`，读盘 / 写库统一走这里
+import { absToRel, isInside, normalizeRel, relToAbs, safeResolve } from './paths.mjs';
 import {
   AuthError,
   bootstrapAdmin,
@@ -174,6 +176,27 @@ const ownerOf = (req) => (CONFIG.authMode === 'multi' && req.authUser ? req.auth
 
 /** 缩略图 / 1600 预览 / 视频封面帧根目录：multi = data/thumbs/<owner>/；local = data/thumbs（旧路径不变） */
 const thumbRootFor = (owner) => (owner ? join(CONFIG.thumbDir, owner) : CONFIG.thumbDir);
+
+/**
+ * 2026-11-11 D-388：按数据库里的存储路径（POSIX `/`）解析素材库内的绝对路径。
+ * 空值 / 含 `..` / 越界一律返回 null —— 调用方按「路径异常」处理（403 / 计入缺失），
+ * 绝不把外部路径当素材读。`relToAbs` 负责把 `/` 分段拼成本机分隔符。
+ */
+function mediaAbs(root, relPath) {
+  const rel = String(relPath ?? '');
+  if (!rel) return null;
+  try {
+    return safeResolve(root, rel);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 缓存文件（thumb / poster / `<id>_p.webp`）存储值 → 绝对路径。
+ * 这两列约定是**裸文件名**（不含目录）；万一历史值是带 `/` 的路径也按分段拼到 thumbRoot 下。
+ */
+const cacheAbs = (thumbRoot, name) => (name ? relToAbs(thumbRoot, name) : '');
 
 /** 账号头像（2026-11-07 D-224）：<dataDir>/avatars/<userId>.webp；上传时统一转 128×128 webp */
 const avatarDir = () => join(CONFIG.dataDir, 'avatars');
@@ -352,7 +375,8 @@ async function makePoster(absPath, id, thumbRoot = CONFIG.thumbDir) {
   for (const args of attempts) {
     try {
       await execFileAsync(FFMPEG, args, { windowsHide: true, timeout: 120000 });
-      if (existsSync(out)) return { poster: relative(thumbRoot, out), duration };
+      // D-388：入库的 poster 统一 POSIX（本地模式是裸文件名，跨平台取用一致）
+      if (existsSync(out)) return { poster: absToRel(thumbRoot, out), duration };
     } catch (e) {
       lastErr = String(e?.stderr || e?.message || e).slice(-400);
     }
@@ -1671,13 +1695,13 @@ function deleteMediaFiles(mediaRows, owner = null) {
   // D-212：multi 下每个账号可能自定义了自己的素材库根目录
   const root = resolve(mediaBaseFor(owner));
   const thumbRoot = resolve(thumbRootFor(owner));
-  const inside = (base, abs) => abs !== base && abs.startsWith(base + sep);
   const out = { deleted: 0, missing: 0, errors: [] };
   for (const m of mediaRows) {
     // multi：只处理当前账号的记录（防御性过滤，正常路径进来的都已经按 owner 查过）
     if (owner && m.user_id !== owner) continue;
-    const abs = resolve(root, String(m.rel_path || ''));
-    if (!m.rel_path || !inside(root, abs)) {
+    // D-388：rel_path 存的是 POSIX `/`，用 safeResolve 转本机绝对路径并拒绝越界 / `..`
+    const abs = mediaAbs(root, m.rel_path);
+    if (!abs) {
       out.errors.push(`${m.id}：路径异常，已跳过`);
       continue;
     }
@@ -1693,8 +1717,8 @@ function deleteMediaFiles(mediaRows, owner = null) {
     }
     for (const f of [m.thumb, m.poster, `${m.id}_p.webp`]) {
       if (!f) continue;
-      const cache = resolve(thumbRoot, f);
-      if (!inside(thumbRoot, cache)) continue;
+      const cache = cacheAbs(thumbRoot, f);
+      if (!cache || !isInside(thumbRoot, cache)) continue;
       try {
         unlinkSync(cache);
       } catch {
@@ -2070,7 +2094,8 @@ async function handleMediaUpload(req, reply, owner) {
           WHERE visit_id = ? AND hash = ? AND deleted_at IS NOT NULL
           ORDER BY deleted_at DESC LIMIT 1
         `).get(v.id, hash);
-        if (trashed && existsSync(resolve(mediaBase, trashed.rel_path))) {
+        const trashedAbs = trashed ? mediaAbs(mediaBase, trashed.rel_path) : null;
+        if (trashedAbs && existsSync(trashedAbs)) {
           try { unlinkSync(dest); } catch { /* ignore */ }
           db.prepare('UPDATE media SET deleted_at = NULL WHERE id = ?').run(trashed.id);
           added.push({ id: trashed.id, name: original, restored: true });
@@ -2084,7 +2109,8 @@ async function handleMediaUpload(req, reply, owner) {
         const heic = isHeicExt(ext);
         try {
           const t = await makeThumb(dest, id, thumbRoot);
-          thumb = relative(thumbRoot, t.path);
+          // D-388：缓存列统一 POSIX（本地是裸文件名 `<id>.webp`，multi 同理）
+          thumb = absToRel(thumbRoot, t.path);
           if (heic) {
             // HEIC 容器里的宽高与旋转后可能不一致，这里直接用解码后的真实像素尺寸
             width = t.srcWidth ?? t.width;
@@ -2110,10 +2136,9 @@ async function handleMediaUpload(req, reply, owner) {
         duration = p.duration;
       }
 
-      // rel_path 一律相对 mediaRoot；multi 用 `/` 分隔（D-202 的 `<userId>/省/市/…` 约定，
-      // 也让不同平台/备份/迁移脚本的路径比较稳定）；local 保持原来的平台分隔符不变。
-      const relToRoot = relative(mediaBase, dest);
-      const relPath = owner ? relToRoot.split(sep).join('/') : relToRoot;
+      // 2026-11-11 D-388：rel_path 一律相对 mediaRoot、一律 POSIX `/`（local / multi 相同），
+      // 这样同一份库 / 备份包在 Windows 与 macOS 上都能按分段拼回本机路径。
+      const relPath = absToRel(mediaBase, dest);
       db.prepare(`
         INSERT INTO media (id,user_id,visit_id,kind,rel_path,hash,bytes,width,height,duration,thumb,poster,created_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
@@ -2166,26 +2191,27 @@ app.get('/api/media/:id/:variant', async (req, reply) => {
   const thumbRoot = thumbRootFor(owner);
 
   // D-212：按账号自己的素材库根目录解析（默认 = 服务器 mediaRoot）
+  // D-388：rel_path 是 POSIX `/`，用 safeResolve 转本机绝对路径并拒绝越界 / `..`
   const mediaBase = resolve(mediaBaseFor(owner));
-  const abs = resolve(mediaBase, m.rel_path);
-  if (!abs.startsWith(mediaBase)) return reply.code(403).send({ error: 'forbidden' });
+  const abs = mediaAbs(mediaBase, m.rel_path);
+  if (!abs) return reply.code(403).send({ error: 'forbidden' });
 
   if (variant === 'thumb') {
     // 视频：封面帧就是它的「缩略图」（F-MED-04）。老视频没封面时，装了 ffmpeg 之后现场补抽。
     if (m.kind === 'video') {
-      let posterPath = m.poster ? join(thumbRoot, m.poster) : '';
+      let posterPath = cacheAbs(thumbRoot, m.poster);
       if ((!posterPath || !existsSync(posterPath)) && existsSync(abs) && (await hasFfmpeg())) {
         const p = await makePoster(abs, m.id, thumbRoot);
         if (p.poster) {
           db.prepare('UPDATE media SET poster = ?, duration = COALESCE(?, duration) WHERE id = ?')
             .run(p.poster, p.duration, m.id);
-          posterPath = join(thumbRoot, p.poster);
+          posterPath = cacheAbs(thumbRoot, p.poster);
         }
       }
       if (!posterPath || !existsSync(posterPath)) return reply.code(404).send({ error: 'no poster' });
       return sendRange(req, reply, posterPath, 'image/webp');
     }
-    let thumbPath = m.thumb ? join(thumbRoot, m.thumb) : '';
+    let thumbPath = cacheAbs(thumbRoot, m.thumb);
     // 缩略图丢了（换了电脑、只拷了原片）就现场重建，不用手动处理
     if (!thumbPath || !existsSync(thumbPath)) {
       if (m.kind !== 'photo' || !existsSync(abs)) {
@@ -2196,7 +2222,7 @@ app.get('/api/media/:id/:variant', async (req, reply) => {
         // D-307：顺手补上宽高（HEIC 支持前入库的历史记录是 null，无副作用）
         db.prepare(
           'UPDATE media SET thumb = ?, width = COALESCE(width, ?), height = COALESCE(height, ?) WHERE id = ?'
-        ).run(relative(thumbRoot, t.path), t.srcWidth ?? t.width, t.srcHeight ?? t.height, m.id);
+        ).run(absToRel(thumbRoot, t.path), t.srcWidth ?? t.width, t.srcHeight ?? t.height, m.id);
         thumbPath = t.path;
       } catch (e) {
         return reply.code(500).send({ error: 'thumb failed: ' + e.message });
@@ -2298,7 +2324,8 @@ app.get('/api/media/duplicates', async (req) => {
       items: list.map((it) => ({
         id: it.id,
         kind: it.kind,
-        name: String(it.rel_path || '').split(/[\\/]/).pop() || '',
+        // D-388：rel_path 统一 POSIX（历史库也可能还带 `\`，normalizeRel 兜底）
+        name: normalizeRel(it.rel_path).split('/').pop() || '',
         bytes: it.bytes ?? 0,
         createdAt: it.created_at,
         visitId: it.visit_id,
@@ -2413,9 +2440,10 @@ app.post('/api/media/:id/reveal', async (req, reply) => {
     .get(...ownerArgs(owner, req.params.id));
   if (!m) return reply.code(404).send({ error: 'not found' });
   // D-212：按账号自己的素材库根目录解析
+  // D-388：rel_path 是 POSIX `/`，safeResolve 转本机绝对路径 + 越界拒绝（`..` / 空值一律 403）
   const root = resolve(mediaBaseFor(owner));
-  const abs = resolve(root, m.rel_path);
-  if (abs === root || !abs.startsWith(root + sep)) {
+  const abs = mediaAbs(root, m.rel_path);
+  if (!abs || abs === root) {
     return reply.code(403).send({ error: '路径异常，拒绝打开' });
   }
   const parent = dirname(abs);
@@ -2493,10 +2521,15 @@ app.get('/api/library', async (req, reply) => {
   const deleted = db
     .prepare(`SELECT COUNT(*) AS n FROM media WHERE deleted_at IS NOT NULL${ownerSql(owner)}`)
     .get(...ownerArgs(owner)).n;
-  const missing = rows.filter((r) => !existsSync(resolve(root, r.rel_path)));
+  const missing = rows.filter((r) => {
+    // D-388：rel_path 存 POSIX `/`，转本机绝对路径；非法路径也计为缺失
+    const abs = mediaAbs(root, r.rel_path);
+    return !abs || !existsSync(abs);
+  });
   const thumbMissing = rows.filter((r) => {
     const cached = r.kind === 'video' ? r.poster : r.thumb;
-    return !cached || !existsSync(join(thumbRoot, cached));
+    const abs = cacheAbs(thumbRoot, cached);
+    return !abs || !existsSync(abs);
   });
   return {
     // 本地模式：当前路径直接显示（D-215）；云端（multi）已在上面 403（D-370）
@@ -2506,7 +2539,7 @@ app.get('/api/library', async (req, reply) => {
     deleted,
     missing: missing.length,
     thumbMissing: thumbMissing.length,
-    sample: missing.slice(0, 3).map((r) => r.rel_path),
+    sample: missing.slice(0, 3).map((r) => normalizeRel(r.rel_path)),
   };
 });
 
@@ -2647,16 +2680,16 @@ app.post('/api/library/relink', async (req, reply) => {
   // D-212：按账号自己的素材库根目录（普通用户可自定义；默认 = 服务器 mediaRoot）
   const root = resolve(mediaBaseFor(owner));
   const scanRoot = owner ? join(root, owner) : root;
-  // multi：写回 rel_path 时统一用 `/`（与上传一致，D-202）；local 保持原来的平台分隔符
-  const storeRel = (abs) => {
-    const rel = relative(root, abs);
-    return owner ? rel.split(sep).join('/') : rel;
-  };
+  // 2026-11-11 D-388：写回 rel_path 一律 POSIX `/`（local / multi 相同，跨平台可移植）
+  const storeRel = (abs) => absToRel(root, abs);
   const t0 = Date.now();
   const rows = db
     .prepare(`SELECT id, rel_path, hash, bytes FROM media WHERE deleted_at IS NULL${ownerSql(owner)}`)
     .all(...ownerArgs(owner));
-  const missing = rows.filter((r) => !existsSync(resolve(root, r.rel_path)));
+  const missing = rows.filter((r) => {
+    const abs = mediaAbs(root, r.rel_path);
+    return !abs || !existsSync(abs);
+  });
 
   if (!missing.length) {
     return {
@@ -2685,7 +2718,8 @@ app.post('/api/library/relink', async (req, reply) => {
   let byNameCount = 0;
 
   for (const r of missing) {
-    const name = basename(r.rel_path);
+    // D-388：按 POSIX 分段取文件名（历史库带 `\` 也能取对）
+    const name = normalizeRel(r.rel_path).split('/').pop() || '';
     const cands = (byName.get(name) || []).filter((p) => !claimed.has(p));
     let hit = null;
     if (cands.length === 1) {
@@ -3020,9 +3054,11 @@ app.post('/api/backup/dir', async (req, reply) => {
   }
 });
 
-/** Windows 原生「选择文件夹」对话框：PowerShell FolderBrowserDialog，结果写临时文件（避免管道限制） */
-function pickDirectoryNative(current) {
-  if (process.platform !== 'win32') return Promise.reject(new Error('当前系统不支持原生目录选择'));
+/**
+ * Windows 原生「选择文件夹」对话框：PowerShell FolderBrowserDialog，结果写临时文件（避免管道限制）。
+ * 返回选中的绝对路径；用户取消 / 超时返回 null。
+ */
+function pickDirectoryWindows(current) {
   mkdirSync(resolve(CONFIG.dataDir, 'tmp'), { recursive: true });
   const outFile = resolve(CONFIG.dataDir, 'tmp', `pick-dir-${randomUUID()}.txt`);
   const q = (s) => JSON.stringify(String(s ?? ''));
@@ -3063,6 +3099,63 @@ function pickDirectoryNative(current) {
       resolvePick(picked || null);
     });
   });
+}
+
+/**
+ * macOS 原生「选择文件夹」对话框（2026-11-11 D-388，LOCAL-CROSSPLATFORM-BRIEF §3.7）：
+ * 用 `osascript` 调 `choose folder`（用户取消时 AppleScript 以非 0 退出 → 这里返回 null → 路由回
+ * `{ok:true,canceled:true}`，与 Windows 行为一致）。`POSIX path of` 保证拿到 `/Users/...` 形式。
+ * 180s 超时（用户可能把对话框挂在后台）。
+ */
+function pickDirectoryMac() {
+  const prompt = '选择 Tread Horizon 备份目录';
+  const script = `POSIX path of (choose folder with prompt "${prompt}")`;
+  return new Promise((resolvePick, rejectPick) => {
+    let done = false;
+    const child = spawn('osascript', ['-e', script], {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    let stdout = '';
+    const finish = (value, error) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      if (error) rejectPick(error);
+      else resolvePick(value);
+    };
+    const timer = setTimeout(() => {
+      try {
+        child.kill();
+      } catch {
+        /* ignore */
+      }
+      finish(null); // 超时按「取消」处理
+    }, 180000);
+    if (child.stdout) {
+      child.stdout.on('data', (chunk) => {
+        stdout += chunk;
+      });
+    }
+    child.once('error', (e) => finish(null, e));
+    child.once('close', (code) => {
+      if (code !== 0) return finish(null); // 用户取消（AppleScript -128）/ 弹窗失败
+      finish(stdout.trim() || null);
+    });
+  });
+}
+
+/**
+ * 弹系统「选择文件夹」对话框（仅本地安装版）：
+ * - Windows：PowerShell FolderBrowserDialog（保留原逻辑）；
+ * - macOS：osascript `choose folder`（2026-11-11 D-388 新增）；
+ * - 其它平台：不支持（前端有手动输入兜底）。
+ * 返回选中的绝对路径；取消 / 超时返回 null。
+ */
+function pickDirectoryNative(current) {
+  if (process.platform === 'win32') return pickDirectoryWindows(current);
+  if (process.platform === 'darwin') return pickDirectoryMac();
+  return Promise.reject(new Error('当前系统不支持原生目录选择'));
 }
 
 /** 弹出系统「选择文件夹」对话框并切换备份目录（用户取消返回 canceled:true） */

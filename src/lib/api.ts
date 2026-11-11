@@ -611,7 +611,8 @@ export const api = {
 
   /**
    * 两阶段导出（F-SYS-03 v2）：先 start 拿 jobId/预估，再按 500ms 轮询 exportStatus。
-   * 打包完成用浏览器原生下载 backupDownloadUrl(jobId)，绝不把 zip 读进内存。
+   * 2026-11-11 用户拍板：本地模式打包完成后 zip 直接保存到「备份目录」，
+   * 前端不再触发浏览器下载（只显示 savedPath / savedName 并提供「打开备份目录」）。
    */
   startBackupExport: (body: { includeThumbs: boolean; includeMedia: boolean }) =>
     fetch('/api/backup/export/start', {
@@ -620,7 +621,11 @@ export const api = {
       body: JSON.stringify(body),
     }).then((r) => json<BackupExportStart>(r)),
 
-  /** 导出任务进度（两阶段导出）：state=building/done/error/canceled */
+  /**
+   * 导出任务进度（两阶段导出）：state=building/done/error/canceled。
+   * 2026-11-11 用户拍板：本地模式 done 时 savedPath / savedName **一定有值**（zip 已在备份目录），
+   * 失败则 state=error（savedPath 为空，saveError 带原因）；multi 模式保持旧浏览器下载行为。
+   */
   exportStatus: (jobId: string) =>
     fetch(`/api/backup/export/status/${encodeURIComponent(jobId)}`).then((r) =>
       json<BackupExportJobStatus>(r)
@@ -632,7 +637,10 @@ export const api = {
       json<{ ok: boolean }>(r)
     ),
 
-  /** 原生下载 URL：交给隐藏 <a href download> 触发，避免 1.6GB 素材把内存撑爆 */
+  /**
+   * 原生下载 URL（保留但 2026-11-11 起**前端不再调用**）：本地导出只落「备份目录」，
+   * 云端（multi）也不再提供应用内备份入口；服务端 download 接口仍可用（兼容 smoke / 运维脚本）。
+   */
   backupDownloadUrl: (jobId: string) =>
     `/api/backup/export/download/${encodeURIComponent(jobId)}`,
 
