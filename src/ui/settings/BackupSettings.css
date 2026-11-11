@@ -9,3 +9,37 @@
   text-decoration: none;
   margin: 4px 0 8px;
 }
+
+/* 2026-11-11 D-364：设置 → 备份 → 备份目录（选择 / 打开 / 手动输入） */
+.bk-dir-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.bk-dir-path {
+  flex: 1 1 320px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 8px 12px;
+  border-radius: 9px;
+  background: var(--bg-field, rgba(127, 127, 127, 0.08));
+  border: 1px solid var(--line, rgba(127, 127, 127, 0.22));
+  font-size: calc(12.5px * var(--fs-scale));
+  color: var(--text-2);
+}
+.bk-dir-row .bk-file {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.bk-dir-actions {
+  margin-top: 8px;
+  gap: 10px;
+}
+.bk-dir-actions .ghost.tiny {
+  padding: 2px 6px;
+  font-size: calc(11.5px * var(--fs-scale));
+}

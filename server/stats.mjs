@@ -198,8 +198,7 @@ function loadMediaCounts(parsed, ownerId = null) {
 
 // ── 聚合小工具 ─────────────────────────────────────────────
 
-const provName = (v) => v.province || v.province_code || UNKNOWN;
-const cityName = (v) => v.city || UNKNOWN;
+const provName = (v) => v.province || v.province_code || UNKNOWN;const cityName = (v) => v.city || UNKNOWN;
 const cityKey = (v) => `${provName(v)}\u0000${cityName(v)}`;
 
 const byCountThenName = (a, b) =>
@@ -248,6 +247,32 @@ function firstLast(visit) {
 }
 
 // ── 统计主体 ───────────────────────────────────────────────
+
+/**
+ * 全库首访（2026-11-11 D-366）：每个地点「有史以来最早一条到访」的 visit_id。
+ * **不受 from / to / province / city 筛选影响** —— 时间趋势里的「新增打卡 / 重复到访」
+ * 属性必须稳定：同一个到访不会因为收窄年份范围就变成「首次」。ownerId 隔离同 loadVisits。
+ */
+function loadFirstVisitByPlace(ownerId = null) {
+  const where = ['p.deleted_at IS NULL', "p.kind = 'visited'", 'v.deleted_at IS NULL'];
+  const params = [];
+  pushOwner(where, params, ownerId, 'v');
+  pushOwner(where, params, ownerId, 'p');
+  const rows = db
+    .prepare(
+      `SELECT v.place_id AS place_id, v.id AS visit_id
+       FROM visit v
+       JOIN place p ON p.id = v.place_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY v.date ASC, v.created_at ASC, v.id ASC`
+    )
+    .all(...params);
+  const firstVisitByPlace = new Map();
+  for (const r of rows) {
+    if (!firstVisitByPlace.has(r.place_id)) firstVisitByPlace.set(r.place_id, r.visit_id);
+  }
+  return firstVisitByPlace;
+}
 
 export function buildStats(parsed, ownerId = null) {
   const visits = loadVisits(parsed, ownerId);
@@ -429,11 +454,9 @@ export function buildStats(parsed, ownerId = null) {
     .slice(0, parsed.limit)
     .map(({ lng, lat, ...rest }) => rest);
 
-  // 每地点首访（筛选后的首条到访，tie 用 date/created_at/id 升序保证唯一）
-  const firstVisitByPlace = new Map();
-  for (const v of visits) {
-    if (!firstVisitByPlace.has(v.place_id)) firstVisitByPlace.set(v.place_id, v.visit_id);
-  }
+  // 每地点首访（2026-11-11 D-366：改为「全库最早到访」，不随筛选漂移；
+  // 只在展示聚合时判断本次到访是否为该地点的首次，时间/地区筛选只决定展示范围）
+  const firstVisitByPlace = loadFirstVisitByPlace(ownerId);
 
   // 时间趋势：先聚合，再补齐首末之间的空桶
   const mode = parsed.bucket;

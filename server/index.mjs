@@ -5,10 +5,10 @@ import sharp from 'sharp';
 import { randomUUID, createHash } from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { createReadStream, createWriteStream, existsSync, mkdirSync, statSync, statfsSync, readdirSync, unlinkSync, rmSync, renameSync } from 'node:fs';
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, statSync, statfsSync, readdirSync, unlinkSync, rmSync, renameSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { join, extname, basename, relative, resolve, sep, dirname } from 'node:path';
-import { CONFIG, clearHome, setHome, setMediaRoot, setTdtKey } from './config.mjs';
+import { CONFIG, clearHome, getDefaultBackupDir, setBackupDir, setHome, setMediaRoot, setTdtKey } from './config.mjs';
 import {
   AuthError,
   bootstrapAdmin,
@@ -85,13 +85,17 @@ import {
   getBackupStatus,
   getExportDownload,
   getExportStatus,
+  getRestoreJobStatus,
   inspectBackupZip,
   isRestoring,
+  listExportJobs,
+  listRestoreJobs,
   newTmpZipPath,
   restoreBackup,
   setReminderDays,
   setSnooze,
   startExport,
+  startRestoreJob,
   storeInspectToken,
 } from './backup.mjs';
 // M6 P2-3：普通用户导出自己的数据（另一位工程师并行实现的模块）+ zip 层错误类型（消息可直接给用户看）
@@ -450,6 +454,8 @@ app.get('/api/health', async (req) => {
       hasTk: Boolean(CONFIG.tdtTk),
       mediaRoot: CONFIG.mediaRoot,
       dataDir: CONFIG.dataDir,
+      /** 备份目录（2026-11-11 D-364）：设置 → 备份与恢复 展示 / 只读核对用 */
+      backupDir: CONFIG.backupDir,
       version: appVersion(),
       mode: CONFIG.isDev ? 'dev' : 'prod',
       /** 账号模式（2026-11-06 M6 P2-1，D-200）：local = 单机无账号；multi = 云端多用户 */
@@ -473,6 +479,7 @@ app.get('/api/health', async (req) => {
     ...self,
     mediaRoot: CONFIG.mediaRoot,
     dataDir: CONFIG.dataDir,
+    backupDir: CONFIG.backupDir,
     ffmpeg: await hasFfmpeg(),
     /** 管理员额外看全局数据量（所有账号合计） */
     globalStats: stats(),
@@ -3085,6 +3092,139 @@ app.post('/api/backup/settings', async (req, reply) => {
   } catch (e) {
     if (e instanceof BackupError) return reply.code(e.status || 400).send({ error: e.message });
     return reply.code(500).send({ error: e?.message || String(e) });
+  }
+});
+
+// ───────────── 备份目录（选择 / 打开）与后台任务（2026-11-11 D-364 / D-365）─────────────
+
+/** 备份目录选择 / 打开只对本地安装版有意义（云端是服务器磁盘，不暴露给浏览器） */
+const backupDirLocalOnly = (req, reply) => {
+  if (CONFIG.authMode === 'multi') {
+    reply.code(403).send({ error: '仅本地安装版支持设置备份目录' });
+    return false;
+  }
+  return true;
+};
+
+/** 读取当前备份目录（设置页展示） */
+app.get('/api/backup/dir', async (req, reply) => {
+  if (!backupDirLocalOnly(req, reply)) return;
+  return { dir: CONFIG.backupDir, defaultDir: getDefaultBackupDir(), platform: process.platform, localOnly: true };
+});
+
+/** 手动设置备份目录（原生选择框不可用时的手动输入兜底） */
+app.post('/api/backup/dir', async (req, reply) => {
+  if (!backupDirLocalOnly(req, reply)) return;
+  const p = String(req.body?.path ?? '').trim();
+  if (!p) return reply.code(400).send({ error: '请填写备份目录路径' });
+  try {
+    return { ok: true, dir: setBackupDir(p) };
+  } catch (e) {
+    return reply.code(400).send({ error: e?.message || String(e) });
+  }
+});
+
+/** Windows 原生「选择文件夹」对话框：PowerShell FolderBrowserDialog，结果写临时文件（避免管道限制） */
+function pickDirectoryNative(current) {
+  if (process.platform !== 'win32') return Promise.reject(new Error('当前系统不支持原生目录选择'));
+  mkdirSync(resolve(CONFIG.dataDir, 'tmp'), { recursive: true });
+  const outFile = resolve(CONFIG.dataDir, 'tmp', `pick-dir-${randomUUID()}.txt`);
+  const q = (s) => JSON.stringify(String(s ?? ''));
+  const ps = [
+    'Add-Type -AssemblyName System.Windows.Forms',
+    '$d = New-Object System.Windows.Forms.FolderBrowserDialog',
+    '$d.Description = ' + q('选择 Tread Horizon 备份目录'),
+    '$d.ShowNewFolderButton = $true',
+    `$d.SelectedPath = ${q(current)}`,
+    `if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [System.IO.File]::WriteAllText(${q(outFile)}, $d.SelectedPath) }`,
+  ].join('; ');
+  return new Promise((resolvePick, rejectPick) => {
+    const child = spawn('powershell.exe', ['-NoProfile', '-STA', '-Command', ps], { windowsHide: true, stdio: 'ignore' });
+    const timer = setTimeout(() => {
+      try {
+        child.kill();
+      } catch {
+        /* ignore */
+      }
+    }, 180000);
+    child.once('error', (e) => {
+      clearTimeout(timer);
+      rejectPick(e);
+    });
+    child.once('exit', () => {
+      clearTimeout(timer);
+      let picked = '';
+      try {
+        picked = readFileSync(outFile, 'utf8').trim();
+      } catch {
+        /* 用户取消 / 没有写文件 */
+      }
+      try {
+        unlinkSync(outFile);
+      } catch {
+        /* ignore */
+      }
+      resolvePick(picked || null);
+    });
+  });
+}
+
+/** 弹出系统「选择文件夹」对话框并切换备份目录（用户取消返回 canceled:true） */
+app.post('/api/backup/dir/pick', async (req, reply) => {
+  if (!backupDirLocalOnly(req, reply)) return;
+  try {
+    const picked = await pickDirectoryNative(CONFIG.backupDir);
+    if (!picked) return { ok: true, canceled: true };
+    return { ok: true, canceled: false, dir: setBackupDir(picked) };
+  } catch (e) {
+    return reply.code(400).send({ error: '打开目录选择框失败：' + (e?.message || String(e)) + '；可以直接手动输入路径' });
+  }
+});
+
+/** 在系统的文件管理器里打开当前备份目录 */
+app.post('/api/backup/dir/open', async (req, reply) => {
+  if (!backupDirLocalOnly(req, reply)) return;
+  try {
+    if (!existsSync(CONFIG.backupDir)) mkdirSync(CONFIG.backupDir, { recursive: true });
+    if (process.platform === 'win32') {
+      spawn('explorer.exe', [CONFIG.backupDir], { detached: true, stdio: 'ignore' }).unref();
+    } else if (process.platform === 'darwin') {
+      spawn('open', [CONFIG.backupDir], { detached: true, stdio: 'ignore' }).unref();
+    } else {
+      spawn('xdg-open', [CONFIG.backupDir], { detached: true, stdio: 'ignore' }).unref();
+    }
+    return { ok: true, dir: CONFIG.backupDir };
+  } catch (e) {
+    return reply.code(500).send({ error: '打开备份目录失败：' + (e?.message || String(e)) });
+  }
+});
+
+/** 后台任务列表（导出 / 恢复）：设置关掉再打开可恢复进度显示；刷新页面也能看到任务还在 */
+app.get('/api/background-tasks', async (req, reply) => {
+  if (!requireAdminInMulti(req, reply)) return;
+  const owner = ownerOf(req);
+  return { exportJobs: listExportJobs(owner), restoreJobs: listRestoreJobs(owner) };
+});
+
+/** 后台恢复任务：关掉设置 / 刷新页面不中断；重开设置轮询 status 继续显示 */
+app.post('/api/backup/restore/start', async (req, reply) => {
+  if (!requireAdminInMulti(req, reply)) return;
+  const b = req.body || {};
+  try {
+    return startRestoreJob({ token: b.token }, ownerOf(req));
+  } catch (e) {
+    if (e instanceof BackupError) return reply.code(e.status || 500).send({ error: e.message, ...e.extra });
+    return reply.code(500).send({ error: '启动恢复任务失败：' + (e?.message || String(e)) });
+  }
+});
+
+app.get('/api/backup/restore/status/:jobId', async (req, reply) => {
+  if (!requireAdminInMulti(req, reply)) return;
+  try {
+    return getRestoreJobStatus(req.params.jobId, ownerOf(req));
+  } catch (e) {
+    if (e instanceof BackupError) return reply.code(e.status || 500).send({ error: e.message });
+    return reply.code(500).send({ error: '读取恢复进度失败：' + (e?.message || String(e)) });
   }
 });
 

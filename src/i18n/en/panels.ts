@@ -33,7 +33,7 @@ const dict: Dict = {
   // ── 标签常量 / 单位（StatsPanel 常量数组，经 t(变量) 渲染）──
   '到访次数': 'Visits',
   '不同地点数': 'Distinct places',
-  '首次到访': 'First visits',
+  '新增打卡': 'New check-ins',
   '重复到访': 'Repeat visits',
   '照片数': 'Photos',
   '视频数': 'Videos',
@@ -121,14 +121,16 @@ const dict: Dict = {
   '条 = {metric}（堆叠）': 'Bar = {metric} (stacked)',
   '点 = {metric}': 'Dot = {metric}',
   '（最大 {n}）': ' (max {n})',
-  '分组模式只返回「到访次数 / 不同地点数」两个指标，条长按到访次数显示；照片、视频、首次到访请切回「不分组」。':
-    'Grouped mode only returns the “visits / distinct places” metrics, so bar length shows visits; switch back to “No grouping” for photos, videos and first visits.',
+  '分组模式只返回「到访次数 / 不同地点数」两个指标，条长按到访次数显示；照片、视频请切回「不分组」。':
+    'Grouped mode only returns the “visits / distinct places” metrics, so bar length shows visits; switch back to “No grouping” for photos and videos.',
+  '「新增打卡」= 该时间桶里第一次记录的地点数量（按全库最早到访判断，不随筛选变化）；其余到访计入「重复到访」。':
+    '“New check-ins” = places recorded for the first time in this time bucket (judged against the whole library, so it does not shift with filters); all other visits count as “repeat visits”.',
   '当前范围内没有到访记录，可以放宽年份或地区筛选。':
     'No visits in the current range. Try widening the year or region filters.',
-  '{label} · {visits} 次到访 · {places} 个地点 · {new} 个新地方 · {photos} 张照片 · {videos} 段视频':
-    '{label} · {visits} visits · {places} places · {new} new places · {photos} photos · {videos} videos',
-  ' · {visits} 次到访 · {places} 个地点 · {new} 个新地方 · {photos} 张照片 · {videos} 段视频':
-    ' · {visits} visits · {places} places · {new} new places · {photos} photos · {videos} videos',
+  '{label} · {visits} 次到访 · {places} 个地点 · 新增打卡 {new} 个 · {photos} 张照片 · {videos} 段视频':
+    '{label} · {visits} visits · {places} places · {new} new check-ins · {photos} photos · {videos} videos',
+  ' · {visits} 次到访 · {places} 个地点 · 新增打卡 {new} 个 · {photos} 张照片 · {videos} 段视频':
+    ' · {visits} visits · {places} places · {new} new check-ins · {photos} photos · {videos} videos',
   '悬停或聚焦某一行查看明细': 'Hover or focus a row to see details',
 
   // ── 统计面板 · 地区分布 ──

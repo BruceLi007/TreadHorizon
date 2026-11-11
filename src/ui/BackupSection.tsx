@@ -5,6 +5,7 @@ import { tr, useT } from '../i18n';
 import type {
   BackupExportJobStatus,
   BackupInspectResult,
+  BackupRestoreJobStatus,
   BackupRestoreResult,
   BackupStatus,
 } from '../lib/types';
@@ -134,6 +135,9 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
   const [inspected, setInspected] = useState<BackupInspectResult | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  /** 2026-11-11 D-365：恢复改后台任务（关掉设置不中断，重开可续看） */
+  const [restoreJobId, setRestoreJobId] = useState<string | null>(null);
+  const [restoreJob, setRestoreJob] = useState<BackupRestoreJobStatus | null>(null);
   const [restoreMsg, setRestoreMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [restoreResult, setRestoreResult] = useState<BackupRestoreResult | null>(null);
 
@@ -329,31 +333,108 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
     }
   };
 
-  // ── 确认恢复（已再点一次确认）──
+  // ── 确认恢复：2026-11-11 D-365 起走「后台任务」（服务端跑完，客户端只轮询）──
   const doRestore = async () => {
     const token = inspected?.token;
-    if (!token || restoring || exporting) return;
+    if (!token || restoring || exporting || restoreJobId) return;
     setRestoring(true);
     setRestoreMsg(null);
     setRestoreResult(null);
+    setConfirming(false);
     try {
-      const r = await api.restoreBackup(token);
-      setRestoreResult(r);
-      setRestoreMsg(null);
-      resetFile();
-      void loadStatus();
-      onRestored();
+      const start = await api.startBackupRestore(token);
+      setRestoreJobId(start.jobId);
     } catch (e: any) {
+      setRestoring(false);
       const rolled = e?.rolledBack === true;
       const raw = errText(e);
       setRestoreMsg({
         ok: false,
         text: rolled && !raw.includes('回滚') ? raw + t('（已回滚，当前数据未被修改）') : raw,
       });
-    } finally {
-      setRestoring(false);
     }
   };
+
+  // ── 恢复任务轮询：running 时继续；done → 展示结果并刷新；error → 提示（含是否已回滚）──
+  useEffect(() => {
+    if (!restoreJobId) {
+      setRestoreJob(null);
+      return;
+    }
+    let alive = true;
+    let timer: number | null = null;
+    const tick = async () => {
+      try {
+        const s = await api.restoreJobStatus(restoreJobId);
+        if (!alive) return;
+        setRestoreJob(s);
+        if (s.state === 'running') {
+          timer = window.setTimeout(tick, 800);
+          return;
+        }
+        setRestoreJobId(null);
+        setRestoring(false);
+        if (s.state === 'done' && s.result) {
+          setRestoreResult(s.result);
+          setRestoreMsg(null);
+          resetFile();
+          void loadStatus();
+          onRestored();
+        } else {
+          const raw = s.error || tr('没有返回原因');
+          setRestoreMsg({
+            ok: false,
+            text: s.rolledBack ? raw + t('（已回滚，当前数据未被修改）') : raw,
+          });
+          void loadStatus();
+        }
+      } catch (e: unknown) {
+        if (!alive) return;
+        setRestoreJobId(null);
+        setRestoring(false);
+        setRestoreMsg({ ok: false, text: tr('读取恢复进度失败：') + errText(e) });
+      }
+    };
+    timer = window.setTimeout(tick, 600);
+    return () => {
+      alive = false;
+      if (timer != null) window.clearTimeout(timer);
+    };
+    // resetFile / loadStatus / onRestored 为稳定闭包或父级回调；只按 jobId 触发
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restoreJobId]);
+
+  // ── 设置关掉再打开 / 页面刷新后：接回正在跑的后台恢复任务 + 导出任务进度（D-365 / D-364）──
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const tasks = await api.backgroundTasks();
+        if (!alive) return;
+        const runningRestore = (tasks.restoreJobs ?? []).find((j) => j.state === 'running');
+        if (runningRestore) {
+          setRestoring(true);
+          setRestoreJobId(runningRestore.jobId);
+          setRestoreMsg(null);
+        }
+        const exp = (tasks.exportJobs ?? [])[0];
+        if (exp) {
+          setExportJob((prev) => prev ?? exp);
+          if (exp.state === 'building') {
+            setExportMsg({ ok: true, text: tr('导出任务正在后台打包，关掉设置不会中断；完成后会自动开始下载。') });
+          } else if (exp.state === 'done') {
+            setExportMsg({ ok: true, text: tr('上次导出已打包完成，点击下方「下载备份包」即可保存。') });
+          }
+        }
+      } catch {
+        /* 旧服务端 / multi 权限不足：忽略，不影响手动操作 */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // 仅在挂载时执行一次
+  }, []);
 
   /** 导出进度百分比：优先按字节（bytesTotal 是未压缩预估），没有体积时按文件数 */
   const exportPct = exportJob
@@ -796,7 +877,7 @@ export default function BackupSection({ onRestored, onStatus }: Props) {
               <div className="bk-progress-fill indeterminate" />
             </div>
             <div className="bk-progress-text">
-              {t('正在恢复…请不要关闭页面')}
+              {t('正在恢复…（任务在服务端后台继续，关掉设置不会中断；重新打开设置可继续查看）')}
             </div>
           </div>
         )}

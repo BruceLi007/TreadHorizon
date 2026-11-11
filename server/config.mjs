@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync, accessSync, constants as fsConstants } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -46,6 +46,9 @@ export function saveLocalConfig(patch) {
 const defaultMediaRoot = isDev
   ? resolve(env.MEDIA_ROOT_DEV || resolve(ROOT, '.dev-media'))
   : resolve(env.MEDIA_ROOT || resolve(ROOT, '.dev-media'));
+
+/** 默认备份目录（恢复前自动备份写这里）；2026-11-11 D-364 起可在设置里改到其它盘 */
+const defaultBackupDir = resolve(dataDir, 'backups');
 
 const local = readLocalConfig();
 
@@ -134,18 +137,49 @@ export const CONFIG = {
   configPath,
   // 换电脑后可以在这里覆盖；留空则用 .env.local 里的值
   mediaRoot: local.mediaRoot ? resolve(local.mediaRoot) : defaultMediaRoot,
+  /**
+   * 备份目录（2026-11-11 D-364 用户要求）：恢复前自动备份（pre-restore-*.zip）写到这里，
+   * 可在 设置 → 备份与恢复 里选择（仅本地模式）。默认 data/backups，存 data/config.json.backupDir。
+   */
+  backupDir: local.backupDir ? resolve(local.backupDir) : defaultBackupDir,
   // 家的位置（单点；null = 未设置）。只影响地图上的一个特殊标记，与 place 无关。
   home: normalizeHome(local.home),
   distDir: resolve(ROOT, 'dist'),
   publicDir: resolve(ROOT, 'public'),
 };
 
-for (const d of [CONFIG.dataDir, CONFIG.thumbDir, CONFIG.mediaRoot, CONFIG.publicDir]) {
+for (const d of [CONFIG.dataDir, CONFIG.thumbDir, CONFIG.mediaRoot, CONFIG.backupDir, CONFIG.publicDir]) {
   try {
     mkdirSync(d, { recursive: true });
   } catch (e) {
     console.error(`[config] 无法创建目录 ${d}：${e.message}`);
   }
+}
+
+/** 默认备份目录（未自定义时） */
+export function getDefaultBackupDir() {
+  return defaultBackupDir;
+}
+
+/**
+ * 运行期切换备份目录（设置 → 备份与恢复 → 选择备份目录），持久化到 data/config.json.backupDir。
+ * - 目录不存在时自动创建；创建 / 写入失败抛出可读错误（前端提示）。
+ * - 只改「以后写备份的位置」，不移动已有备份文件。
+ */
+export function setBackupDir(p) {
+  const raw = String(p ?? '').trim();
+  if (!raw) throw new Error('备份目录不能为空');
+  const abs = resolve(raw);
+  try {
+    if (!existsSync(abs)) mkdirSync(abs, { recursive: true });
+    if (!statSync(abs).isDirectory()) throw new Error('路径不是文件夹');
+    accessSync(abs, fsConstants.W_OK);
+  } catch (e) {
+    throw new Error('目录不存在或不可写：' + (e?.message || String(e)));
+  }
+  if (!saveLocalConfig({ backupDir: abs })) throw new Error('写入 data/config.json 失败');
+  CONFIG.backupDir = abs;
+  return abs;
 }
 
 /** 运行期切换素材库根目录，并持久化到 data/config.json */

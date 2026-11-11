@@ -6,10 +6,15 @@ import type {
   AuthMe,
   AuthSessionResult,
   AuthUser,
+  BackgroundTasks,
+  BackupDirInfo,
+  BackupDirResult,
   BackupExportJobStatus,
   BackupExportStart,
   BackupInspectResult,
+  BackupRestoreJobStatus,
   BackupRestoreResult,
+  BackupRestoreStart,
   BackupStatus,
   Companion,
   DuplicateScanResult,
@@ -692,6 +697,44 @@ export const api = {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ days }),
     }).then((r) => json<BackupStatus>(r)),
+
+  // ── 2026-11-11 D-364：备份目录（仅本地安装版）──
+
+  /** 当前备份目录 + 默认目录 + 平台 */
+  backupDir: () => fetch('/api/backup/dir').then((r) => json<BackupDirInfo>(r)),
+
+  /** 手动设置备份目录（原生选择框不可用时的兜底） */
+  setBackupDirPath: (path: string) =>
+    fetch('/api/backup/dir', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path }),
+    }).then((r) => json<BackupDirResult>(r)),
+
+  /** 弹出系统「选择文件夹」对话框并切换（用户取消时 canceled=true） */
+  pickBackupDir: () => fetch('/api/backup/dir/pick', { method: 'POST' }).then((r) => json<BackupDirResult>(r)),
+
+  /** 在系统文件管理器里打开备份目录 */
+  openBackupDir: () => fetch('/api/backup/dir/open', { method: 'POST' }).then((r) => json<{ ok: boolean; dir: string }>(r)),
+
+  // ── 2026-11-11 D-365：后台任务（关掉设置 / 刷新页面不中断，重开可继续看）──
+
+  /** 当前 + 最近的后台任务（导出 / 恢复） */
+  backgroundTasks: () => fetch('/api/background-tasks').then((r) => json<BackgroundTasks>(r)),
+
+  /** 启动后台恢复任务（服务端继续跑；客户端只轮询 status） */
+  startBackupRestore: (token: string) =>
+    fetch('/api/backup/restore/start', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token }),
+    }).then((r) => json<BackupRestoreStart>(r)),
+
+  /** 后台恢复任务状态 */
+  restoreJobStatus: (jobId: string) =>
+    fetch(`/api/backup/restore/status/${encodeURIComponent(jobId)}`).then((r) =>
+      json<BackupRestoreJobStatus>(r)
+    ),
 
   /** 修改提醒阈值（F-SYS-05）：只允许 {7,14,30,60,90}，返回最新 status */
   updateBackupSettings: (reminderDays: number) =>

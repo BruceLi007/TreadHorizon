@@ -19,7 +19,7 @@ import Segmented from './Segmented';
 import CloseIcon from './CloseIcon';
 
 type Tab = 'time' | 'region' | 'places' | 'provinces' | 'distance';
-type MetricKey = 'visits' | 'places' | 'first' | 'photos' | 'videos';
+type MetricKey = 'visits' | 'places' | 'photos' | 'videos';
 type Bucket = 'year' | 'quarter' | 'month';
 type SeriesBy = 'province' | 'city';
 type RegionMode = 'province' | 'city';
@@ -35,11 +35,10 @@ const PROVINCE_TOTAL = 34;
 const METRIC_DEFS: Record<MetricKey, { label: string; unit: string }> = {
   visits: { label: '到访次数', unit: '次' },
   places: { label: '不同地点数', unit: '个' },
-  first: { label: '首次到访', unit: '个' },
   photos: { label: '照片数', unit: '张' },
   videos: { label: '视频数', unit: '段' },
 };
-const METRIC_ORDER: MetricKey[] = ['visits', 'places', 'first', 'photos', 'videos'];
+const METRIC_ORDER: MetricKey[] = ['visits', 'places', 'photos', 'videos'];
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'time', label: '时间趋势' },
@@ -60,7 +59,7 @@ const DEFAULT_METRICS: Record<Tab, MetricKey[]> = {
 
 /** 每个视图能表达的指标；不支持的指标在筛选区禁用（离家距离视图不显示指标行） */
 const AVAILABLE_METRICS: Record<Tab, MetricKey[]> = {
-  time: ['visits', 'places', 'first', 'photos', 'videos'],
+  time: ['visits', 'places', 'photos', 'videos'],
   region: ['visits', 'places', 'photos', 'videos'],
   places: ['visits', 'photos', 'videos'],
   provinces: ['places', 'visits'],
@@ -138,8 +137,6 @@ const timeVal = (p: StatsTimePoint, k: MetricKey): number => {
       return p.visits;
     case 'places':
       return p.places;
-    case 'first':
-      return p.first_visits;
     case 'photos':
       return p.photos;
     case 'videos':
@@ -537,7 +534,7 @@ export default function StatsPanel({ onClose, onOpenBackup, homeKey = '', readOn
         const first = Math.max(0, Math.min(pt.first_visits, pt.visits));
         const repeat = Math.max(0, pt.visits - first);
         if (first > 0) {
-          segs.push({ name: t('首次到访'), value: first, color: 'var(--accent)', weak: false });
+          segs.push({ name: t('新增打卡'), value: first, color: 'var(--accent)', weak: false });
         }
         if (repeat > 0) {
           segs.push({ name: t('重复到访'), value: repeat, color: 'var(--accent)', weak: true });
@@ -984,7 +981,7 @@ export default function StatsPanel({ onClose, onOpenBackup, homeKey = '', readOn
                     <>
                       <span className="st-legend-item">
                         <i className="st-swatch" style={{ background: 'var(--accent)' }} />
-                        {t('首次到访')}
+                        {t('新增打卡')}
                       </span>
                       <span className="st-legend-item">
                         <i className="st-swatch is-weak" style={{ background: 'var(--accent)' }} />
@@ -1010,9 +1007,15 @@ export default function StatsPanel({ onClose, onOpenBackup, homeKey = '', readOn
                   )}
                 </div>
 
+                {!timeChart.grouped && timeChart.primary === 'visits' && (
+                  <p className="st-note">
+                    {t('「新增打卡」= 该时间桶里第一次记录的地点数量（按全库最早到访判断，不随筛选变化）；其余到访计入「重复到访」。')}
+                  </p>
+                )}
+
                 {timeChart.groupedFallback && (
                   <p className="st-note">
-                    {t('分组模式只返回「到访次数 / 不同地点数」两个指标，条长按到访次数显示；照片、视频、首次到访请切回「不分组」。')}
+                    {t('分组模式只返回「到访次数 / 不同地点数」两个指标，条长按到访次数显示；照片、视频请切回「不分组」。')}
                   </p>
                 )}
 
@@ -1044,7 +1047,7 @@ export default function StatsPanel({ onClose, onOpenBackup, homeKey = '', readOn
                               Math.min(100, (row.total / timeChart.maxBar) * 100)
                             )
                           : 0;
-                      const tip = t('{label} · {visits} 次到访 · {places} 个地点 · {new} 个新地方 · {photos} 张照片 · {videos} 段视频', {
+                      const tip = t('{label} · {visits} 次到访 · {places} 个地点 · 新增打卡 {new} 个 · {photos} 张照片 · {videos} 段视频', {
                         label: row.label,
                         visits: fmt(row.point.visits),
                         places: fmt(row.point.places),
@@ -1096,7 +1099,7 @@ export default function StatsPanel({ onClose, onOpenBackup, homeKey = '', readOn
                   {hover ? (
                     <>
                       <b>{hover.label}</b>
-                      {t(' · {visits} 次到访 · {places} 个地点 · {new} 个新地方 · {photos} 张照片 · {videos} 段视频', {
+                      {t(' · {visits} 次到访 · {places} 个地点 · 新增打卡 {new} 个 · {photos} 张照片 · {videos} 段视频', {
                         visits: fmt(hover.visits),
                         places: fmt(hover.places),
                         new: fmt(hover.first_visits),

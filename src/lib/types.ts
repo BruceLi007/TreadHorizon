@@ -837,3 +837,43 @@ export interface UpdateCheckResult {
   error?: string;
 }
 
+// ── 2026-11-11 D-364 / D-365：备份目录选择 + 后台任务（关掉设置不中断、重开可续看） ──
+
+/** GET /api/backup/dir：当前备份目录（仅本地模式） */
+export interface BackupDirInfo {
+  dir: string;
+  defaultDir: string;
+  platform: string;
+  localOnly: boolean;
+}
+
+/** POST /api/backup/dir、/api/backup/dir/pick：切换结果；canceled=true 表示用户取消选择 */
+export interface BackupDirResult {
+  ok: boolean;
+  dir?: string;
+  canceled?: boolean;
+}
+
+/** POST /api/backup/restore/start：后台恢复任务信息 */
+export interface BackupRestoreStart {
+  jobId: string;
+  createdAt: number;
+}
+
+/** GET /api/backup/restore/status/:jobId：后台恢复任务状态 */
+export interface BackupRestoreJobStatus {
+  jobId: string;
+  state: 'running' | 'done' | 'error';
+  error: string | null;
+  rolledBack: boolean;
+  result: BackupRestoreResult | null;
+  createdAt: number;
+  finishedAt: number | null;
+}
+
+/** GET /api/background-tasks：当前 + 最近的后台任务（设置重开 / 刷新页面后恢复进度用） */
+export interface BackgroundTasks {
+  exportJobs: BackupExportJobStatus[];
+  restoreJobs: BackupRestoreJobStatus[];
+}
+

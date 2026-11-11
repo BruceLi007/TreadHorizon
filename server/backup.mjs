@@ -152,7 +152,8 @@ export const isRestoring = () => restoring;
 // ───────────── 小工具 ─────────────
 
 const tmpDir = () => resolve(CONFIG.dataDir, 'tmp');
-const backupsDir = () => resolve(CONFIG.dataDir, 'backups');
+/** 备份目录（2026-11-11 D-364）：默认 data/backups，可被用户在设置里改到其它盘（见 config.mjs backupDir） */
+const backupsDir = () => CONFIG.backupDir || resolve(CONFIG.dataDir, 'backups');
 
 function ensureTmpDir() {
   mkdirSync(tmpDir(), { recursive: true });
@@ -1518,6 +1519,119 @@ export async function cancelExportJob(jobId, ownerId = null) {
 // 定时清理过期导出任务（unref 不阻止进程退出）
 const exportJobTimer = setInterval(() => pruneExportJobs(), 60_000);
 exportJobTimer.unref?.();
+
+/** 列出导出任务（2026-11-11 D-365：设置关掉再打开能接着看进度）；owner 隔离同 exportJobs */
+export function listExportJobs(ownerId = null) {
+  pruneExportJobs();
+  const out = [];
+  for (const job of exportJobs.values()) {
+    if (ownerId && job.ownerId !== ownerId) continue;
+    out.push({
+      jobId: job.jobId,
+      state: job.state,
+      filesDone: job.filesDone,
+      filesTotal: job.filesTotal,
+      bytesDone: job.bytesDone,
+      bytesTotal: job.bytesTotal,
+      zipBytes: job.zipBytes,
+      error: job.error,
+      createdAt: job.createdAt,
+      includeThumbs: job.includeThumbs,
+      includeMedia: job.includeMedia,
+    });
+  }
+  out.sort((a, b) => b.createdAt - a.createdAt);
+  return out;
+}
+
+// ───────────── 恢复任务（2026-11-11 D-365：关掉设置 / 切去别的页面也不丢进度、可回来继续看）─────────────
+
+const RESTORE_JOB_TTL_MS = 6 * 60 * 60 * 1000;
+const restoreJobs = new Map();
+
+function pruneRestoreJobs(nowTs = Date.now()) {
+  for (const [jobId, job] of restoreJobs) {
+    if (job.state === 'running') continue;
+    if (nowTs - job.createdAt > RESTORE_JOB_TTL_MS) restoreJobs.delete(jobId);
+  }
+}
+
+/**
+ * POST /api/backup/restore/start —— 后台执行恢复（复用 restoreBackup 全套校验 / 自动备份 / 回滚），
+ * 客户端只轮询状态。这样关掉设置对话框甚至刷新页面后，恢复仍在服务端跑完；重开设置可继续看进度。
+ */
+export function startRestoreJob({ token } = {}, ownerId = null) {
+  if (restoring) throw new BackupError(409, '正在恢复备份，请稍后再试');
+  pruneRestoreJobs();
+  if ([...restoreJobs.values()].some((j) => j.state === 'running')) {
+    throw new BackupError(409, '已有恢复任务进行中');
+  }
+  const createdAt = Date.now();
+  const job = {
+    jobId: randomUUID(),
+    state: 'running',
+    createdAt,
+    finishedAt: null,
+    error: null,
+    rolledBack: false,
+    result: null,
+    ownerId: ownerId || null,
+  };
+  restoreJobs.set(job.jobId, job);
+  job.promise = (async () => {
+    try {
+      job.result = await restoreBackup({ token, confirm: true });
+      job.state = 'done';
+    } catch (e) {
+      job.state = 'error';
+      job.error = e?.message || String(e);
+      job.rolledBack = e?.rolledBack === true;
+    } finally {
+      job.finishedAt = Date.now();
+    }
+  })();
+  job.promise.catch(() => {});
+  return { jobId: job.jobId, createdAt };
+}
+
+/** GET /api/backup/restore/status/:jobId */
+export function getRestoreJobStatus(jobId, ownerId = null) {
+  pruneRestoreJobs();
+  const job = restoreJobs.get(String(jobId || ''));
+  if (!job) throw new BackupError(404, '恢复任务不存在或已过期');
+  if (ownerId && job.ownerId !== ownerId) throw new BackupError(404, '恢复任务不存在或已过期');
+  return {
+    jobId: job.jobId,
+    state: job.state,
+    error: job.error,
+    rolledBack: job.rolledBack,
+    result: job.state === 'done' ? job.result : null,
+    createdAt: job.createdAt,
+    finishedAt: job.finishedAt,
+  };
+}
+
+/** 列出最近恢复任务（设置页重开时恢复进度用） */
+export function listRestoreJobs(ownerId = null) {
+  pruneRestoreJobs();
+  const out = [];
+  for (const job of restoreJobs.values()) {
+    if (ownerId && job.ownerId !== ownerId) continue;
+    out.push({
+      jobId: job.jobId,
+      state: job.state,
+      error: job.error,
+      rolledBack: job.rolledBack,
+      createdAt: job.createdAt,
+      finishedAt: job.finishedAt,
+    });
+  }
+  out.sort((a, b) => b.createdAt - a.createdAt);
+  return out;
+}
+
+const restoreJobTimer = setInterval(() => pruneRestoreJobs(), 60_000);
+restoreJobTimer.unref?.();
 
 // ───────────── 恢复（F-SYS-04）─────────────
 
