@@ -317,6 +317,29 @@ export interface PurgeTrashResult {
   remaining: TrashCount;
 }
 
+/**
+ * 回收站后台任务（2026-11-12 D-400）：批量恢复 / 彻底删除在服务端执行，
+ * 关掉设置 / 切页 / 刷新页面不会中断，重新打开回收站可以接回进度与结果。
+ */
+export type TrashJobKind = 'restore' | 'purge';
+export type TrashJobState = 'running' | 'done' | 'error';
+
+export interface TrashJob {
+  jobId: string;
+  kind: TrashJobKind;
+  state: TrashJobState;
+  error: string | null;
+  createdAt: number;
+  finishedAt: number | null;
+  result: RestoreTrashResult | PurgeTrashResult | null;
+}
+
+export interface TrashJobStart {
+  jobId: string;
+  kind: TrashJobKind;
+  createdAt: number;
+}
+
 // ── M3：统计（F-STA / D-60） ──
 
 export interface StatsTotals {
@@ -843,9 +866,34 @@ export interface BackupRestoreJobStatus {
   finishedAt: number | null;
 }
 
+/** POST /api/backup/inspect/start：后台检查任务的创建结果（2026-11-12 D-401） */
+export interface BackupInspectStart {
+  jobId: string;
+  createdAt: number;
+}
+
+export type BackupInspectJobState = 'created' | 'uploading' | 'validating' | 'done' | 'error';
+
+/** GET /api/backup/inspect/status/:jobId：备份包检查（上传 + 校验）任务状态 */
+export interface BackupInspectJobStatus {
+  jobId: string;
+  state: BackupInspectJobState;
+  error: string | null;
+  createdAt: number;
+  finishedAt: number | null;
+  bytes: number;
+  /** 上传的备份文件名（用于重开设置后显示「已选择」） */
+  filename: string;
+  summary: BackupSummary | null;
+  token: string | null;
+  expiresAt: number | null;
+}
+
 /** GET /api/background-tasks：当前 + 最近的后台任务（设置重开 / 刷新页面后恢复进度用） */
 export interface BackgroundTasks {
   exportJobs: BackupExportJobStatus[];
   restoreJobs: BackupRestoreJobStatus[];
+  /** 2026-11-12 D-401：备份包检查（上传 + 校验）后台任务 */
+  inspectJobs: BackupInspectJobStatus[];
 }
 

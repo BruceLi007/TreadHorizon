@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { tr, useT } from '../i18n';
 import type {
   BackupExportJobStatus,
+  BackupInspectJobStatus,
   BackupInspectResult,
   BackupRestoreJobStatus,
   BackupRestoreResult,
@@ -120,7 +121,12 @@ export default function BackupSection({ onRestored, onStatus, backupDir = '' }: 
   // ── 恢复（F-SYS-04）──
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [fileName, setFileName] = useState('');
-  const [inspecting, setInspecting] = useState(false);
+  /** 2026-11-12 D-401：备份包检查改成后台任务（start → 上传 → 校验），这里表示「正在启动 / 上传」 */
+  const [inspectStarting, setInspectStarting] = useState(false);
+  const [inspectJobId, setInspectJobId] = useState<string | null>(null);
+  const [inspectJob, setInspectJob] = useState<BackupInspectJobStatus | null>(null);
+  const [inspectUploadPct, setInspectUploadPct] = useState<number | null>(null);
+  const inspectAbortRef = useRef<(() => void) | null>(null);
   const [inspectErr, setInspectErr] = useState<string | null>(null);
   const [inspected, setInspected] = useState<BackupInspectResult | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -130,6 +136,10 @@ export default function BackupSection({ onRestored, onStatus, backupDir = '' }: 
   const [restoreJob, setRestoreJob] = useState<BackupRestoreJobStatus | null>(null);
   const [restoreMsg, setRestoreMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [restoreResult, setRestoreResult] = useState<BackupRestoreResult | null>(null);
+
+  /** 上传 / 校验阶段都算「正在检查」（按钮禁用、显示进度） */
+  const inspecting =
+    inspectStarting || inspectJob?.state === 'uploading' || inspectJob?.state === 'validating';
 
   const loadStatus = useCallback(async () => {
     setStatusLoading(true);
@@ -293,7 +303,11 @@ export default function BackupSection({ onRestored, onStatus, backupDir = '' }: 
   const resetFile = () => {
     setFileName('');
     setInspected(null);
-    setInspecting(false);
+    setInspectStarting(false);
+    setInspectJobId(null);
+    setInspectJob(null);
+    setInspectUploadPct(null);
+    inspectAbortRef.current = null;
     setInspectErr(null);
     setConfirming(false);
     setRestoreMsg(null);
@@ -312,7 +326,7 @@ export default function BackupSection({ onRestored, onStatus, backupDir = '' }: 
     setRestoreResult(null);
   };
 
-  /** 点击按钮后才开始校验（inspect） */
+  /** 点击按钮后才开始校验（D-401 起：start → 上传 → 后台校验 → 轮询） */
   const doInspect = async () => {
     const file = fileRef.current?.files?.[0];
     if (!file || inspecting || restoring || exporting) return;
@@ -321,14 +335,29 @@ export default function BackupSection({ onRestored, onStatus, backupDir = '' }: 
     setConfirming(false);
     setRestoreMsg(null);
     setRestoreResult(null);
-    setInspecting(true);
+    setInspectStarting(true);
+    setInspectUploadPct(0);
     try {
-      const r = await api.inspectBackup(file);
-      setInspected(r);
+      const start = await api.startBackupInspect();
+      setInspectJobId(start.jobId);
+      await api.uploadBackupInspect(
+        start.jobId,
+        file,
+        (p) => setInspectUploadPct(p),
+        (abort) => {
+          inspectAbortRef.current = abort;
+        }
+      );
+      // 上传完成；校验已交给服务端后台任务，下面的轮询 effect 会接着显示进度 / 结果
+      setInspectStarting(false);
+      setInspectUploadPct(null);
     } catch (err: unknown) {
+      setInspectStarting(false);
+      setInspectUploadPct(null);
+      setInspectJobId(null);
+      setInspectJob(null);
+      inspectAbortRef.current = null;
       setInspectErr(t('校验失败：') + errText(err));
-    } finally {
-      setInspecting(false);
     }
   };
 
@@ -403,6 +432,42 @@ export default function BackupSection({ onRestored, onStatus, backupDir = '' }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restoreJobId]);
 
+  // ── 备份包检查任务轮询：uploading / validating 继续；done → 摘要 + token；error → 提示（D-401）──
+  useEffect(() => {
+    if (!inspectJobId) return;
+    let alive = true;
+    let timer: number | null = null;
+    const tick = async () => {
+      try {
+        const s = await api.inspectJobStatus(inspectJobId);
+        if (!alive) return;
+        setInspectJob(s);
+        if (s.state === 'uploading' || s.state === 'validating') {
+          timer = window.setTimeout(tick, 800);
+          return;
+        }
+        setInspectJobId(null);
+        if (s.state === 'done' && s.token && s.summary && s.expiresAt) {
+          setInspected({ token: s.token, expiresAt: s.expiresAt, summary: s.summary });
+          if (s.filename) setFileName(s.filename);
+          setInspectErr(null);
+        } else {
+          setInspectErr(t('校验失败：') + (s.error || tr('没有返回原因')));
+        }
+      } catch (e: unknown) {
+        if (!alive) return;
+        setInspectJobId(null);
+        setInspectErr(t('读取检查进度失败：') + errText(e));
+      }
+    };
+    timer = window.setTimeout(tick, 300);
+    return () => {
+      alive = false;
+      if (timer != null) window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inspectJobId]);
+
   // ── 设置关掉再打开 / 页面刷新后：接回正在跑的后台恢复任务 + 导出任务进度（D-365 / D-364）──
   useEffect(() => {
     let alive = true;
@@ -426,6 +491,42 @@ export default function BackupSection({ onRestored, onStatus, backupDir = '' }: 
             });
           }
           // done：不再提示「下载」——看下方渲染块的「文件名 / 完整路径 / 打开备份目录」
+        }
+
+        // 2026-11-12 D-401：接回备份包检查任务（校验阶段关设置 / 刷新不中断）
+        const insp = (tasks.inspectJobs ?? []).find(
+          (j) => j.state === 'uploading' || j.state === 'validating'
+        );
+        if (insp) {
+          if (insp.filename) setFileName(insp.filename);
+          setInspectStarting(false);
+          setInspectJob(insp);
+          setInspectJobId(insp.jobId);
+        } else {
+          const doneInsp = (tasks.inspectJobs ?? []).find(
+            (j) =>
+              j.state === 'done' &&
+              !!j.token &&
+              !!j.summary &&
+              !!j.expiresAt &&
+              j.expiresAt > Date.now()
+          );
+          if (doneInsp && doneInsp.token && doneInsp.summary && doneInsp.expiresAt) {
+            if (doneInsp.filename) setFileName(doneInsp.filename);
+            setInspected({
+              token: doneInsp.token,
+              expiresAt: doneInsp.expiresAt,
+              summary: doneInsp.summary,
+            });
+          } else {
+            const errInsp = (tasks.inspectJobs ?? []).find(
+              (j) =>
+                j.state === 'error' &&
+                j.finishedAt != null &&
+                Date.now() - j.finishedAt < 10 * 60 * 1000
+            );
+            if (errInsp) setInspectErr(t('校验失败：') + (errInsp.error || tr('没有返回原因')));
+          }
         }
       } catch {
         /* 旧服务端 / multi 权限不足：忽略，不影响手动操作 */
@@ -803,7 +904,17 @@ export default function BackupSection({ onRestored, onStatus, backupDir = '' }: 
               : ''}
           </p>
         )}
-        {inspecting && <p className="hint">{t('正在校验备份包…（大文件可能要等一会儿）')}</p>}
+        {inspecting && (
+          <p className="hint">
+            {inspectJob?.state === 'validating'
+              ? t('正在校验备份包…（在服务端后台进行，关掉设置不会中断；重新打开设置可继续查看）')
+              : inspectUploadPct != null
+                ? t('正在上传备份包… {pct}%（上传阶段请勿刷新页面）', {
+                    pct: Math.round(inspectUploadPct * 100),
+                  })
+                : t('正在上传备份包…（上传阶段请勿刷新页面）')}
+          </p>
+        )}
         {inspectErr && <p className="hint err">{inspectErr}</p>}
 
         {summary && (

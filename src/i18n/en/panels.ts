@@ -284,6 +284,10 @@ const dict: Dict = {
     'Skipped {n} items that need their parent restored first',
   '已彻底删除 {parts}，释放约 {size}':
     'Permanently deleted {parts}, freeing about {size}',
+  '已彻底删除 {parts}': 'Permanently deleted {parts}',
+  '后台任务进行中：关掉设置或切换页面不会中断，重新打开这里可以继续看到结果。':
+    'Background task running: closing settings or switching pages will not interrupt it; reopen this panel to see the result.',
+  '读取后台任务进度失败：{msg}': 'Failed to read the background task progress: {msg}',
   ' · 删除文件 {n} 个': ' · deleted {n} files',
   ' · 文件本就不在 {n} 个': ' · {n} files were already missing',
   ' · {n} 个文件删除失败': ' · failed to delete {n} files',

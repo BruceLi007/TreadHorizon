@@ -116,6 +116,13 @@ const dict: Dict = {
   '已选择：{name}': 'Selected: {name}',
   '（点「开始检查备份包」才会读取/校验，不会立刻改数据）': ' (data is only read/verified after clicking "Inspect backup package"; nothing is changed yet)',
   '正在校验备份包…（大文件可能要等一会儿）': 'Verifying the backup package… (large files may take a while)',
+  '正在校验备份包…（在服务端后台进行，关掉设置不会中断；重新打开设置可继续查看）':
+    'Verifying the backup package… (runs in the background on the server; closing settings will not interrupt it, reopen settings to see the result)',
+  '正在上传备份包… {pct}%（上传阶段请勿刷新页面）':
+    'Uploading the backup package… {pct}% (do not refresh the page during upload)',
+  '正在上传备份包…（上传阶段请勿刷新页面）':
+    'Uploading the backup package… (do not refresh the page during upload)',
+  '读取检查进度失败：': 'Failed to read the check progress: ',
   '校验失败：': 'Verification failed: ',
   '备份包内容': 'Backup package contents',
   '备份时间': 'Backup time',

@@ -169,6 +169,11 @@ const dict: Dict = {
   '关闭后，失败的文件需要重新选择上传（不会自动重试）。':
     'After closing, failed files must be selected again to upload (they will not retry automatically).',
   '仍然关闭': 'Close anyway',
+  // 2026-11-12 D-402：上传队列持久化（刷新后恢复并继续上传）
+  '已恢复刷新前的上传队列：{n} 个未完成文件，继续上传':
+    'Restored the upload queue from before the refresh: {n} unfinished file(s), continuing upload',
+  '有 {n} 个超过 {gb} GB 的文件刷新后不会保留（需要重新添加）':
+    '{n} file(s) larger than {gb} GB will not survive a refresh (please add them again)',
 
   // ── Sidebar · 拖文件夹新建到访（D-246）──
   '松开鼠标：按文件夹名新建一次到访并上传':

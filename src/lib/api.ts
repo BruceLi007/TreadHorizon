@@ -11,7 +11,9 @@ import type {
   BackupDirResult,
   BackupExportJobStatus,
   BackupExportStart,
+  BackupInspectJobStatus,
   BackupInspectResult,
+  BackupInspectStart,
   BackupRestoreJobStatus,
   BackupRestoreResult,
   BackupRestoreStart,
@@ -38,6 +40,8 @@ import type {
   TrashCount,
   TrashData,
   TrashDuplicatesResult,
+  TrashJob,
+  TrashJobStart,
   TrashSelection,
   UpdateCheckResult,
   UploadResult,
@@ -392,6 +396,30 @@ export const api = {
       body: JSON.stringify({ items, confirm: true }),
     }).then((r) => json<PurgeTrashResult>(r)),
 
+  /**
+   * 回收站后台任务（2026-11-12 D-400）：批量恢复 / 彻底删除可能跑几十秒，
+   * 改成服务端任务后关掉设置 / 切页 / 刷新都不中断，重开可以接回进度与结果。
+   */
+  startTrashRestore: (items: TrashSelection[]) =>
+    fetch('/api/trash/restore/start', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ items }),
+    }).then((r) => json<TrashJobStart>(r)),
+
+  startTrashPurge: (items: TrashSelection[]) =>
+    fetch('/api/trash/purge/start', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ items, confirm: true }),
+    }).then((r) => json<TrashJobStart>(r)),
+
+  /** 当前账号最近的回收站任务（running 用于接回；done 可用于补发结果提示） */
+  trashJobs: () => fetch('/api/trash/jobs').then((r) => json<TrashJob[]>(r)),
+
+  trashJobStatus: (jobId: string) =>
+    fetch(`/api/trash/jobs/${encodeURIComponent(jobId)}`).then((r) => json<TrashJob>(r)),
+
   thumbUrl: (id: string) => `/api/media/${id}/thumb`,
   previewUrl: (id: string) => `/api/media/${id}/preview`,
   origUrl: (id: string) => `/api/media/${id}/orig`,
@@ -652,6 +680,60 @@ export const api = {
       json<BackupInspectResult>(r)
     );
   },
+
+  /**
+   * 备份包检查后台任务（2026-11-12 D-401）：
+   * start 建任务 → uploadBackupInspect 上传（XHR 进度）→ inspectJobStatus 轮询校验结果。
+   * 上传完成后服务端继续校验，关设置 / 切页 / 刷新都不丢结果；重开设置可从 backgroundTasks 接回。
+   */
+  startBackupInspect: () =>
+    fetch('/api/backup/inspect/start', { method: 'POST' }).then((r) => json<BackupInspectStart>(r)),
+
+  uploadBackupInspect: (
+    jobId: string,
+    file: File,
+    onProgress?: (ratio: number) => void,
+    registerAbort?: (abort: () => void) => void
+  ) =>
+    new Promise<{ jobId: string; state: string; bytes: number }>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `/api/backup/inspect/upload/${encodeURIComponent(jobId)}`);
+      xhr.upload.onprogress = (e) => {
+        if (onProgress && e.lengthComputable && e.total > 0) {
+          onProgress(Math.min(1, e.loaded / e.total));
+        }
+      };
+      xhr.onload = () => {
+        let body: any = null;
+        try {
+          body = JSON.parse(xhr.responseText);
+        } catch {
+          /* 非 JSON 响应 */
+        }
+        if (xhr.status >= 200 && xhr.status < 300 && body) {
+          resolve(body);
+          return;
+        }
+        const err: any = new Error(body?.error || tr('上传失败（HTTP {status}）', { status: xhr.status }));
+        err.status = xhr.status;
+        reject(err);
+      };
+      xhr.onerror = () => reject(new Error(tr('网络错误，上传失败')));
+      xhr.onabort = () => {
+        const err: any = new Error(tr('已取消'));
+        err.aborted = true;
+        reject(err);
+      };
+      const fd = new FormData();
+      fd.append('file', file, file.name);
+      registerAbort?.(() => xhr.abort());
+      xhr.send(fd);
+    }),
+
+  inspectJobStatus: (jobId: string) =>
+    fetch(`/api/backup/inspect/status/${encodeURIComponent(jobId)}`).then((r) =>
+      json<BackupInspectJobStatus>(r)
+    ),
 
   /**
    * 从备份恢复（F-SYS-04）：后端行级事务替换。

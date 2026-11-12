@@ -1729,36 +1729,14 @@ function deleteMediaFiles(mediaRows, owner = null) {
   return out;
 }
 
-// 2026-11-09 D-335：只读样板访客看不到回收站（可能是删掉的私密内容），直接返回空；
-// 前端也不显示回收站入口（设置分类里已隐藏）。
-const EMPTY_TRASH = {
-  items: [],
-  total: 0,
-  placeCount: 0,
-  visitCount: 0,
-  mediaCount: 0,
-  mediaTotal: 0,
-  bytes: 0,
-  cache_bytes: 0,
-  size: 0,
-};
-app.get('/api/trash', async (req) =>
-  req.authUser?.readOnly ? EMPTY_TRASH : listTrash(ownerOf(req))
-);
-
-app.get('/api/trash/count', async (req) =>
-  req.authUser?.readOnly
-    ? { total: 0, places: 0, visits: 0, media: 0 }
-    : trashCount(ownerOf(req))
-);
-
-app.post('/api/trash/restore', async (req, reply) => {
-  const parsed = parseTrashItems(req.body);
-  if (parsed.error) return reply.code(400).send({ error: parsed.error });
-  const owner = ownerOf(req);
-  const places = parsed.items.filter((it) => it.type === 'place');
-  const visits = parsed.items.filter((it) => it.type === 'visit');
-  const media = parsed.items.filter((it) => it.type === 'media');
+/**
+ * 回收站批量恢复（同步核心；2026-11-12 D-400 起也供后台任务复用）。
+ * 事务内先恢复地点、再到访、最后媒体；任何一条失败整批回滚，抛出的错误带 HTTP status。
+ */
+function restoreTrashBatch(owner, items) {
+  const places = items.filter((it) => it.type === 'place');
+  const visits = items.filter((it) => it.type === 'visit');
+  const media = items.filter((it) => it.type === 'media');
 
   const t = now();
   const out = {
@@ -1779,7 +1757,6 @@ app.post('/api/trash/restore', async (req, reply) => {
       const p = getTrashPlace(it.id, owner);
       if (!p) throw trashErr(404, `地点不存在或不在回收站：${it.id}`);
 
-      // 先记下「默认会恢复」和「勾选 restoreEarlier 后会额外恢复」的子项
       const defaultVisits = db.prepare(
         'SELECT id FROM visit WHERE place_id = ? AND deleted_at = ?'
       ).all(p.id, p.deleted_at);
@@ -1877,48 +1854,39 @@ app.post('/api/trash/restore', async (req, reply) => {
     } catch {
       /* ignore */
     }
-    if (e.status) return reply.code(e.status).send({ error: e.message });
-    return reply.code(500).send({ error: '恢复失败：' + e.message });
+    if (e.status) throw e;
+    throw trashErr(500, '恢复失败：' + e.message);
   }
 
   out.remaining = trashCount(owner);
   return out;
-});
+}
 
-app.post('/api/trash/purge', async (req, reply) => {
-  const b = req.body || {};
-  if (b.confirm !== true) {
-    return reply.code(400).send({ error: '彻底删除需要确认（confirm: true）' });
-  }
-  const parsed = parseTrashItems(b);
-  if (parsed.error) return reply.code(400).send({ error: parsed.error });
-  const owner = ownerOf(req);
-
-  // 彻底删除不要求父级已恢复：任何在回收站里的条目都可以单独永久删除。
+/**
+ * 回收站批量彻底删除（同步核心；2026-11-12 D-400 起也供后台任务复用）。
+ * 彻底删除不要求父级已恢复：任何在回收站里的条目都可以单独永久删除。
+ * 先删 B 库原片 / 缓存（尽量释放空间），再清数据库记录（place 级联带走子项）。
+ */
+function purgeTrashBatch(owner, items) {
   const places = [];
   const visits = [];
   const media = [];
-  try {
-    for (const it of parsed.items) {
-      if (it.type === 'place') {
-        const p = getTrashPlace(it.id, owner);
-        if (!p) throw trashErr(404, `地点不存在或不在回收站：${it.id}`);
-        places.push(p);
-      } else if (it.type === 'visit') {
-        const v = getTrashVisit(it.id, owner);
-        if (!v) throw trashErr(404, `到访不存在或不在回收站：${it.id}`);
-        visits.push(v);
-      } else {
-        const m = getTrashMedia(it.id, owner);
-        if (!m) throw trashErr(404, `媒体不存在或不在回收站：${it.id}`);
-        media.push(m);
-      }
+  for (const it of items) {
+    if (it.type === 'place') {
+      const p = getTrashPlace(it.id, owner);
+      if (!p) throw trashErr(404, `地点不存在或不在回收站：${it.id}`);
+      places.push(p);
+    } else if (it.type === 'visit') {
+      const v = getTrashVisit(it.id, owner);
+      if (!v) throw trashErr(404, `到访不存在或不在回收站：${it.id}`);
+      visits.push(v);
+    } else {
+      const m = getTrashMedia(it.id, owner);
+      if (!m) throw trashErr(404, `媒体不存在或不在回收站：${it.id}`);
+      media.push(m);
     }
-  } catch (e) {
-    return reply.code(e.status || 400).send({ error: e.message });
   }
 
-  // 彻底删除 = 释放空间：数据库记录和 B 库原片/缓存一起删。先删文件，尽量保留统计。
   const mediaRows = collectTrashMedia(
     places.map((p) => p.id),
     visits.map((v) => v.id),
@@ -1930,7 +1898,6 @@ app.post('/api/trash/purge', async (req, reply) => {
     db.exec('BEGIN');
     for (const m of media) db.prepare('DELETE FROM media WHERE id = ?').run(m.id);
     for (const v of visits) db.prepare('DELETE FROM visit WHERE id = ?').run(v.id);
-    // place 上有 ON DELETE CASCADE：连带它的全部到访和媒体记录（含此前单独删除的）
     for (const p of places) db.prepare('DELETE FROM place WHERE id = ?').run(p.id);
     db.exec('COMMIT');
   } catch (e) {
@@ -1939,7 +1906,7 @@ app.post('/api/trash/purge', async (req, reply) => {
     } catch {
       /* ignore */
     }
-    return reply.code(500).send({ error: '彻底删除失败：' + e.message });
+    throw trashErr(500, '彻底删除失败：' + e.message);
   }
 
   return {
@@ -1950,6 +1917,183 @@ app.post('/api/trash/purge', async (req, reply) => {
     files,
     remaining: trashCount(owner),
   };
+}
+
+// ───────────── 回收站后台任务（2026-11-12 D-400）─────────────
+// 批量恢复 / 彻底删除在大库上可能跑几十秒。改成服务端任务后，关设置 / 切页 / 刷新都不影响执行，
+// 重新打开设置自动接回进度与结果（与 D-365 备份任务同口径）。
+const TRASH_JOB_TTL_MS = 6 * 60 * 60 * 1000;
+const trashJobs = new Map();
+
+function pruneTrashJobs(nowTs = Date.now()) {
+  for (const [jobId, job] of trashJobs) {
+    if (job.state === 'running') continue;
+    if (nowTs - job.createdAt > TRASH_JOB_TTL_MS) trashJobs.delete(jobId);
+  }
+}
+
+function publicTrashJob(job) {
+  return {
+    jobId: job.jobId,
+    kind: job.kind,
+    state: job.state,
+    error: job.error,
+    createdAt: job.createdAt,
+    finishedAt: job.finishedAt,
+    result: job.state === 'done' ? job.result : null,
+  };
+}
+
+/** 列表（设置里的回收站重新打开时接回；只返回当前账号的任务） */
+function listTrashJobs(ownerId = null) {
+  pruneTrashJobs();
+  const out = [];
+  for (const job of trashJobs.values()) {
+    if (job.ownerId !== (ownerId || null)) continue;
+    out.push(publicTrashJob(job));
+  }
+  out.sort((a, b) => b.createdAt - a.createdAt);
+  return out;
+}
+
+function getTrashJob(jobId, ownerId = null) {
+  pruneTrashJobs();
+  const job = trashJobs.get(String(jobId || ''));
+  if (!job || job.ownerId !== (ownerId || null)) {
+    throw trashErr(404, '回收站任务不存在或已过期');
+  }
+  return publicTrashJob(job);
+}
+
+/**
+ * 启动任务：先返回 jobId，真正的工作放到下一轮事件循环执行（不占住「开始」请求）。
+ * 同一账号同时只允许一个回收站任务，避免恢复 / 彻底删除互相踩数据。
+ */
+function startTrashJob(kind, ownerId = null, items = []) {
+  pruneTrashJobs();
+  const owner = ownerId || null;
+  if ([...trashJobs.values()].some((j) => j.state === 'running' && j.ownerId === owner)) {
+    throw trashErr(409, '已有回收站任务进行中，请稍后再试');
+  }
+  const createdAt = Date.now();
+  const job = {
+    jobId: randomUUID(),
+    kind,
+    state: 'running',
+    ownerId: owner,
+    createdAt,
+    finishedAt: null,
+    error: null,
+    result: null,
+  };
+  trashJobs.set(job.jobId, job);
+  job.promise = new Promise((resolveFinished) => {
+    setImmediate(() => {
+      try {
+        job.result =
+          kind === 'restore' ? restoreTrashBatch(owner, items) : purgeTrashBatch(owner, items);
+        job.state = 'done';
+      } catch (e) {
+        job.state = 'error';
+        job.error = e?.message || String(e);
+      } finally {
+        job.finishedAt = Date.now();
+        resolveFinished();
+      }
+    });
+  });
+  job.promise.catch(() => {});
+  return { jobId: job.jobId, kind, createdAt };
+}
+
+const trashJobTimer = setInterval(() => pruneTrashJobs(), 60_000);
+trashJobTimer.unref?.();
+
+// 2026-11-09 D-335：只读样板访客看不到回收站（可能是删掉的私密内容），直接返回空；
+// 前端也不显示回收站入口（设置分类里已隐藏）。
+const EMPTY_TRASH = {
+  items: [],
+  total: 0,
+  placeCount: 0,
+  visitCount: 0,
+  mediaCount: 0,
+  mediaTotal: 0,
+  bytes: 0,
+  cache_bytes: 0,
+  size: 0,
+};
+app.get('/api/trash', async (req) =>
+  req.authUser?.readOnly ? EMPTY_TRASH : listTrash(ownerOf(req))
+);
+
+app.get('/api/trash/count', async (req) =>
+  req.authUser?.readOnly
+    ? { total: 0, places: 0, visits: 0, media: 0 }
+    : trashCount(ownerOf(req))
+);
+
+app.post('/api/trash/restore', async (req, reply) => {
+  const parsed = parseTrashItems(req.body);
+  if (parsed.error) return reply.code(400).send({ error: parsed.error });
+  try {
+    return restoreTrashBatch(ownerOf(req), parsed.items);
+  } catch (e) {
+    return reply.code(e.status || 500).send({ error: e.message });
+  }
+});
+
+app.post('/api/trash/purge', async (req, reply) => {
+  const b = req.body || {};
+  if (b.confirm !== true) {
+    return reply.code(400).send({ error: '彻底删除需要确认（confirm: true）' });
+  }
+  const parsed = parseTrashItems(b);
+  if (parsed.error) return reply.code(400).send({ error: parsed.error });
+  try {
+    return purgeTrashBatch(ownerOf(req), parsed.items);
+  } catch (e) {
+    return reply.code(e.status || 500).send({ error: e.message });
+  }
+});
+
+/** 回收站后台任务（D-400）：批量恢复 / 彻底删除改成服务端任务，关设置 / 刷新页面可接回 */
+app.get('/api/trash/jobs', async (req) =>
+  req.authUser?.readOnly ? [] : listTrashJobs(ownerOf(req))
+);
+
+app.get('/api/trash/jobs/:jobId', async (req, reply) => {
+  if (req.authUser?.readOnly) {
+    return reply.code(403).send({ error: '样板展示为只读：不能访问该内容' });
+  }
+  try {
+    return getTrashJob(req.params.jobId, ownerOf(req));
+  } catch (e) {
+    return reply.code(e.status || 500).send({ error: e.message });
+  }
+});
+
+app.post('/api/trash/restore/start', async (req, reply) => {
+  const parsed = parseTrashItems(req.body);
+  if (parsed.error) return reply.code(400).send({ error: parsed.error });
+  try {
+    return startTrashJob('restore', ownerOf(req), parsed.items);
+  } catch (e) {
+    return reply.code(e.status || 500).send({ error: e.message });
+  }
+});
+
+app.post('/api/trash/purge/start', async (req, reply) => {
+  const b = req.body || {};
+  if (b.confirm !== true) {
+    return reply.code(400).send({ error: '彻底删除需要确认（confirm: true）' });
+  }
+  const parsed = parseTrashItems(b);
+  if (parsed.error) return reply.code(400).send({ error: parsed.error });
+  try {
+    return startTrashJob('purge', ownerOf(req), parsed.items);
+  } catch (e) {
+    return reply.code(e.status || 500).send({ error: e.message });
+  }
 });
 
 // ───────────── 媒体 ─────────────
@@ -2924,6 +3068,126 @@ app.delete('/api/backup/export/:jobId', async (req, reply) => {
   }
 });
 
+// ───────────── 备份包检查后台任务（2026-11-12 D-401）─────────────
+// 检查大备份包 = 上传 zip（可能 1.6GB+）+ 解包校验，两步都可能跑很久。
+// 改成服务端任务：上传阶段客户端可看进度；上传完成后校验在服务端继续，
+// 关设置 / 切页 / 刷新都不丢结果，重开设置可从 /api/background-tasks 接回。
+const INSPECT_JOB_TTL_MS = 2 * 60 * 60 * 1000;
+const INSPECT_UPLOAD_STALE_MS = 30 * 60 * 1000;
+const inspectJobs = new Map();
+
+function pruneInspectJobs(nowTs = Date.now()) {
+  for (const [jobId, job] of inspectJobs) {
+    if (job.state === 'created') {
+      // 建了任务但一直没上传（用户改了主意 / 网络失败）：10 分钟后释放
+      if (nowTs - job.createdAt > 10 * 60 * 1000) {
+        inspectJobs.delete(jobId);
+        try {
+          unlinkSync(job.zipPath);
+        } catch {
+          /* ignore */
+        }
+      }
+      continue;
+    }
+    if (job.state === 'uploading' || job.state === 'validating') {
+      // 上传请求被页面刷新 / 断网打断时可能收不到 aborted：超时按失败处理，避免永久占用
+      if (nowTs - (job.startedAt || job.createdAt) > INSPECT_UPLOAD_STALE_MS) {
+        job.state = 'error';
+        job.error = '备份包上传 / 校验超时（请重新选择文件）';
+        job.finishedAt = nowTs;
+        try {
+          unlinkSync(job.zipPath);
+        } catch {
+          /* ignore */
+        }
+      }
+      continue;
+    }
+    if (nowTs - job.createdAt > INSPECT_JOB_TTL_MS) {
+      inspectJobs.delete(jobId);
+      try {
+        unlinkSync(job.zipPath);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+}
+
+function publicInspectJob(job) {
+  return {
+    jobId: job.jobId,
+    state: job.state,
+    error: job.error,
+    createdAt: job.createdAt,
+    finishedAt: job.finishedAt,
+    bytes: job.bytes || 0,
+    filename: job.filename || '',
+    summary: job.state === 'done' ? job.summary : null,
+    token: job.state === 'done' ? job.token : null,
+    expiresAt: job.state === 'done' ? job.expiresAt : null,
+  };
+}
+
+function listInspectJobs(ownerId = null) {
+  pruneInspectJobs();
+  const out = [];
+  for (const job of inspectJobs.values()) {
+    if (job.ownerId !== (ownerId || null)) continue;
+    out.push(publicInspectJob(job));
+  }
+  out.sort((a, b) => b.createdAt - a.createdAt);
+  return out;
+}
+
+function getInspectJob(jobId, ownerId = null) {
+  pruneInspectJobs();
+  const job = inspectJobs.get(String(jobId || ''));
+  if (!job || job.ownerId !== (ownerId || null)) {
+    throw trashErr(404, '备份包检查任务不存在或已过期');
+  }
+  return publicInspectJob(job);
+}
+
+/** 创建检查任务：先返回 jobId，客户端再 PUT 上传 zip（上传进度由 XHR 提供） */
+function startInspectJob(ownerId = null) {
+  pruneInspectJobs();
+  const owner = ownerId || null;
+  if (
+    [...inspectJobs.values()].some(
+      (j) => j.ownerId === owner && (j.state === 'uploading' || j.state === 'validating')
+    )
+  ) {
+    throw trashErr(409, '已有备份包检查任务进行中，请稍后再试');
+  }
+  // 上次建了任务但上传没开始（网络失败 / 用户取消）：复用它，避免反复点都 409
+  const reusable = [...inspectJobs.values()].find(
+    (j) => j.ownerId === owner && j.state === 'created'
+  );
+  if (reusable) return { jobId: reusable.jobId, createdAt: reusable.createdAt };
+  const createdAt = Date.now();
+  const job = {
+    jobId: randomUUID(),
+    ownerId: owner,
+    state: 'created',
+    zipPath: newTmpZipPath('inspect'),
+    bytes: 0,
+    createdAt,
+    startedAt: null,
+    finishedAt: null,
+    error: null,
+    summary: null,
+    token: null,
+    expiresAt: null,
+  };
+  inspectJobs.set(job.jobId, job);
+  return { jobId: job.jobId, createdAt };
+}
+
+const inspectJobTimer = setInterval(() => pruneInspectJobs(), 60_000);
+inspectJobTimer.unref?.();
+
 /** 检查备份（F-SYS-04 第一步）：上传 zip → 全套校验 → 返回 10 分钟有效的 token + 摘要 */
 app.post('/api/backup/inspect', async (req, reply) => {
   if (!requireAdminInMulti(req, reply)) return;
@@ -2984,6 +3248,148 @@ app.post('/api/backup/inspect', async (req, reply) => {
     }
     if (e instanceof BackupError) return reply.code(e.status || 400).send({ error: e.message });
     return reply.code(400).send({ error: '备份校验失败：' + (e?.message || String(e)) });
+  }
+});
+
+// ── 备份包检查后台任务（D-401）：start → upload（XHR 进度）→ status 轮询 ──
+
+app.post('/api/backup/inspect/start', async (req, reply) => {
+  if (!requireAdminInMulti(req, reply)) return;
+  try {
+    return startInspectJob(ownerOf(req));
+  } catch (e) {
+    return reply.code(e.status || 500).send({ error: e.message });
+  }
+});
+
+app.post('/api/backup/inspect/upload/:jobId', async (req, reply) => {
+  if (!requireAdminInMulti(req, reply)) return;
+  const owner = ownerOf(req);
+  pruneInspectJobs();
+  const job = inspectJobs.get(String(req.params.jobId || ''));
+  if (!job || job.ownerId !== (owner || null)) {
+    return reply.code(404).send({ error: '备份包检查任务不存在或已过期' });
+  }
+  if (job.state !== 'created') {
+    return reply.code(409).send({ error: '该检查任务已上传过备份文件' });
+  }
+
+  // 与旧同步接口同样的「先查 Content-Length + 磁盘余量」保护
+  const declaredBytes = Number(req.headers['content-length']);
+  if (Number.isFinite(declaredBytes) && declaredBytes > 0) {
+    if (declaredBytes > BACKUP_UPLOAD_MAX_BYTES) {
+      return reply.code(400).send({
+        error: `备份文件超过上限（${(BACKUP_UPLOAD_MAX_BYTES / 1024 ** 3).toFixed(0)} GB）`,
+      });
+    }
+    try {
+      const st = statfsSync(resolve(CONFIG.dataDir));
+      const available = Number(st.bavail) * Number(st.bsize);
+      if (Number.isFinite(available) && available < declaredBytes + 200 * 1024 * 1024) {
+        return reply.code(400).send({
+          error: `磁盘空间不足：读取备份 zip 需要约 ${(declaredBytes / 1024 ** 3).toFixed(2)} GB（另需预留 200 MB），当前可用 ${(available / 1024 ** 3).toFixed(2)} GB`,
+        });
+      }
+    } catch {
+      /* statfs 不可用就交给写入失败兜底 */
+    }
+  }
+
+  let part;
+  try {
+    part = await req.file({ limits: { fileSize: BACKUP_UPLOAD_MAX_BYTES } });
+  } catch (e) {
+    job.state = 'error';
+    job.error = '无法读取上传的备份文件：' + (e?.message || e);
+    job.finishedAt = Date.now();
+    return reply.code(400).send({ error: job.error });
+  }
+  if (!part) {
+    job.state = 'error';
+    job.error = '缺少备份文件（multipart 字段名 file）';
+    job.finishedAt = Date.now();
+    return reply.code(400).send({ error: job.error });
+  }
+  if (part.fieldname !== 'file') {
+    part.file.resume();
+    job.state = 'error';
+    job.error = '备份文件字段名必须是 file';
+    job.finishedAt = Date.now();
+    return reply.code(400).send({ error: job.error });
+  }
+
+  job.state = 'uploading';
+  job.startedAt = Date.now();
+  let aborted = false;
+  const onAborted = () => {
+    aborted = true;
+  };
+  req.raw.once('aborted', onAborted);
+
+  try {
+    await pipeline(part.file, createWriteStream(job.zipPath));
+    if (part.file.truncated) {
+      throw new BackupError(
+        400,
+        `备份文件超过上限（${(BACKUP_UPLOAD_MAX_BYTES / 1024 ** 3).toFixed(0)} GB）`
+      );
+    }
+    if (aborted) throw new Error('上传中断（客户端已断开）');
+    job.bytes = Number(part.file.bytesRead) || 0;
+    job.filename = part.filename || '';
+    job.state = 'validating';
+    // 校验放到下一轮事件循环：先让上传请求返回，客户端随后轮询 status
+    setImmediate(() => {
+      void (async () => {
+        try {
+          const inspected = await inspectBackupZip(job.zipPath);
+          try {
+            const tokenInfo = storeInspectToken(job.zipPath, inspected.summary);
+            job.summary = inspected.summary;
+            job.token = tokenInfo.token;
+            job.expiresAt = tokenInfo.expiresAt;
+          } finally {
+            rmSync(inspected.workDir, { recursive: true, force: true });
+          }
+          job.state = 'done';
+        } catch (e) {
+          job.state = 'error';
+          job.error = e instanceof BackupError ? e.message : '备份校验失败：' + (e?.message || String(e));
+          try {
+            unlinkSync(job.zipPath);
+          } catch {
+            /* ignore */
+          }
+        } finally {
+          job.finishedAt = Date.now();
+        }
+      })();
+    });
+    return { jobId: job.jobId, state: job.state, bytes: job.bytes };
+  } catch (e) {
+    job.state = 'error';
+    job.error =
+      e instanceof BackupError
+        ? e.message
+        : '备份文件上传失败：' + (e?.message || String(e));
+    job.finishedAt = Date.now();
+    try {
+      unlinkSync(job.zipPath);
+    } catch {
+      /* ignore */
+    }
+    return reply.code(e instanceof BackupError ? e.status || 400 : 400).send({ error: job.error });
+  } finally {
+    req.raw.off('aborted', onAborted);
+  }
+});
+
+app.get('/api/backup/inspect/status/:jobId', async (req, reply) => {
+  if (!requireAdminInMulti(req, reply)) return;
+  try {
+    return getInspectJob(req.params.jobId, ownerOf(req));
+  } catch (e) {
+    return reply.code(e.status || 500).send({ error: e.message });
   }
 });
 
@@ -3188,11 +3594,15 @@ app.post('/api/backup/dir/open', async (req, reply) => {
   }
 });
 
-/** 后台任务列表（导出 / 恢复）：设置关掉再打开可恢复进度显示；刷新页面也能看到任务还在 */
+/** 后台任务列表（导出 / 恢复 / 备份包检查）：设置关掉再打开可恢复进度显示；刷新页面也能看到任务还在 */
 app.get('/api/background-tasks', async (req, reply) => {
   if (!requireAdminInMulti(req, reply)) return;
   const owner = ownerOf(req);
-  return { exportJobs: listExportJobs(owner), restoreJobs: listRestoreJobs(owner) };
+  return {
+    exportJobs: listExportJobs(owner),
+    restoreJobs: listRestoreJobs(owner),
+    inspectJobs: listInspectJobs(owner),
+  };
 });
 
 /** 后台恢复任务：关掉设置 / 刷新页面不中断；重开设置轮询 status 继续显示 */

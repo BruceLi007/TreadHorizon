@@ -38,6 +38,11 @@ import KeySetupPage from './ui/KeySetupPage';
 import LocalEntryPage from './ui/LocalEntryPage';
 import SecretPrompt from './ui/SecretPrompt';
 import { api } from './lib/api';
+import {
+  loadUploadQueue,
+  saveUploadQueue,
+  PERSIST_FILE_MAX_BYTES,
+} from './lib/upload-queue-store';
 import type { AuthMe, MediaItem } from './lib/types';
 import { normalizeRegion, regionFromText, isChineseProvinceName, regionNeedsFill } from './lib/region';
 import { isInsideChina, loadChinaBounds } from './lib/chinaBounds';
@@ -223,9 +228,17 @@ const readMediaCols = (): MediaCols => {
     return 3;
   }
 };
+/** 地图标记封面缩略图（2026-11-12 D-404）：默认关闭 = 回到加封面之前的样子；只存本机浏览器 */
+const MARKER_COVERS_KEY = 'tm-marker-covers';
+const readMarkerCovers = (): boolean => {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem(MARKER_COVERS_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
 /** 界面语言（2026-11-04，D-138）：简体中文 / English；默认中文，只存本机浏览器 */
-const LANG_KEY = 'tm-lang';
-const readLang = (): Lang => {
+const LANG_KEY = 'tm-lang';const readLang = (): Lang => {
   try {
     const v = typeof localStorage !== 'undefined' ? localStorage.getItem(LANG_KEY) : null;
     return isLang(v) ? v : 'zh';
@@ -355,6 +368,8 @@ export default function App() {
   const [slogan, setSlogan] = useState<Slogan | null>(readSlogan);
   // 到访照片每行张数（2026-11-04，D-116）：2/3/4/5，默认 3；只存 localStorage
   const [mediaCols, setMediaCols] = useState<MediaCols>(readMediaCols);
+  // 地图标记封面缩略图开关（2026-11-12 D-404）：默认关闭；只存 localStorage
+  const [showMarkerCovers, setShowMarkerCovers] = useState<boolean>(readMarkerCovers);
   // 界面语言（2026-11-04，D-138）：简体中文 / English；只存 localStorage
   const [lang, setLang] = useState<Lang>(readLang);
   /**
@@ -1343,6 +1358,23 @@ export default function App() {
   );
 
   /**
+   * 2026-11-12 D-402：把未完成的上传队列持久化到 IndexedDB（刷新后恢复 + 继续上传）。
+   * 只在入队 / 完成 / 取消等结构变化时调用，进度更新不写盘；IndexedDB 不可用 / 配额不足时静默降级。
+   */
+  const uploadQueueRestored = useRef(false);
+  const persistUploadQueue = useCallback(async () => {
+    if (readOnly) return null;
+    const pending = uploadsRef.current.filter(
+      (x) => x.status === 'queued' || x.status === 'uploading' || x.status === 'error'
+    );
+    try {
+      return await saveUploadQueue(authMe?.user?.id ?? '', pending);
+    } catch {
+      return null;
+    }
+  }, [authMe?.user?.id, readOnly]);
+
+  /**
    * 上传成功几个后统一刷新一次侧栏/地图（防抖，避免每个文件都打接口）。
    * 2026-11-10 D-349（用户反馈）：只看**当前打开**的详情（detailRef），且仅当本次上传的目标到访
    * 就在当前地点里时才刷新详情；写回前再核对一次地点 id，避免把用户切走后的侧栏拉回上传地点。
@@ -1439,12 +1471,22 @@ export default function App() {
           const cur = uploadsRef.current;
           if (cur.length > 0 && cur.every((x) => x.status === 'done' || x.status === 'skipped')) {
             commitUploads([]);
+            void persistUploadQueue();
           }
         }, 5000);
       }
+      // D-402：把这一轮结束后的未完成项写回 IndexedDB（失败 / 取消项保留，方便刷新后继续）
+      void persistUploadQueue();
       refreshAfterUpload();
     }
-  }, [patchUpload, refreshAfterUpload, say, clearUploadAutoClose, commitUploads]);
+  }, [
+    patchUpload,
+    refreshAfterUpload,
+    say,
+    clearUploadAutoClose,
+    commitUploads,
+    persistUploadQueue,
+  ]);
 
   const enqueueUploads = useCallback(
     (
@@ -1479,9 +1521,28 @@ export default function App() {
         visitDate: meta?.visitDate,
       }));
       commitUploads([...uploadsRef.current, ...items]);
+      // D-402：入队就写盘（刷新后能恢复）；超过缓存上限的大文件明确提示不会保留
+      void persistUploadQueue().then((r) => {
+        if (r?.skippedLarge) {
+          say(
+            tr('有 {n} 个超过 {gb} GB 的文件刷新后不会保留（需要重新添加）', {
+              n: r.skippedLarge,
+              gb: Math.round(PERSIST_FILE_MAX_BYTES / 1024 ** 3),
+            })
+          );
+        }
+      });
       void processUploadQueue();
     },
-    [commitUploads, processUploadQueue, maxUploadBytes, say, readOnly, clearUploadAutoClose]
+    [
+      commitUploads,
+      processUploadQueue,
+      maxUploadBytes,
+      say,
+      readOnly,
+      clearUploadAutoClose,
+      persistUploadQueue,
+    ]
   );
 
   const cancelUpload = useCallback(
@@ -1490,8 +1551,9 @@ export default function App() {
       if (!item) return;
       if (item.status === 'queued') patchUpload(key, { status: 'canceled', error: tr('已取消') });
       else if (item.status === 'uploading') abortRef.current?.();
+      void persistUploadQueue();
     },
-    [patchUpload]
+    [patchUpload, persistUploadQueue]
   );
 
   const cancelAllUploads = useCallback(() => {
@@ -1499,14 +1561,16 @@ export default function App() {
       if (item.status === 'queued') patchUpload(item.key, { status: 'canceled', error: tr('已取消') });
     }
     abortRef.current?.();
-  }, [patchUpload]);
+    void persistUploadQueue();
+  }, [patchUpload, persistUploadQueue]);
 
   const retryUpload = useCallback(
     (key: string) => {
       patchUpload(key, { status: 'queued', progress: 0, error: undefined });
+      void persistUploadQueue();
       void processUploadQueue();
     },
-    [patchUpload, processUploadQueue]
+    [patchUpload, processUploadQueue, persistUploadQueue]
   );
 
   const clearFinishedUploads = useCallback(() => {
@@ -1516,7 +1580,8 @@ export default function App() {
         (x) => x.status === 'queued' || x.status === 'uploading' || x.status === 'error'
       )
     );
-  }, [commitUploads]);
+    void persistUploadQueue();
+  }, [commitUploads, persistUploadQueue]);
 
   /** 关闭上传队列卡片：取消未完成项并清空列表 */
   const closeUploadQueue = useCallback(() => {
@@ -1526,7 +1591,44 @@ export default function App() {
     }
     abortRef.current?.();
     commitUploads([]);
-  }, [commitUploads, patchUpload, clearUploadAutoClose]);
+    void persistUploadQueue();
+  }, [commitUploads, patchUpload, clearUploadAutoClose, persistUploadQueue]);
+
+  // ── D-402：刷新 / 重开后恢复未完成的上传队列并继续上传（IndexedDB，队列级恢复）──
+  useEffect(() => {
+    if (!authMe || readOnly) return;
+    if (authMe.mode === 'multi' && !authMe.user) return; // 登录页先不恢复，登录后再按账号恢复
+    if (uploadQueueRestored.current) return;
+    uploadQueueRestored.current = true;
+    let alive = true;
+    void (async () => {
+      try {
+        const owner = authMe.user?.id ?? '';
+        const stored = await loadUploadQueue(owner);
+        if (!alive || !stored.length) return;
+        const prefix = `${owner}:`;
+        const items: UploadItem[] = stored.map((s) => ({
+          key: s.key.startsWith(prefix) ? s.key.slice(prefix.length) : s.key,
+          file: s.file,
+          visitId: s.visitId,
+          status: s.status === 'error' ? 'error' : 'queued',
+          progress: 0,
+          error: s.status === 'error' ? s.error : undefined,
+          placeId: s.placeId,
+          placeName: s.placeName,
+          visitDate: s.visitDate,
+        }));
+        commitUploads(items);
+        say(tr('已恢复刷新前的上传队列：{n} 个未完成文件，继续上传', { n: items.length }));
+        void processUploadQueue();
+      } catch {
+        /* IndexedDB 不可用 / 配额异常：忽略，行为与旧版一致 */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [authMe, readOnly, commitUploads, processUploadQueue, say]);
 
   // 2026-11-12 用户要求（D-397）：总览默认 zoom 4→5、中心经度 104→106（地图整体往左一点），与 MapView 初始化共用 MAP_OVERVIEW
   const backToChina = () => mapApi.current?.flyTo(MAP_OVERVIEW.lng, MAP_OVERVIEW.lat, MAP_OVERVIEW.zoom);
@@ -1726,6 +1828,7 @@ export default function App() {
           provinceStats={provinceStats}
           homeColor={homeColor}
           markerColors={markerColors}
+          showCovers={showMarkerCovers}
           onZoomChange={setMapZoom}
           onStatus={(s) => {
             if (!s.ready && s.error) {
@@ -1739,7 +1842,7 @@ export default function App() {
       {/* 地图缩放按钮（2026-11-11 用户要求：上加下减、鼠标点击；左侧垂直居中，避开右侧抽屉）
           D-381：每次半级（0.5）——禁用态用容差比较，避免小数浮点误差 */}
       {boot === 'ready' && (
-        <div className="map-zoom" role="group" aria-label={t('地图缩放')} data-zoom={mapZoom}>
+        <div className="map-zoom" role="group" aria-label={t('地图控件')} data-zoom={mapZoom}>
           <button
             type="button"
             className="map-zoom-btn"
@@ -1762,6 +1865,50 @@ export default function App() {
           >
             <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
               <path d="M3.2 8h9.6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+            </svg>
+          </button>
+          {/* 2026-11-12 D-404（用户要求）：标记封面缩略图开关，默认关闭 = 原来的飞镖样子 */}
+          <button
+            type="button"
+            className={
+              showMarkerCovers ? 'map-zoom-btn map-cover-btn on' : 'map-zoom-btn map-cover-btn'
+            }
+            data-cover={showMarkerCovers ? 'on' : 'off'}
+            onClick={() => {
+              setShowMarkerCovers((cur) => {
+                const next = !cur;
+                try {
+                  localStorage.setItem(MARKER_COVERS_KEY, next ? '1' : '0');
+                } catch {
+                  /* 隐私模式忽略 */
+                }
+                return next;
+              });
+            }}
+            title={showMarkerCovers ? t('隐藏标记封面缩略图') : t('显示标记封面缩略图')}
+            aria-label={showMarkerCovers ? t('隐藏标记封面缩略图') : t('显示标记封面缩略图')}
+            aria-pressed={showMarkerCovers}
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <rect
+                x="2.2"
+                y="3.2"
+                width="11.6"
+                height="9.6"
+                rx="1.6"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+              <circle cx="5.7" cy="6.5" r="1.05" fill="currentColor" />
+              <path
+                d="M3.2 11.6l3.0-3.0 2.2 2.2 2.0-2.0 2.5 2.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.35"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
           </button>
         </div>

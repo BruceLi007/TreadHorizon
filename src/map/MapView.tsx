@@ -351,6 +351,8 @@ interface Props {
   markerColors?: MarkerColorPrefs;
   /** 2026-11-11：地图缩放变化（zoomend / 初始化）时通知 App，用于更新缩放按钮禁用态 */
   onZoomChange?: (zoom: number) => void;
+  /** 2026-11-12 D-404：是否显示标记上方的封面缩略图（用户可在地图上用按钮开关） */
+  showCovers?: boolean;
 }
 
 interface PinNode {
@@ -391,6 +393,7 @@ export default function MapView({
   homeColor = 'teal',
   markerColors = DEFAULT_MARKER_COLORS,
   onZoomChange,
+  showCovers = true,
 }: Props) {
   const t = useT();
   const tp = useTp();
@@ -924,7 +927,12 @@ export default function MapView({
       const isCluster = c.count > 1;
       const kind = clusterKind(c);
       // 2026-11-12 T12：封面 id（秘密基地 / 想去 / 无照片为 null）；进 key，封面变了要重建节点。
-      const coverId = isCluster ? clusterCoverId(c) : coverIdOf(c.place);
+      // 2026-11-12 D-404：用户关掉「显示封面」时一律按 null 处理 → 完全回到加封面之前的标记形态。
+      const coverId = showCovers
+        ? isCluster
+          ? clusterCoverId(c)
+          : coverIdOf(c.place)
+        : null;
       // key 里带上会显示出来的可变字段：数据一变就重建节点。
       // 否则改名 / 删除 / 改变类型后，复用旧节点会留着过时的配色和 tooltip。
       const key = isCluster
@@ -1171,7 +1179,8 @@ export default function MapView({
     // 家同样不在 key 里带选中态：选中只原地改尺寸 / class（D-150）
     // D-161：key 里带上 homeColor，切换配色时重建家的节点（<img> 不能靠 CSS 改色）
     // 2026-11-12 T12：家也显示封面（有 cover_id 且非秘密基地时）；封面变了要重建 → 进 key
-    const homeCoverId = coverIdOf(homePlace);
+    // 2026-11-12 D-404：关掉封面开关时家也回到纯飞镖
+    const homeCoverId = showCovers ? coverIdOf(homePlace) : null;
     const homeKey = homePlace
       ? `h:${homePlace.id}:${homePlace.name}:${homePlace.lng}:${homePlace.lat}:${lang}:${homeColor}:${
           homeCoverId ?? ''
@@ -1314,7 +1323,7 @@ export default function MapView({
     if (layer.classList.contains('zooming')) {
       requestAnimationFrame(() => layer.classList.remove('zooming'));
     }
-  }, [positionAll, t, tp, lang, spawnRipple, homeColor, markerColors]);
+  }, [positionAll, t, tp, lang, spawnRipple, homeColor, markerColors, showCovers]);
 
   // 让地图事件能拿到最新的 rebuild（避免闭包捕获旧数据）
   const rebuildRef = useRef(rebuild);

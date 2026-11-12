@@ -160,8 +160,11 @@ const dict: Dict = {
   '设置 · 该备份了：{text}': 'Settings · backup due: {text}',
   '该备份了：{text}': 'Backup due: {text}',
   '地图缩放': 'Map zoom',
+  '地图控件': 'Map controls',
   '放大地图': 'Zoom in',
   '缩小地图': 'Zoom out',
+  '显示标记封面缩略图': 'Show marker cover thumbnails',
+  '隐藏标记封面缩略图': 'Hide marker cover thumbnails',
   '设置 · 发现新版本 {v}': 'Settings · new version {v} available',
   '设置 · 该备份了：{text} · 发现新版本 {v}':
     'Settings · backup due: {text} · new version {v} available',

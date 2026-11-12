@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { useT, useTp, type TFn, type TPfn } from '../i18n';
 import SortToggle, { type SortOrder } from './SortToggle';
@@ -10,6 +10,8 @@ import type {
   RestoreTrashResult,
   TrashData,
   TrashItem,
+  TrashJob,
+  TrashJobKind,
   TrashSelection,
 } from '../lib/types';
 
@@ -77,6 +79,11 @@ const earlierOf = (it: TrashItem) => {
 const earlierSizeOf = (it: TrashItem) =>
   it.type === 'place' || it.type === 'visit' ? it.earlier_size : 0;
 
+/** 已经提示过的后台任务结果（D-400）：避免每次重开回收站重复显示同一条完成消息 */
+const seenFinishedJobs = new Set<string>();
+/** 完成 / 失败后 10 分钟内重开回收站才补发结果提示（更早的不打扰） */
+const FINISHED_JOB_HINT_MS = 10 * 60 * 1000;
+
 /**
  * 回收站（F-SYS-07 / D-57）
  * 按删除动作分层：地点/到访/照片视频都留在自己当初被删的层级。
@@ -101,6 +108,17 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
     items: TrashItem[];
     includeEarlier: boolean;
     skipped: number;
+  } | null>(null);
+  /**
+   * 2026-11-12 D-400：批量恢复 / 彻底删除改成服务端后台任务。
+   * jobId 非空时轮询状态；重开回收站（组件重新挂载）也能从 /api/trash/jobs 接回。
+   */
+  const [jobId, setJobId] = useState<string | null>(null);
+  const pendingRef = useRef<{
+    kind: TrashJobKind;
+    keys: string[];
+    skipped: number;
+    freeing: number;
   } | null>(null);
   /**
    * 2026-11-10 D-352（用户要求「回收站也做出可以展开收起」）：
@@ -169,42 +187,55 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
     );
   };
 
+  /** 批量恢复结果 → 选中清理 / 文案 / 刷新（当前面板与「重开后接回」共用） */
+  const applyRestoreResult = async (
+    r: RestoreTrashResult,
+    ctx: { keys?: string[]; skipped?: number } = {}
+  ) => {
+    const keys = ctx.keys ?? [];
+    if (keys.length) setSelected((cur) => cur.filter((k) => !keys.includes(k)));
+    setRestoreAsk(null);
+    const parts = [
+      r.restoredPlaces ? t('{n} 个地点', { n: r.restoredPlaces }) : '',
+      r.restoredVisits ? t('{n} 次到访', { n: r.restoredVisits }) : '',
+      r.restoredMedia ? t('{n} 个照片/视频', { n: r.restoredMedia }) : '',
+    ].filter(Boolean);
+    let text = t('已恢复 {parts}', { parts: parts.join(' · ') || t('项目') });
+    const extra = [
+      r.restoredEarlierVisits
+        ? t('{n} 次此前单独删除的到访', { n: r.restoredEarlierVisits })
+        : '',
+      r.restoredEarlierMedia
+        ? t('{n} 张此前单独删除的照片', { n: r.restoredEarlierMedia })
+        : '',
+    ].filter(Boolean);
+    if (extra.length) text += t(' · 含 {items}', { items: extra.join(' · ') });
+    if (ctx.skipped) text += t(' · 跳过 {n} 项（需先恢复父级）', { n: ctx.skipped });
+    setMsg(text);
+    await load();
+    await onChanged();
+  };
+
+  /**
+   * 批量恢复：2026-11-12 D-400 起启动服务端后台任务（只拿 jobId，然后轮询）。
+   * 关设置 / 切页 / 刷新都不会中断；重开回收站会由挂载时的 /api/trash/jobs 接回。
+   */
   const finishRestore = async (targets: TrashItem[], includeEarlier: boolean, skipped = 0) => {
     setBusy('restore');
     setErr(null);
     setMsg(null);
+    pendingRef.current = { kind: 'restore', keys: targets.map(itemKey), skipped, freeing: 0 };
     try {
-      const r: RestoreTrashResult = await api.restoreTrash(
+      const start = await api.startTrashRestore(
         targets.map((it) =>
           selOf(it, includeEarlier && (it.type === 'place' || it.type === 'visit'))
         )
       );
-      const keys = targets.map(itemKey);
-      setSelected((cur) => cur.filter((k) => !keys.includes(k)));
-      setRestoreAsk(null);
-      const parts = [
-        r.restoredPlaces ? t('{n} 个地点', { n: r.restoredPlaces }) : '',
-        r.restoredVisits ? t('{n} 次到访', { n: r.restoredVisits }) : '',
-        r.restoredMedia ? t('{n} 个照片/视频', { n: r.restoredMedia }) : '',
-      ].filter(Boolean);
-      let text = t('已恢复 {parts}', { parts: parts.join(' · ') || t('项目') });
-      const extra = [
-        r.restoredEarlierVisits
-          ? t('{n} 次此前单独删除的到访', { n: r.restoredEarlierVisits })
-          : '',
-        r.restoredEarlierMedia
-          ? t('{n} 张此前单独删除的照片', { n: r.restoredEarlierMedia })
-          : '',
-      ].filter(Boolean);
-      if (extra.length) text += t(' · 含 {items}', { items: extra.join(' · ') });
-      if (skipped) text += t(' · 跳过 {n} 项（需先恢复父级）', { n: skipped });
-      setMsg(text);
-      await load();
-      await onChanged();
+      setJobId(start.jobId);
     } catch (e: any) {
-      setErr(t('恢复失败：{msg}', { msg: e?.message || e }));
-    } finally {
+      pendingRef.current = null;
       setBusy(null);
+      setErr(t('恢复失败：{msg}', { msg: e?.message || e }));
     }
   };
 
@@ -240,51 +271,155 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
     setPurge({ items: targets, all });
   };
 
+  /** 批量彻底删除结果 → 选中清理 / 文案 / 刷新（当前面板与「重开后接回」共用） */
+  const applyPurgeResult = async (
+    r: PurgeTrashResult,
+    ctx: { keys?: string[]; freeing?: number } = {}
+  ) => {
+    const keys = ctx.keys ?? [];
+    if (keys.length) setSelected((cur) => cur.filter((k) => !keys.includes(k)));
+    setPurge(null);
+    const parts = [
+      r.purgedPlaces ? t('{n} 个地点', { n: r.purgedPlaces }) : '',
+      r.purgedVisits ? t('{n} 次到访', { n: r.purgedVisits }) : '',
+      r.purgedMedia ? t('{n} 个照片/视频', { n: r.purgedMedia }) : '',
+    ].filter(Boolean);
+    const freeing = ctx.freeing ?? 0;
+    let text =
+      freeing > 0
+        ? t('已彻底删除 {parts}，释放约 {size}', {
+            parts: parts.join(' · ') || t('项目'),
+            size: fmtBytes(freeing),
+          })
+        : t('已彻底删除 {parts}', { parts: parts.join(' · ') || t('项目') });
+    if (r.files) {
+      text += t(' · 删除文件 {n} 个', { n: r.files.deleted });
+      if (r.files.missing) text += t(' · 文件本就不在 {n} 个', { n: r.files.missing });
+      if (r.files.errors?.length) text += t(' · {n} 个文件删除失败', { n: r.files.errors.length });
+    }
+    setMsg(text);
+    if (r.files?.errors?.length) {
+      setErr(
+        t('部分文件没删掉（记录已清理，素材库里可能残留）：\n{items}', {
+          items: r.files.errors.slice(0, 3).join('\n'),
+        })
+      );
+    }
+    await load();
+    await onChanged();
+  };
+
+  /** 批量彻底删除：2026-11-12 D-400 起同样走服务端后台任务，关设置不中断，重开可接回。 */
   const doPurge = async () => {
     if (!purge) return;
     setBusy('purge');
     setErr(null);
     setMsg(null);
-    // 父级行可能还会带走此前单独删除的子项；用总占用封顶，避免显示超过实际
     const freeing = Math.min(
       data?.size ?? 0,
       purge.items.reduce((n, it) => n + it.size + earlierSizeOf(it), 0)
     );
-    const keys = purge.items.map(itemKey);
+    pendingRef.current = { kind: 'purge', keys: purge.items.map(itemKey), skipped: 0, freeing };
     try {
-      const r: PurgeTrashResult = await api.purgeTrash(purge.items.map((it) => selOf(it)));
-      setSelected((cur) => cur.filter((k) => !keys.includes(k)));
-      setPurge(null);
-      const parts = [
-        r.purgedPlaces ? t('{n} 个地点', { n: r.purgedPlaces }) : '',
-        r.purgedVisits ? t('{n} 次到访', { n: r.purgedVisits }) : '',
-        r.purgedMedia ? t('{n} 个照片/视频', { n: r.purgedMedia }) : '',
-      ].filter(Boolean);
-      let text = t('已彻底删除 {parts}，释放约 {size}', {
-        parts: parts.join(' · ') || t('项目'),
-        size: fmtBytes(freeing),
-      });
-      if (r.files) {
-        text += t(' · 删除文件 {n} 个', { n: r.files.deleted });
-        if (r.files.missing) text += t(' · 文件本就不在 {n} 个', { n: r.files.missing });
-        if (r.files.errors?.length) text += t(' · {n} 个文件删除失败', { n: r.files.errors.length });
-      }
-      setMsg(text);
-      if (r.files?.errors?.length) {
-        setErr(
-          t('部分文件没删掉（记录已清理，素材库里可能残留）：\n{items}', {
-            items: r.files.errors.slice(0, 3).join('\n'),
-          })
-        );
-      }
-      await load();
-      await onChanged();
+      const start = await api.startTrashPurge(purge.items.map((it) => selOf(it)));
+      setJobId(start.jobId);
     } catch (e: any) {
-      setErr(t('彻底删除失败：{msg}', { msg: e?.message || e }));
-    } finally {
+      pendingRef.current = null;
       setBusy(null);
+      setErr(t('彻底删除失败：{msg}', { msg: e?.message || e }));
     }
   };
+
+  // ── 后台任务轮询（D-400）：running 继续；done → 展示结果并刷新；error → 提示 ──
+  useEffect(() => {
+    if (!jobId) return;
+    let alive = true;
+    let timer: number | null = null;
+    const tick = async () => {
+      try {
+        const job = await api.trashJobStatus(jobId);
+        if (!alive) return;
+        if (job.state === 'running') {
+          timer = window.setTimeout(tick, 800);
+          return;
+        }
+        setJobId(null);
+        setBusy(null);
+        const pending = pendingRef.current;
+        pendingRef.current = null;
+        seenFinishedJobs.add(job.jobId);
+        if (job.state === 'done' && job.result) {
+          if (job.kind === 'restore') {
+            await applyRestoreResult(job.result as RestoreTrashResult, {
+              keys: pending?.keys,
+              skipped: pending?.skipped,
+            });
+          } else {
+            await applyPurgeResult(job.result as PurgeTrashResult, {
+              keys: pending?.keys,
+              freeing: pending?.freeing,
+            });
+          }
+        } else {
+          setErr(
+            job.kind === 'restore'
+              ? t('恢复失败：{msg}', { msg: job.error || t('没有返回原因') })
+              : t('彻底删除失败：{msg}', { msg: job.error || t('没有返回原因') })
+          );
+          await load();
+        }
+      } catch (e: any) {
+        if (!alive) return;
+        setJobId(null);
+        setBusy(null);
+        pendingRef.current = null;
+        setErr(t('读取后台任务进度失败：{msg}', { msg: e?.message || e }));
+      }
+    };
+    timer = window.setTimeout(tick, 500);
+    return () => {
+      alive = false;
+      if (timer != null) window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId]);
+
+  // ── 重开回收站 / 刷新页面后：接回正在跑的任务，或补发最近完成的结果（D-400）──
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const jobs: TrashJob[] = await api.trashJobs();
+        if (!alive) return;
+        const running = jobs.find((j) => j.state === 'running');
+        if (running) {
+          setBusy(running.kind);
+          setJobId(running.jobId);
+          return;
+        }
+        const recent = jobs.find(
+          (j) =>
+            j.state === 'done' &&
+            j.finishedAt != null &&
+            Date.now() - j.finishedAt < FINISHED_JOB_HINT_MS &&
+            !seenFinishedJobs.has(j.jobId)
+        );
+        if (!recent || !recent.result) return;
+        seenFinishedJobs.add(recent.jobId);
+        if (recent.kind === 'restore') {
+          await applyRestoreResult(recent.result as RestoreTrashResult);
+        } else {
+          await applyPurgeResult(recent.result as PurgeTrashResult);
+        }
+      } catch {
+        /* 旧服务端没有该接口：忽略，手动操作照常 */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const purgeSize = purge
     ? Math.min(
@@ -494,6 +629,14 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
         <b>{t('不会立刻释放空间')}</b>
         {t('；点「彻底删除」才会真正释放空间。父级删除只带走当时还在的内容，之前单独删的会留在原层级。')}
       </p>
+
+      {jobId && (
+        <p className="hint trash-job-note" role="status">
+          {t(
+            '后台任务进行中：关掉设置或切换页面不会中断，重新打开这里可以继续看到结果。'
+          )}
+        </p>
+      )}
 
       <div className="trash-tabs">
         <Segmented<Tab>

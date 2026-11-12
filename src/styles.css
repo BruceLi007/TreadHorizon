@@ -372,6 +372,12 @@ code {
   cursor: default;
 }
 
+/* 2026-11-12 D-404（用户要求）：地图标记封面缩略图开关；关闭 = 原来的飞镖标记 */
+.map-cover-btn.on {
+  background: var(--accent-soft);
+  color: var(--text-1);
+}
+
 @media (max-width: 760px) {
   .map-zoom-btn {
     width: 34px;
@@ -4114,6 +4120,13 @@ html:is([data-theme='light'], [data-theme='white']) .upload-queue {
 .trash-hint {
   padding: 10px 16px 0;
   flex: none;
+}
+
+/* 2026-11-12 D-400：批量恢复 / 彻底删除改成服务端后台任务后的进行中提示 */
+.trash-job-note {
+  padding: 8px 16px 0;
+  flex: none;
+  color: var(--accent);
 }
 
 /* 回收站类型 tab：统一分段控件（Segmented，D-98），这里只负责外层间距 */
