@@ -1,7 +1,7 @@
 {
   "name": "tread-horizon",
   "private": true,
-  "version": "2.0.2",
+  "version": "2.0.3",
   "type": "module",
   "description": "Tread Horizon · 个人旅行足迹地图 —— 步履踏向山海天地，在天地图上记录去过的地方和照片",
   "license": "MIT",
@@ -52,6 +52,7 @@
     "vite": "^8.3.5"
   },
   "dependencies": {
+    "@fastify/compress": "^9.3.0",
     "@fastify/multipart": "^10.1.6",
     "@fastify/static": "^10.1.8",
     "concurrently": "^10.0.6",

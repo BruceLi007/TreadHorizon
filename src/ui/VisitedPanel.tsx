@@ -1,9 +1,11 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import type { Place } from '../lib/types';
+import { createPortal } from 'react-dom';
+import type { MediaItem, Place } from '../lib/types';
 import type { RangeValue } from './Timeline';
 import type { MyTrailFocus } from './MyTrailPanel';
 import { api } from '../lib/api';
 import ConfirmDialog from './ConfirmDialog';
+import Lightbox from './Lightbox';
 import SortToggle, { type SortOrder } from './SortToggle';
 import PlaceThumb from './PlaceThumb';
 import { FolderIcon } from './TreeIcons';
@@ -173,6 +175,10 @@ export default function VisitedPanel({
   // ── 分享选择（2026-11-14 D-422）：地点行就地展开到访、到访行再展开照片，全部在原列表里完成 ──
   const [expandedShare, setExpandedShare] = useState<Set<string>>(new Set());
   const [expandedShareVisit, setExpandedShareVisit] = useState<Set<string>>(new Set());
+  /** 2026-11-15 D-445（用户要求）：分享选照片时，右上角「放大观看」打开的灯箱 */
+  const [sharePreview, setSharePreview] = useState<{ items: MediaItem[]; index: number } | null>(
+    null
+  );
   const toggleShareOpen = (id: string) =>
     setExpandedShare((cur) => {
       const next = new Set(cur);
@@ -602,33 +608,66 @@ export default function VisitedPanel({
                     {photos.map((m) => {
                       const on = share.selectedMediaIds.has(m.id);
                       return (
-                        <button
-                          type="button"
+                        <div
                           key={m.id}
                           className={'share-media-tile' + (on ? ' on' : '')}
-                          onClick={() => share.onTogglePhoto(m.id)}
-                          aria-pressed={on}
-                          title={on ? t('取消选择') : t('选择这张照片')}
                         >
-                          <img src={api.thumbUrl(m.id)} alt="" loading="lazy" decoding="async" />
-                          <span
-                            className={on ? 'pick on share-tile-pick' : 'pick share-tile-pick'}
-                            aria-hidden="true"
+                          <button
+                            type="button"
+                            className="share-tile-hit"
+                            onClick={() => share.onTogglePhoto(m.id)}
+                            aria-pressed={on}
+                            title={on ? t('取消选择') : t('选择这张照片')}
                           >
-                            {on && (
-                              <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
-                                <path
-                                  d="M2 6.4 4.6 9 10 3.2"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="1.9"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            )}
-                          </span>
-                        </button>
+                            <img src={api.thumbUrl(m.id)} alt="" loading="lazy" decoding="async" />
+                            <span
+                              className={on ? 'pick on share-tile-pick' : 'pick share-tile-pick'}
+                              aria-hidden="true"
+                            >
+                              {on && (
+                                <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
+                                  <path
+                                    d="M2 6.4 4.6 9 10 3.2"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.9"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              )}
+                            </span>
+                          </button>
+                          {/* 2026-11-15 D-445：放大观看（不切换选中） */}
+                          <button
+                            type="button"
+                            className="share-zoom-btn"
+                            title={t('放大观看')}
+                            aria-label={t('放大观看')}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const idx = photos.findIndex((x) => x.id === m.id);
+                              setSharePreview({ items: photos, index: idx < 0 ? 0 : idx });
+                            }}
+                          >
+                            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                              <circle
+                                cx="6.8"
+                                cy="6.8"
+                                r="4.3"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.6"
+                              />
+                              <path
+                                d="M10.1 10.1 14 14"
+                                stroke="currentColor"
+                                strokeWidth="1.6"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -924,6 +963,17 @@ export default function VisitedPanel({
           <p>{t('选中的地点会连同到访和照片一起移到回收站，之后可在顶栏「回收站」恢复。')}</p>
         </ConfirmDialog>
       )}
+
+      {sharePreview &&
+        createPortal(
+          <Lightbox
+            items={sharePreview.items}
+            index={sharePreview.index}
+            onClose={() => setSharePreview(null)}
+            onIndex={(i) => setSharePreview((cur) => (cur ? { ...cur, index: i } : cur))}
+          />,
+          document.body
+        )}
 
       {!embedded && (
         <div className="panel-foot">

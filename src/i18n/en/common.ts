@@ -386,6 +386,16 @@ const dict: Dict = {
   '移动失败，请重试': 'Move failed — please try again',
   '已移动 {n} 个文件': 'Moved {n} files',
   '有 {n} 个文件移动失败：{msg}': '{n} file(s) could not be moved: {msg}',
+
+  // ── 2026-11-15 D-445：分享选照片时右上角放大观看 ──
+  '放大观看': 'View larger',
+
+  // ── 2026-11-15 D-446：我的分享显示分享时间 ──
+  '分享于 {time}': 'Shared {time}',
+
+  // ── 2026-11-15 D-447：复制分享链接的结果提示 ──
+  '链接已复制': 'Link copied',
+  '复制失败，请手动复制': 'Copy failed — please copy manually',
   '读取到访失败：{msg}': 'Could not load visits: {msg}',
   '正在读取…': 'Loading…',
   '{n} 个文件': '{n} files',

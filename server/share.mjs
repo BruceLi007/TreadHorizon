@@ -719,7 +719,9 @@ export async function registerShareRoutes(app) {
     }
     reply.header('Content-Type', 'image/webp');
     reply.header('Content-Length', String(statSync(abs).size));
-    reply.header('Cache-Control', 'private, max-age=300');
+    // 2026-11-15 D-448（用户要求）：分享图片允许访客本地缓存 24 小时（文件名是内容哈希，内容不会变）；
+    // 页面 / JSON 仍是 no-store，撤销 / 过期 / 统计校验照常实时生效。
+    reply.header('Cache-Control', 'private, max-age=86400, immutable');
     return reply.send(createReadStream(abs));
   });
 
@@ -757,6 +759,8 @@ export async function registerShareRoutes(app) {
     }
     reply.header('Content-Type', 'image/webp');
     reply.header('Content-Length', String(statSync(abs).size));
+    // 2026-11-15 D-448：与分享图片一致，访客本地缓存 24 小时（头像文件按分享副本固定）
+    reply.header('Cache-Control', 'private, max-age=86400, immutable');
     return reply.send(createReadStream(abs));
   });
 }

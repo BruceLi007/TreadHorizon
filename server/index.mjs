@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
 import fastifyMultipart from '@fastify/multipart';
+import fastifyCompress from '@fastify/compress';
 import sharp from 'sharp';
 import { randomUUID, createHash } from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
@@ -311,6 +312,13 @@ function tdtKeyFor(req) {
 const NEED_OWN_TDT_KEY = '请先在 设置 → 天地图 Key 里填写你自己的天地图 Key（每个账号一份）';
 
 await app.register(fastifyMultipart, { limits: { fileSize: CONFIG.maxUploadBytes } });
+// 2026-11-15 D-449（用户要求降低云端压力）：JS / CSS / JSON 默认不压缩，首屏 ~1MB；
+// 开 br / gzip（图片 webp 不可压缩，插件按 content-type 跳过）。
+await app.register(fastifyCompress, {
+  global: true,
+  threshold: 1024,
+  encodings: ['br', 'gzip', 'deflate'],
+});
 
 // ───────────── 工具 ─────────────
 
@@ -602,7 +610,7 @@ async function ensurePreview(id, absPath, thumbRoot = CONFIG.thumbDir) {
   return out;
 }
 
-function sendRange(req, reply, filePath, type) {
+function sendRange(req, reply, filePath, type, cache = 'private, max-age=3600') {
   const size = statSync(filePath).size;
   const range = req.headers.range;
   if (!range) {
@@ -610,7 +618,7 @@ function sendRange(req, reply, filePath, type) {
       .header('content-type', type)
       .header('content-length', size)
       .header('accept-ranges', 'bytes')
-      .header('cache-control', 'private, max-age=3600')
+      .header('cache-control', cache)
       .send(createReadStream(filePath));
   }
   const m = /bytes=(\d*)-(\d*)/.exec(range) || [];
@@ -2542,7 +2550,7 @@ app.get('/api/media/:id/:variant', async (req, reply) => {
         }
       }
       if (!posterPath || !existsSync(posterPath)) return reply.code(404).send({ error: 'no poster' });
-      return sendRange(req, reply, posterPath, 'image/webp');
+      return sendRange(req, reply, posterPath, 'image/webp', 'private, max-age=604800, immutable');
     }
     let thumbPath = cacheAbs(thumbRoot, m.thumb);
     // 缩略图丢了（换了电脑、只拷了原片）就现场重建，不用手动处理
@@ -2561,13 +2569,13 @@ app.get('/api/media/:id/:variant', async (req, reply) => {
         return reply.code(500).send({ error: 'thumb failed: ' + e.message });
       }
     }
-    return sendRange(req, reply, thumbPath, 'image/webp');
+    return sendRange(req, reply, thumbPath, 'image/webp', 'private, max-age=604800, immutable');
   }
   if (variant === 'preview') {
     if (m.kind !== 'photo' || !existsSync(abs)) return reply.code(404).send({ error: 'no preview' });
     try {
       const p = await ensurePreview(m.id, abs, thumbRoot);
-      return sendRange(req, reply, p, 'image/webp');
+      return sendRange(req, reply, p, 'image/webp', 'private, max-age=604800, immutable');
     } catch {
       return reply.code(500).send({ error: 'preview failed' });
     }
@@ -3971,7 +3979,20 @@ await registerShareRoutes(app);
 // ───────────── 静态资源 ─────────────
 
 if (existsSync(CONFIG.distDir)) {
-  await app.register(fastifyStatic, { root: CONFIG.distDir, prefix: '/' });
+  await app.register(fastifyStatic, {
+    root: CONFIG.distDir,
+    prefix: '/',
+    // 2026-11-15 D-449：文件名带内容哈希的 /assets/* 长缓存；index.html / share.html 每次校验
+    cacheControl: false,
+    setHeaders(reply, filePath) {
+      const p = String(filePath).replace(/\\/g, '/');
+      if (p.includes('/assets/')) {
+        reply.header('cache-control', 'public, max-age=31536000, immutable');
+      } else {
+        reply.header('cache-control', 'no-cache');
+      }
+    },
+  });
 }
 
 app.setNotFoundHandler((req, reply) => {
@@ -3980,10 +4001,15 @@ app.setNotFoundHandler((req, reply) => {
   const urlPath = String(req.url || '').split('?')[0];
   if (/^\/s\/[^/]+\/?$/.test(urlPath)) {
     const sharePage = join(CONFIG.distDir, 'share.html');
-    if (existsSync(sharePage)) return reply.type('text/html').send(createReadStream(sharePage));
+    if (existsSync(sharePage)) {
+      // 2026-11-15 D-449：分享页外壳不缓存（引用带哈希的 assets，发版后要立刻换新）
+      return reply.header('cache-control', 'no-cache').type('text/html').send(createReadStream(sharePage));
+    }
   }
   const index = join(CONFIG.distDir, 'index.html');
-  if (existsSync(index)) return reply.type('text/html').send(createReadStream(index));
+  if (existsSync(index)) {
+    return reply.header('cache-control', 'no-cache').type('text/html').send(createReadStream(index));
+  }
   return reply.type('text/html').send(`<!doctype html><meta charset="utf-8">
     <body style="font:15px/1.8 system-ui;background:#0b0d10;color:#e9ecef;padding:60px">
     <h2>服务已启动，但前端还没构建</h2>

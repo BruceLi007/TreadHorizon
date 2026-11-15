@@ -20,6 +20,38 @@ const fmtTime = (ms: number | null) => {
 };
 
 /**
+ * 2026-11-15 D-447（用户反馈）：`navigator.clipboard` 只在安全上下文（HTTPS / localhost）可用；
+ * 云端是 http:// 时它是 undefined，原来的写法把异常吞了 —— 点「复制链接」完全没反应。
+ * 这里先试 Clipboard API，失败 / 不可用就退回 textarea + execCommand('copy')。
+ */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (window.isSecureContext && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* 权限被拒 / 非安全上下文：走下面的兜底 */
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 2026-11-15 D-424（用户要求）：设置 → 素材库下方单独一栏「我的分享」。
  * 原来这块列表塞在「分享」上传弹窗里，弹窗太挤；现在搬到设置里，上传弹窗只负责上传。
  */
@@ -36,6 +68,8 @@ export default function SharesSettings() {
   const [revokeId, setRevokeId] = useState<string | null>(null);
   const [openRows, setOpenRows] = useState<Set<string>>(() => new Set());
   const [listExpanded, setListExpanded] = useState(false);
+  /** 复制结果提示（D-447）：2 秒后自动消失 */
+  const [copyHint, setCopyHint] = useState<{ ok: boolean } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -61,11 +95,9 @@ export default function SharesSettings() {
     });
 
   const copy = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      /* ignore */
-    }
+    const ok = await copyText(text);
+    setCopyHint({ ok });
+    window.setTimeout(() => setCopyHint(null), 2000);
   };
 
   const revoke = async (id: string) => {
@@ -101,6 +133,10 @@ export default function SharesSettings() {
               <div className="myshare-title-line">
                 <b>{r.title || t('未命名分享')}</b>
               </div>
+              {/* 2026-11-15 D-446（用户要求）：每条分享都显示「什么时候分享的」 */}
+              <span className="myshare-time">
+                {t('分享于 {time}', { time: fmtTime(r.createdAt) })}
+              </span>
             </div>
             <div className="myshare-actions">
               <span
@@ -166,6 +202,11 @@ export default function SharesSettings() {
         >
           {listExpanded ? t('收起') : t('展开全部 {n} 份', { n: rows.length })}
         </button>
+      )}
+      {copyHint && (
+        <div className={copyHint.ok ? 'myshare-toast ok' : 'myshare-toast bad'} role="status">
+          {copyHint.ok ? t('链接已复制') : t('复制失败，请手动复制')}
+        </div>
       )}
     </section>
   );

@@ -410,10 +410,12 @@ try {
   const mediaA = await req('/api/share/' + tokenA + '/media/' + pA.file);
   eq('图片代理 → 200', mediaA.status, 200);
   eq('图片 Content-Type', mediaA.headers.get('content-type'), 'image/webp');
-  eq('图片 Cache-Control', mediaA.headers.get('cache-control'), 'private, no-store');
+  eq('图片 Cache-Control', mediaA.headers.get('cache-control'), 'private, max-age=86400, immutable');
   eq('媒体路径穿越 → 404', (await req('/api/share/' + tokenA + '/media/' + encodeURIComponent('../../travel.db'))).status, 404);
   eq('未声明的图片文件 → 404', (await req('/api/share/' + tokenA + '/media/p_ffffffffffffffff.webp')).status, 404);
   const pageRes = await fetch(BASE + '/s/' + tokenA);
+  // 2026-11-15 D-448：图片可缓存 24h；页面外壳可缓存，但数据 JSON 必须 no-store（撤销 / 统计实时）
+  eq('分享 JSON Cache-Control', (await req('/api/share/' + tokenA)).headers.get('cache-control'), 'private, no-store');
   const pageHtml = await pageRes.text();
   check('只读页入口 200 且返回 share.html', pageRes.status === 200 && pageHtml.includes('id="root"'), pageRes.status);
   check('只读页 noindex / no-referrer', pageHtml.includes('name="robots"') && pageHtml.includes('noindex'));
