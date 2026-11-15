@@ -261,7 +261,8 @@ const VIEW_KEY = 'tm-view';
  *   初版 73~136°E / 3.5~54.5°N + minZoom 4
  *   → 65~145°E / 0~58°N + minZoom 3
  *   → 50~160°E / -10~65°N + minZoom 2
- *   → 现在 30~180°E / -30~75°N + minZoom 4（与「总览」默认一致，D-196 用户要求不再缩得更小）
+ *   → 30~180°E / -30~75°N + minZoom 4（D-196，用户要求不再缩得更小）
+ *   → 2026-11-15 D-458（用户要求「试试 3 级」）：minZoom 3，比「总览」默认（5）再小两级
  */
 const CHINA_VIEW_BOUNDS = {
   minLng: 30.0,
@@ -271,7 +272,7 @@ const CHINA_VIEW_BOUNDS = {
 };
 
 /** 2026-11-11：缩放按钮的上下限（与地图 minZoom / 上次视野校验保持一致） */
-export const MAP_MIN_ZOOM = 4;
+export const MAP_MIN_ZOOM = 3;
 export const MAP_MAX_ZOOM = 17;
 
 /**
@@ -313,8 +314,8 @@ function readView(): { lng: number; lat: number; zoom: number } | null {
     ) {
       return null;
     }
-    // D-196（用户要求）：最低缩放回到 4，和「总览」默认一致
-    return { lng, lat, zoom: Math.max(4, zoom) };
+    // D-196：最低缩放 4；2026-11-15 D-458 起最低 3（用户要求试试 3 级）
+    return { lng, lat, zoom: Math.max(MAP_MIN_ZOOM, zoom) };
   } catch {
     return null;
   }

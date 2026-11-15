@@ -333,20 +333,27 @@ body {
     font-weight: 700;
   }
 
-  /* 底部时间轴在手机上把地图挤没了，分享页先收起（入口在顶栏） */
+  /* 2026-11-15 D-457（用户要求）：手机上恢复时间轴 —— 与四个大框同宽（左右各 27px 渲染值）、距底部 80px */
   html[data-share] .timeline {
-    display: none !important;
+    display: block !important;
+    left: 27px;
+    right: 27px;
+    transform: none;
+    width: auto;
+    bottom: 30px;
+    /* 2026-11-15 D-457（用户要求）：时间轴字体稍小一点（0.9 倍） */
+    --fs-scale: 0.9;
   }
 
   html[data-share] .actions-thumb {
     display: none;
   }
 
-  /* 欢迎页：背景地图完整显示（不再 slice 裁切），缩到屏幕宽度 92%、上下居中 */
+  /* 欢迎页：背景地图完整显示；2026-11-15 D-456：缩放后可见地图左右边距各约 10px */
   html[data-share] .login-backdrop .lb-map {
-    left: 4%;
+    left: -2.6%;
     top: 30%;
-    width: 92%;
+    width: 102.6%;
     height: auto;
     opacity: 1;
   }
@@ -438,15 +445,20 @@ body {
     touch-action: none;
   }
 
-  /* 右侧栏 / 抽屉：统一浮层（左右下 30px、高度 56vh） */
+  /* 2026-11-15 D-456（用户指定）：My旅迹 / 统计 / 照片墙 三个窗口
+     渲染后上边距 70px（大按钮组下沿 60 + 10）、下边距 220px，水平左右各 30px。
+     元素带 zoom .9 → 渲染值 = 0.9 × CSS 值，反推：
+       CSS top  = (60 + 10 + safe) / 0.9 ≈ 77.8px（safe 用 /0.9 补偿）
+       CSS 高度 = (100vh − 70 − 220) / 0.9 = calc(111.111vh − 322.22px)
+     设置窗口（.set-modal）暂不动。 */
   html[data-share] .panel {
-    top: auto;
+    top: calc((70px + env(safe-area-inset-top)) / 0.9);
+    bottom: calc((50px + var(--tl-h, 146px)) / 0.9);
     left: 30px;
     right: 30px;
-    bottom: calc(30px + env(safe-area-inset-bottom));
     width: auto;
     max-width: none;
-    height: 56vh;
+    height: auto;
     max-height: none;
     border-radius: 16px;
     border-bottom: 1px solid var(--line);
@@ -483,42 +495,57 @@ body {
     padding: 6px 12px !important;
   }
 
-  /* 欢迎页信息卡：放在「开始浏览」按钮上方，不能盖住入口 */
+  /* 欢迎页信息卡：放在「开始浏览」按钮上方；2026-11-15 D-456：左右各再收 20px，随按钮上移 */
   html[data-share] .share-welcome-card {
-    left: 12px;
-    right: 12px;
-    bottom: calc(76px + env(safe-area-inset-bottom));
+    left: 32px;
+    right: 32px;
+    bottom: calc(150px + env(safe-area-inset-bottom));
     max-width: none;
     transform: none;
     text-align: center;
     align-items: center;
   }
 
-  /* 「开始浏览」：手机端从右下角挪到底部居中，避免和卡片 / 浏览器手势区打架 */
+  /* 「开始浏览」：手机端底部居中；2026-11-15 D-456：距屏幕底部 90px */
   html[data-share] .login-launch {
     left: 0;
     right: 0;
     margin: 0 auto;
     width: max-content;
     max-width: calc(100vw - 32px);
-    bottom: calc(16px + env(safe-area-inset-bottom));
+    bottom: calc(90px + env(safe-area-inset-bottom));
     height: 46px;
     padding: 0 22px;
     font-size: calc(16px * var(--fs-scale));
     z-index: 6;
   }
 
-  /* 照片墙 / 设置：与侧栏同一个框（底对齐、左右 30、高 56vh） */
+  /* 照片墙：与另外两个同一个框（左右 30、同高、垂直居中）；fixed 定位避开 overlay 的 flex 底对齐 */
   html[data-share] .pw-overlay {
     align-items: flex-end;
     justify-content: center;
     padding: 0 30px calc(30px + env(safe-area-inset-bottom));
   }
+  /* 2026-11-15 D-459（用户反馈）：手机上隐藏两个窗口的右下角缩放点（一点就把窗口撑出屏幕） */
+  html[data-share] .pw-resize,
+  html[data-share] .set-resize {
+    display: none;
+  }
+
   html[data-share] .pw-panel {
-    width: 100%;
-    height: 56vh;
+    position: absolute;
+    /* 照片墙的包含块是 .pw-overlay（fixed inset:0），同样 0.9 缩放：
+       渲染 top = 0.9 × CSS top，200px 对应渲染 180px */
+    top: calc((70px + env(safe-area-inset-top)) / 0.9);
+    bottom: calc((50px + var(--tl-h, 146px)) / 0.9);
+    left: 30px;
+    right: 30px;
+    width: auto;
+    height: auto;
     max-height: none;
     border-radius: 16px;
+    /* 关掉 pw-in 入场动画：它结束态带 scale(.99)+translateY(14)，会让照片墙比另外两个小 1%、低十几 px */
+    animation: none;
     zoom: 0.9;
   }
 
@@ -527,21 +554,29 @@ body {
     justify-content: center;
     padding: 0 30px calc(30px + env(safe-area-inset-bottom));
   }
+  /* 设置：2026-11-15 D-456（用户要求）四个大窗口统一 —— 上边距 70、下边距 220、左右 30px */
   html[data-share] .set-modal {
-    width: 100%;
-    height: 56vh;
+    position: absolute;
+    top: calc((70px + env(safe-area-inset-top)) / 0.9);
+    bottom: calc((50px + var(--tl-h, 146px)) / 0.9);
+    left: 30px;
+    right: 30px;
+    width: auto;
+    height: auto;
     max-height: none;
+    border-radius: 16px;
     zoom: 0.9;
   }
 
+  /* 统计：同 My旅迹，上边距 70px、下边距 220px、左右 30px */
   html[data-share] .st-panel {
-    top: auto;
+    top: calc((70px + env(safe-area-inset-top)) / 0.9);
+    bottom: calc((50px + var(--tl-h, 146px)) / 0.9);
     left: 30px;
     right: 30px;
-    bottom: calc(30px + env(safe-area-inset-bottom));
     width: auto;
     max-width: none;
-    height: 56vh;
+    height: auto;
     max-height: none;
     border-radius: 16px;
     zoom: 0.9;

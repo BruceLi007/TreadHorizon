@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import CompanionFilter from './CompanionFilter';
 import CloseIcon from './CloseIcon';
 import { useT } from '../i18n';
@@ -171,6 +171,22 @@ export default function Timeline({
   const trackRef = useRef<HTMLDivElement>(null);
   const throttle = useRef<number | null>(null);
   const playTimer = useRef<number | null>(null);
+
+  /** 2026-11-15 D-457（用户要求）：把时间轴实际高度写进 --tl-h，
+      手机上四个大框的底边用它钉在时间轴上方 20px（时间轴自身距屏幕底 30px）。 */
+  useLayoutEffect(() => {
+    const el = trackRef.current?.closest('.timeline') as HTMLElement | null;
+    if (!el) return;
+    const root = document.documentElement;
+    const apply = () => root.style.setProperty('--tl-h', `${el.getBoundingClientRect().height}px`);
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.removeProperty('--tl-h');
+    };
+  }, []);
 
   /** 去重、排序后的到访日（天索引），播放「跳空白」时用 */
   const eventDays = useMemo(() => {

@@ -5458,3 +5458,42 @@ button:focus-visible {
   }
 }
 
+
+/* 2026-11-15 D-457（用户要求）：登录后的手机端也按分享页那套排 ——
+   底部时间轴恢复显示，距底 30px、左右与四个大框同宽；
+   四个大框（My旅迹 / 统计 / 照片墙 / 设置）统一上 70px（大按钮组下沿 60 + 10）、下边距 = 时间轴高度 + 50px（20px 间距 + 30px 底边）、左右 27px。
+   只在 ≤820px 生效，桌面 / 安装版宽窗口不受影响；分享页由 share.css 单独控制。 */
+@media (max-width: 820px) {
+  html:not([data-share]) .timeline {
+    left: 27px;
+    right: 27px;
+    width: auto;
+    transform: none;
+    bottom: 30px;
+    /* 2026-11-15 D-457（用户要求）：时间轴字体稍小一点（0.9 倍） */
+    --fs-scale: 0.9;
+  }
+
+  /* 2026-11-15 D-459（用户反馈）：手机上隐藏两个窗口的右下角缩放点 */
+  html:not([data-share]) .pw-resize,
+  html:not([data-share]) .set-resize {
+    display: none;
+  }
+
+  html:not([data-share]) .app .panel,
+  html:not([data-share]) .app .st-panel,
+  html:not([data-share]) .pw-panel,
+  html:not([data-share]) .set-modal {
+    position: absolute;
+    top: calc(70px + env(safe-area-inset-top));
+    bottom: calc(50px + var(--tl-h, 146px));
+    left: 27px;
+    right: 27px;
+    width: auto;
+    max-width: none;
+    max-height: none;
+    height: auto;
+    margin: 0;
+    zoom: 1;
+  }
+}

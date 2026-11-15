@@ -264,9 +264,22 @@ export default function PhotoWall({ onClose, onPick, focus, onChanged, readOnly 
   const [resizing, setResizing] = useState(false);
   const dragRef = useRef<{ sx: number; sy: number; w: number; h: number } | null>(null);
 
+  /** 2026-11-15 D-459（用户反馈）：手机上点一下右下角缩放点，照片墙被撑到 560px、
+      缩放点跑到屏幕外点不到了。窄屏直接忽略上次拖拽尺寸，也不允许再拖。 */
+  const [narrow, setNarrow] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 820px)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 820px)');
+    const onChange = () => setNarrow(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
   const startResize = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
+    if (narrow) return;
     const el = panelRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
@@ -690,7 +703,7 @@ export default function PhotoWall({ onClose, onPick, focus, onChanged, readOnly 
           (resizing ? ' resizing' : '') +
           (selectMode ? ' select-mode' : '')
         }
-        style={size ? { width: size.w, height: size.h, maxHeight: 'none' } : undefined}
+        style={!narrow && size ? { width: size.w, height: size.h, maxHeight: 'none' } : undefined}
         role="dialog"
         aria-modal="true"
         aria-label={t('照片墙')}
