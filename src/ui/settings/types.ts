@@ -90,15 +90,58 @@ export const isAppFont = (v: string | null): v is AppFont =>
  * 不改原图、不改数据；和主题 / 字体一样只存本机浏览器（localStorage），
  * 通过 `<html>` 上的 CSS 变量 `--visit-cols` 生效。
  */
-export type MediaCols = 2 | 3 | 4 | 5;
+export type MediaCols = 2 | 3 | 4 | 5 | 6 | 8 | 10;
 
-export const MEDIA_COLS: MediaCols[] = [2, 3, 4, 5];
+/**
+ * 视口断点（2026-11-15 D-488 / D-489）
+ *
+ * 全站「手机版布局」只有一处定义：CSS 里的 `@media (max-width: 820px)`。
+ * JS 里需要按同一口径分支的地方（照片每行档位、四框拖条等）统一走这里，
+ * 避免各处自己写一个数字、日后改断点时漏掉。
+ */
+export const PHONE_MEDIA_QUERY = '(max-width: 820px)';
 
-/** 默认 3 张/行 = 改动前的网格，避免升级后突然变样 */
-export const DEFAULT_MEDIA_COLS: MediaCols = 3;
+/** 当前视口是不是手机版布局（≤820px）；SSR / 无 matchMedia 时按电脑处理 */
+export const isPhoneLayout = (): boolean =>
+  typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia(PHONE_MEDIA_QUERY).matches
+    : false;
+
+/** 监听「手机版 ↔ 电脑版」切换（拖动窗口 / 转屏）；返回取消订阅函数 */
+export const onPhoneLayoutChange = (fn: () => void): (() => void) => {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return () => {};
+  const mq = window.matchMedia(PHONE_MEDIA_QUERY);
+  mq.addEventListener('change', fn);
+  return () => mq.removeEventListener('change', fn);
+};
+
+/** 手机（≤820px）档位：沿用原来的 2 / 3 / 4 / 5 */
+export const MEDIA_COLS_MOBILE: MediaCols[] = [2, 3, 4, 5];
+
+/**
+ * 电脑（>820px）档位：2026-11-15 **D-489（用户要求「电脑端所有的都改成 4、6、8、10」）** ——
+ * 电脑端所有「照片每行」控件（照片墙 / 地点详情的到访照片）统一 4 / 6 / 8 / 10。
+ */
+export const MEDIA_COLS_DESKTOP: MediaCols[] = [4, 6, 8, 10];
+
+/** 兼容旧引用：默认按手机档位（真正取档请用 mediaColOptions()） */
+export const MEDIA_COLS = MEDIA_COLS_MOBILE;
+
+/** 默认 3 张/行 = 改动前的网格（手机）；电脑端默认 4（3 已不在电脑档位里） */
+export const DEFAULT_MEDIA_COLS_MOBILE: MediaCols = 3;
+export const DEFAULT_MEDIA_COLS_DESKTOP: MediaCols = 4;
+export const DEFAULT_MEDIA_COLS = DEFAULT_MEDIA_COLS_MOBILE;
 
 export const isMediaCols = (v: number | null | undefined): v is MediaCols =>
-  v === 2 || v === 3 || v === 4 || v === 5;
+  v === 2 || v === 3 || v === 4 || v === 5 || v === 6 || v === 8 || v === 10;
+
+/** 当前视口可选的每行张数档位（手机 2/3/4/5、电脑 4/6/8/10） */
+export const mediaColOptions = (): MediaCols[] =>
+  isPhoneLayout() ? MEDIA_COLS_MOBILE : MEDIA_COLS_DESKTOP;
+
+/** 当前视口的默认每行张数（手机 3、电脑 4） */
+export const mediaColDefault = (): MediaCols =>
+  isPhoneLayout() ? DEFAULT_MEDIA_COLS_MOBILE : DEFAULT_MEDIA_COLS_DESKTOP;
 
 /**
  * 界面字号（2026-11-05，D-142）：小 / 中 / 大三档。

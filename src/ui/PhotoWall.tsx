@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api';
+import { isPhoneLayout, onPhoneLayoutChange } from './settings/types';
 import type { MediaItem, PhotoWallData, PhotoWallItem, PhotoWallQuery } from '../lib/types';
 import { useLang, useT, useTp, type TPfn } from '../i18n';
 import SortToggle, { type SortOrder } from './SortToggle';
@@ -81,19 +82,13 @@ const PW_COLS_DESKTOP = [4, 6, 8, 10] as const;
 const PW_COLS_MOBILE_DEFAULT = 4;
 const PW_COLS_DESKTOP_DEFAULT = 6;
 
-/** 当前视口是不是手机版（与 CSS 的 820 断点同口径） */
-const isPhotoWallMobile = (): boolean =>
-  typeof window !== 'undefined' &&
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(max-width: 820px)').matches;
-
-/** 当前视口可选的每行张数档位 */
+/** 当前视口可选的每行张数档位（断点判定统一走 lib/viewport 的 isPhoneLayout） */
 const photoWallColOptions = (): readonly number[] =>
-  isPhotoWallMobile() ? PW_COLS_MOBILE : PW_COLS_DESKTOP;
+  isPhoneLayout() ? PW_COLS_MOBILE : PW_COLS_DESKTOP;
 
 /** 当前视口的默认每行张数（手机 4、电脑 6） */
 const photoWallColDefault = (): number =>
-  isPhotoWallMobile() ? PW_COLS_MOBILE_DEFAULT : PW_COLS_DESKTOP_DEFAULT;
+  isPhoneLayout() ? PW_COLS_MOBILE_DEFAULT : PW_COLS_DESKTOP_DEFAULT;
 
 const readPhotoWallCols = (): number => {
   try {
@@ -348,14 +343,13 @@ export default function PhotoWall({ onClose, onPick, focus, onChanged, readOnly 
 
   // 2026-11-15 D-488：跨断点时把每行张数换到该视口合法的档位 ——
   // 例：手机选 2 张后把窗口拉宽成电脑版（2 不在 4/6/8/10 里）→ 回到电脑默认 6；反向同理回到手机默认 4。
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-    const mq = window.matchMedia('(max-width: 820px)');
-    const onChange = () =>
-      setCols((cur) => (photoWallColOptions().includes(cur) ? cur : photoWallColDefault()));
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
+  useEffect(
+    () =>
+      onPhoneLayoutChange(() =>
+        setCols((cur) => (photoWallColOptions().includes(cur) ? cur : photoWallColDefault()))
+      ),
+    []
+  );
 
   // ── 数据 ──
   const [items, setItems] = useState<PhotoWallItem[]>([]);

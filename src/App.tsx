@@ -17,6 +17,9 @@ import {
   isFontSize,
   isFontWeight,
   isMediaCols,
+  mediaColDefault,
+  mediaColOptions,
+  onPhoneLayoutChange,
   type AppFont,
   type FontSize,
   type FontWeight,
@@ -220,15 +223,16 @@ const readSlogan = (): Slogan | null => {
     return null;
   }
 };
-/** 到访照片每行张数（2026-11-04，D-116）：默认 3（= 改动前网格）；只存本机浏览器 */
+/** 到访照片每行张数（2026-11-04，D-116）：默认 3（= 改动前网格）；只存本机浏览器。
+ *  2026-11-15 D-489（用户要求）：**电脑端统一 4 / 6 / 8 / 10（默认 4）**，手机端仍 2 / 3 / 4 / 5（默认 3）。 */
 const MEDIA_COLS_KEY = 'tm-media-cols';
 const readMediaCols = (): MediaCols => {
   try {
     const n =
       typeof localStorage !== 'undefined' ? Number(localStorage.getItem(MEDIA_COLS_KEY)) : NaN;
-    return isMediaCols(n) ? n : 3;
+    return isMediaCols(n) && mediaColOptions().includes(n) ? n : mediaColDefault();
   } catch {
-    return 3;
+    return mediaColDefault();
   }
 };
 /** 地图标记封面缩略图（2026-11-12 D-404）：默认关闭 = 回到加封面之前的样子；只存本机浏览器 */
@@ -697,6 +701,16 @@ export default function App() {
       /* 隐私模式下可能写不进去，忽略 */
     }
   }, [mediaCols]);
+
+  // 2026-11-15 D-489：跨断点时把到访照片每行换到该视口合法的档位
+  // （手机 2/3/4/5、电脑 4/6/8/10；手机选 3 张后拉宽窗口 → 回到电脑默认 4）
+  useEffect(
+    () =>
+      onPhoneLayoutChange(() => {
+        setMediaCols((cur) => (mediaColOptions().includes(cur) ? cur : mediaColDefault()));
+      }),
+    []
+  );
 
   // ── 界面语言（2026-11-04，D-138）：写标题 / localStorage ──
   // 组件文案由 I18nContext 驱动（切换即时生效）；纯模块用模块级 currentLang（下面渲染时同步）；

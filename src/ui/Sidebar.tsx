@@ -15,8 +15,7 @@ import { useT, useTp } from '../i18n';
 import { DEFAULT_HOME_COLOR, homeMarkerHex } from '../lib/homeIcon';
 import { MARKER_DEFAULT_HEX, readableTextOn } from '../lib/markerColors';
 import type { MediaItem, PlaceDetail, UploadItem, Visit } from '../lib/types';
-import type { MediaCols } from './settings/types';
-import { MEDIA_COLS } from './settings/types';
+import { mediaColOptions, type MediaCols } from './settings/types';
 import { FolderIcon } from './TreeIcons';
 import Segmented from './Segmented';
 import CloseIcon from './CloseIcon';
@@ -1379,7 +1378,7 @@ export default function Sidebar({
                 size="sm"
                 variant="radio"
                 ariaLabel={t('到访照片每行张数')}
-                options={MEDIA_COLS.map((n) => ({ id: String(n), label: t('{n} 张', { n }) }))}
+                options={mediaColOptions().map((n) => ({ id: String(n), label: t('{n} 张', { n }) }))}
                 value={String(mediaCols)}
                 onChange={(id) => onMediaColsChange(Number(id) as MediaCols)}
               />
