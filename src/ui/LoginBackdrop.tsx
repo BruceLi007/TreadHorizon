@@ -425,17 +425,6 @@ function buildScene(data: ProvinceBoundaryData): Scene {
 
 export default function LoginBackdrop() {
   const [data, setData] = useState<ProvinceBoundaryData | null>(null);
-  /** 窄屏（手机竖屏）：SVG 改成 slice 铺满，否则 meet 会把地图缩得很小、背景几乎空白 */
-  const [narrow, setNarrow] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 700px)').matches
-  );
-
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 700px)');
-    const onChange = () => setNarrow(mq.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
 
   /* ── 2026-11-08 D-277（用户要求）：34 省卡通贴自动循环演示 ──
      每 2 秒切换一批（5 个省的卡片一起弹出，2 秒后随下一批切换消失），
@@ -603,7 +592,7 @@ export default function LoginBackdrop() {
         <svg
           className="lb-map"
           viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-          preserveAspectRatio={narrow ? 'xMidYMid slice' : 'xMidYMid meet'}
+          preserveAspectRatio="xMidYMid meet"
           focusable="false"
           onClick={handleMapClick}
         >

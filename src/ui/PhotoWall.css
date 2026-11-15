@@ -542,13 +542,14 @@
     padding: 10px 12px 20px;
   }
 
-  /* 窄屏：每行固定 3 张（!important 覆盖卡片上的内联列数），隐藏「照片每行」控件避免误导 */
-  .pw-grid {
+  /* 窄屏：每行固定 3 张（!important 覆盖卡片上的内联列数），隐藏「照片每行」控件避免误导
+     2026-11-15 D-454：分享页要保留「照片每行」控件，所以这两条只作用于非分享页 */
+  html:not([data-share]) .pw-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     gap: 4px;
   }
 
-  .pw-cols {
+  html:not([data-share]) .pw-cols {
     display: none;
   }
 

@@ -178,7 +178,8 @@ export default function Lightbox({ items, index, onClose, onIndex, onGotoWall, o
     return () => strip.removeEventListener('wheel', onWheel);
   }, [items.length]);
 
-  // ── 指针：拖拽平移 + 双指缩放 ──
+  // ── 指针：拖拽平移 + 双指缩放 + 未放大时左右滑切换 ──
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const onPointerDown = (e: React.PointerEvent) => {
     if (cur?.kind !== 'photo') return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -188,10 +189,17 @@ export default function Lightbox({ items, index, onClose, onIndex, onGotoWall, o
       const [a, b] = [...pointers.current.values()];
       pinchStart.current = { dist: Math.hypot(a.x - b.x, a.y - b.y), s: view.s };
       panStart.current = null;
+      swipeStart.current = null;
       setDragging(true);
     } else if (pointers.current.size === 1 && view.s > 1) {
       panStart.current = { px: e.clientX, py: e.clientY, x: view.x, y: view.y };
+      swipeStart.current = null;
       setDragging(true);
+    } else if (pointers.current.size === 1) {
+      // 2026-11-15 D-455（用户反馈手机左右滑不能切换）：未放大时记录起点，松手按水平位移翻页
+      // 只对触摸生效，桌面鼠标拖拽行为保持不变
+      swipeStart.current =
+        e.pointerType === 'touch' ? { x: e.clientX, y: e.clientY } : null;
     }
   };
 
@@ -225,6 +233,17 @@ export default function Lightbox({ items, index, onClose, onIndex, onGotoWall, o
     if (pointers.current.size === 0) {
       panStart.current = null;
       setDragging(false);
+      // 未放大时的单指左右滑：水平位移 > 44px 且明显大于纵向，才翻页
+      const s = swipeStart.current;
+      swipeStart.current = null;
+      if (s && view.s <= 1.001) {
+        const dx = e.clientX - s.x;
+        const dy = e.clientY - s.y;
+        if (Math.abs(dx) > 44 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+          const next = index + (dx < 0 ? 1 : -1);
+          if (next >= 0 && next < items.length) onIndex(next);
+        }
+      }
     }
   };
 
@@ -377,7 +396,7 @@ export default function Lightbox({ items, index, onClose, onIndex, onGotoWall, o
           </button>
         )}
         <button
-          className="lb-reset"
+          className="lb-reset lb-reveal"
           onClick={async () => {
             setMsg(null);
             try {

@@ -1389,6 +1389,13 @@ export default function MapView({
         );
         map.enableScrollWheelZoom();
         map.enableDrag();
+        // 2026-11-15 D-452（用户反馈手机双指不能缩放）：天地图 API 默认开启双指缩放，
+        // 但不同版本 / 环境下可能被禁用；显式再开一次（旧版没有这个方法就跳过）。
+        try {
+          map.enablePinchToZoom?.();
+        } catch {
+          /* 旧版 API 没有 enablePinchToZoom */
+        }
 
         try {
           map.addControl(new T.Control.Scale());
