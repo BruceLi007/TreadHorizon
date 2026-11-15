@@ -10,6 +10,19 @@ import type { Dict } from '../index';
  * 静态脚本检测不到，改文案时两边要一起改（TABS / THEME_LEVEL_LABEL / APP_FONTS）。
  */
 const dict: Dict = {
+  '默认使用导出时填写的标题': 'Defaults to the title filled in when exporting',
+  '分享标题沿用本地导出时填写的标题，这里不再单独填写。': 'The share title comes from the title you filled in when exporting locally; no separate title here.',
+  '自定义…': 'Custom…',
+  '自定义时长（小时）': 'Custom duration (hours)',
+  '小时': 'hours',
+  '自定义时效需要在 1–8760 小时之间。': 'Custom duration must be between 1 and 8760 hours.',
+  '已上传的分享链接、访问统计与撤销': 'Uploaded share links, view stats and revoke',
+  '已上传的分享链接：有效期、访问统计与撤销都在这里。': 'Uploaded share links: expiry, view stats and revoke all live here.',
+  '展开全部 {n} 份': 'Show all {n}',
+  '详情': 'Details',
+  '收起': 'Collapse',
+  '选择文件': 'Choose file',
+  '未选择文件': 'No file selected',
   // ── 设置窗口框架（SettingsModal）──
   '设置': 'Settings',
   '设置分类': 'Settings sections',
@@ -232,6 +245,10 @@ const dict: Dict = {
 
   // ── 通知 / 提示（M6 P2-1）──
   '当前没有登录账号。': 'No account is currently signed in.',
+
+  // ── 2026-11-14 D-417：卡在 Key 引导页时「换一个账号登录」（回登录页）──
+  '当前登录：{name}': 'Signed in as {name}',
+  '换一个账号登录': 'Sign in with another account',
 
   // ── 配置天地图 Key 引导页（M6 P2-4，D-205）──
   '你的账号还没有配置天地图 Key。每个账号使用自己的 Key，地图才能加载。':

@@ -45,6 +45,9 @@ function walk(dir) {
 }
 
 const isI18nFile = (p) => rel(p).startsWith('src/i18n/');
+// 2026-11-14 D-416：分享只读页是独立入口，有自己的 src/share/i18n.ts（不引主字典），
+// 主 i18n 检查不扫描它，避免把它的条目标成「缺词条」。
+const isSharePage = (p) => rel(p).startsWith('src/share/');
 const unescape = (s) => s.replace(/\\'/g, "'").replace(/\\"/g, '"');
 
 // ── 1) 收集代码里用到的 key（t('…') / tr('…') / t("…") / tr("…")）──
@@ -57,7 +60,7 @@ const ANY_DOUBLE = /"((?:[^"\\]|\\.)*)"/g;
 const referenced = new Set();
 
 for (const file of walk(SRC)) {
-  if (isI18nFile(file)) continue;
+  if (isI18nFile(file) || isSharePage(file)) continue;
   const text = readFileSync(file, 'utf8');
   for (const re of [CALL_SINGLE, CALL_DOUBLE]) {
     re.lastIndex = 0;
@@ -149,7 +152,7 @@ for (const [key, entry] of entries) {
 const residue = [];
 for (const file of walk(SRC)) {
   const where = rel(file);
-  if (isI18nFile(file) || ALLOW_CJK.has(where)) continue;
+  if (isI18nFile(file) || isSharePage(file) || ALLOW_CJK.has(where)) continue;
   readFileSync(file, 'utf8')
     .split(/\r?\n/)
     .forEach((line, i) => {

@@ -60,8 +60,14 @@ export function clusterCoverId(c: Cluster): string | null {
  * - 加载失败（404 / 视频没抽到 poster 等）→ 移除节点并回调 onFail，让 pin 回退到无封面尺寸；
  * - 无封面返回 null（调用方不建节点，尺寸保持原样）。
  */
-export function makeCover(coverId: string | null, onFail: () => void): HTMLDivElement | null {
+export function makeCover(
+  coverId: string | null,
+  onFail: () => void,
+  coverSrc?: (mediaId: string) => string
+): HTMLDivElement | null {
   if (!coverId) return null;
+  const src = coverSrc ? coverSrc(coverId) : api.thumbUrl(coverId);
+  if (!src) return null;
   const box = document.createElement('div');
   box.className = 'pin-cover';
   const img = document.createElement('img');
@@ -82,7 +88,7 @@ export function makeCover(coverId: string | null, onFail: () => void): HTMLDivEl
   );
   box.appendChild(img);
   // 先挂监听再赋 src，避免缓存命中时错过 load 事件；仍在缓存中的同步完成兜底补一次
-  img.src = api.thumbUrl(coverId);
+  img.src = src;
   if (img.complete && img.naturalWidth > 0) show();
   return box;
 }

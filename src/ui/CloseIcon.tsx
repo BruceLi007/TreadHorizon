@@ -8,11 +8,11 @@
  * 尺寸默认 14px（配合 28px 的圆形/方形按钮）；行内小按钮可传 12。
  */
 interface Props {
-  /** 图标边长（px），默认 14 */
+  /** 图标边长（px），默认 20（2026-11-15 D-424：对齐分享页原来那个 22px 的细 ✕） */
   size?: number;
 }
 
-export default function CloseIcon({ size = 14 }: Props) {
+export default function CloseIcon({ size = 20 }: Props) {
   return (
     <svg
       viewBox="0 0 16 16"
@@ -21,9 +21,9 @@ export default function CloseIcon({ size = 14 }: Props) {
       aria-hidden="true"
       focusable="false"
     >
-      <g fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
-        <path d="M4.2 4.2 11.8 11.8" />
-        <path d="M11.8 4.2 4.2 11.8" />
+      <g fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round">
+        <path d="M3.2 3.2 12.8 12.8" />
+        <path d="M12.8 3.2 3.2 12.8" />
       </g>
     </svg>
   );

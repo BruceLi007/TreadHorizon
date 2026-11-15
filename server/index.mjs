@@ -103,6 +103,13 @@ import {
 // M6 P2-3：普通用户「下载我的数据」（zip 导出 / 下载；2026-11-11 D-369 起云端不再提供自助恢复）
 import { UserExportError, buildUserExportZip, userExportFileName } from './user-export.mjs';
 import { ZipError } from './zip.mjs';
+// 2026-11-14 D-416：分享（F-SHR-01）—— 公开只读接口 + 账号导入/列表/撤销 + 到期清理
+import { pruneShares, registerShareRoutes, revokeAllSharesForUser } from './share.mjs';
+import {
+  cancelShareExport,
+  getShareExportStatus,
+  startShareExport,
+} from './share-export.mjs';
 // 首次初始化示例足迹（2026-11-09）：local 启动时 / multi 首次登录注册后生成 34 省省会示例数据
 import { ensureStarterData } from './starter.mjs';
 
@@ -135,6 +142,24 @@ app.addHook('preHandler', async (req, reply) => {
   req.authUser = null;
   const path = String(req.url || '').split('?')[0];
   if (path !== '/api' && !path.startsWith('/api/')) return; // 静态资源 / 前端页面不解析会话
+
+  // 2026-11-14 D-416：公开分享接口是 token 作用域的，免登录。
+  // ⚠️ 必须用 `^/api/share/` 正则，不能用 startsWith('/api/share')：
+  //    否则 `/api/shares/import`（账号上传）会被误当成公开接口放行。
+  // 公开范围严格限定：GET/HEAD `/api/share/:token` 与 `/api/share/:token/media/:file`，
+  // 以及 POST `/api/share/:token/unlock`（unlock 自己在路由里再做 sameOrigin）。
+  const shareMatch = /^\/api\/share\/([^/]+)(\/.*)?$/.exec(path);
+  if (
+    shareMatch &&
+    // `export` 是本地导出接口的路径段，不是分享 token（/api/share/export/... 必须登录 / 本地）
+    shareMatch[1] !== 'export' &&
+    (req.method === 'GET' ||
+      req.method === 'HEAD' ||
+      (req.method === 'POST' && shareMatch[2] === '/unlock'))
+  ) {
+    return;
+  }
+
   const user = userFromRequest(req); // local 模式直接返回 null，不查库
   req.authUser = user;
   if (CONFIG.authMode !== 'multi') return;
@@ -1018,6 +1043,14 @@ app.patch('/api/admin/users/:id', async (req, reply) => {
   try {
     const body = req.body || {};
     const row = updateUserByAdmin(admin.id, req.params.id, body);
+    // 2026-11-14 D-416：账号被禁用 → 立刻撤销并删掉其全部分享（媒体 + 访客行）
+    if (row.status === 'disabled') {
+      try {
+        revokeAllSharesForUser(row.id);
+      } catch (e) {
+        console.warn('[share] 禁用账号时撤销分享失败：', e?.message || e);
+      }
+    }
     if (Object.prototype.hasOwnProperty.call(body, 'quotaBytes')) {
       resolvePendingQuotaRequests(row.id, {
         approvedBytes: quotaBytesOf(publicUser(row)),
@@ -3627,6 +3660,73 @@ app.get('/api/backup/restore/status/:jobId', async (req, reply) => {
   }
 });
 
+// ───────────── 本地分享包导出（P4 / 2026-11-14 D-416）─────────────
+// 只本地安装版可用：云端 multi 没有「服务端导出」，分享包必须在本地导出后上传。
+const shareExportLocalOnly = (req, reply) => {
+  if (CONFIG.authMode === 'multi') {
+    reply.code(403).send({ error: '分享包导出只在本地安装版可用；云端请使用「上传分享包」' });
+    return false;
+  }
+  return true;
+};
+
+app.post('/api/share/export/pick-dir', async (req, reply) => {
+  if (!shareExportLocalOnly(req, reply)) return;
+  try {
+    const picked = await pickDirectoryNative(CONFIG.backupDir);
+    if (!picked) return { ok: true, canceled: true };
+    return { ok: true, canceled: false, dir: picked };
+  } catch (e) {
+    return reply.code(400).send({ error: '打开目录选择框失败：' + (e?.message || String(e)) });
+  }
+});
+
+app.post('/api/share/export/start', async (req, reply) => {
+  if (!shareExportLocalOnly(req, reply)) return;
+  try {
+    return startShareExport(req.body || {}, ownerOf(req));
+  } catch (e) {
+    return reply.code(e?.status || 400).send({ error: e?.message || '启动导出失败' });
+  }
+});
+
+app.get('/api/share/export/status/:jobId', async (req, reply) => {
+  if (!shareExportLocalOnly(req, reply)) return;
+  try {
+    return getShareExportStatus(req.params.jobId);
+  } catch (e) {
+    return reply.code(e?.status || 404).send({ error: e?.message || '导出任务不存在' });
+  }
+});
+
+app.post('/api/share/export/cancel/:jobId', async (req, reply) => {
+  if (!shareExportLocalOnly(req, reply)) return;
+  return { ok: cancelShareExport(req.params.jobId) };
+});
+
+app.post('/api/share/export/reveal', async (req, reply) => {
+  if (!shareExportLocalOnly(req, reply)) return;
+  const dir = resolve(String(req.body?.dir || '').trim());
+  try {
+    if (!statSync(dir).isDirectory()) throw new Error('不是文件夹');
+    if (process.platform === 'win32') {
+      spawn('explorer.exe', [dir], { detached: true, stdio: 'ignore' }).unref();
+    } else if (process.platform === 'darwin') {
+      spawn('open', [dir], { detached: true, stdio: 'ignore' }).unref();
+    } else {
+      spawn('xdg-open', [dir], { detached: true, stdio: 'ignore' }).unref();
+    }
+    return { ok: true, dir };
+  } catch (e) {
+    return reply.code(400).send({ error: '打开文件夹失败：' + (e?.message || String(e)) });
+  }
+});
+
+// ───────────── 分享（F-SHR-01 / 2026-11-14 D-416）─────────────
+// 公开只读 /api/share/:token、/unlock、/media/:file（鉴权白名单见顶部 preHandler），
+// 账号侧 /api/shares/import、/api/shares、/api/shares/:id、/api/shares/usage。
+await registerShareRoutes(app);
+
 // ───────────── 静态资源 ─────────────
 
 if (existsSync(CONFIG.distDir)) {
@@ -3635,6 +3735,12 @@ if (existsSync(CONFIG.distDir)) {
 
 app.setNotFoundHandler((req, reply) => {
   if (req.url.startsWith('/api/')) return reply.code(404).send({ error: 'not found' });
+  // 2026-11-14 D-416：/s/<token> → 独立只读分享页（P2 构建出 dist/share.html 后生效）
+  const urlPath = String(req.url || '').split('?')[0];
+  if (/^\/s\/[^/]+\/?$/.test(urlPath)) {
+    const sharePage = join(CONFIG.distDir, 'share.html');
+    if (existsSync(sharePage)) return reply.type('text/html').send(createReadStream(sharePage));
+  }
   const index = join(CONFIG.distDir, 'index.html');
   if (existsSync(index)) return reply.type('text/html').send(createReadStream(index));
   return reply.type('text/html').send(`<!doctype html><meta charset="utf-8">
@@ -3658,6 +3764,24 @@ if (CONFIG.authMode !== 'multi') {
     console.error('[starter] 示例数据生成失败（不影响服务启动）：', e?.message || e);
   }
 }
+
+// ───────────── 分享到期清理（F-SHR-01 / 2026-11-14 D-416）─────────────
+// 启动扫一次 + 每 5 分钟一次：到期 / 撤销的分享删除媒体目录与访客行（配额立刻回落），
+// 行只留 7 天做 410 墓碑；异常只打日志，绝不影响服务启动。
+try {
+  const pruned = pruneShares();
+  if (pruned) console.log(`[share] 启动清理 ${pruned} 项过期 / 撤销分享`);
+} catch (e) {
+  console.error('[share] 启动清理失败（不影响服务启动）：', e?.message || e);
+}
+const sharePruneTimer = setInterval(() => {
+  try {
+    pruneShares();
+  } catch (e) {
+    console.warn('[share] 定时清理失败：', e?.message || e);
+  }
+}, Number(process.env.SHARE_PRUNE_MS) > 0 ? Number(process.env.SHARE_PRUNE_MS) : 5 * 60 * 1000);
+sharePruneTimer.unref?.();
 
 app.listen({ port: CONFIG.port, host: '127.0.0.1' })
   .then(async () => {

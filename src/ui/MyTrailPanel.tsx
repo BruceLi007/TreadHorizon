@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import type { Place } from '../lib/types';
+import type { Place, PlaceDetail } from '../lib/types';
 import { regionNeedsFill } from '../lib/region';
 import type { RangeValue } from './Timeline';
 import VisitedPanel from './VisitedPanel';
 import WishlistPanel from './WishlistPanel';
+import type { ShareListBinding } from './shareList';
 import Segmented from './Segmented';
 import CloseIcon from './CloseIcon';
 import { useT } from '../i18n';
 import './MyTrailPanel.css';
+import './ShareSelection.css';
 
 export type MyTrailTab = 'visited' | 'wishlist';
 type SecretFilter = 'all' | 'normal' | 'secret';
@@ -58,6 +60,21 @@ interface Props {
    * 只保留浏览（省 → 市 → 地点、搜索、排序、折叠）。
    */
   readOnly?: boolean;
+  /** 2026-11-14 D-416：分享选择模式——列表行改为三态复选（地点级），点行打开分享抽屉 */
+  shareMode?: boolean;
+  sharePlaces?: Place[];
+  shareSelectedPlaceIds?: Set<string>;
+  shareSelectedMediaIds?: Set<string>;
+  shareDetailMap?: Map<string, PlaceDetail>;
+  shareCounts?: { places: number; visits: number; photos: number };
+  onShareTogglePlace?: (p: Place) => void;
+  onShareSelectPlaces?: (places: Place[], select: boolean) => void;
+  onShareToggleVisit?: (ids: string[]) => void;
+  onShareTogglePhoto?: (id: string) => void;
+  onShareOpenPlace?: (p: Place) => void;
+  onShareClear?: () => void;
+  onShareConfirm?: () => void;
+  onShareExit?: () => void;
 }
 
 /**
@@ -82,6 +99,20 @@ export default function MyTrailPanel({
   focus = null,
   onFocusApplied,
   readOnly = false,
+  shareMode = false,
+  sharePlaces = [],
+  shareSelectedPlaceIds = new Set<string>(),
+  shareSelectedMediaIds = new Set<string>(),
+  shareDetailMap = new Map<string, PlaceDetail>(),
+  shareCounts = { places: 0, visits: 0, photos: 0 },
+  onShareTogglePlace,
+  onShareSelectPlaces,
+  onShareToggleVisit,
+  onShareTogglePhoto,
+  onShareOpenPlace,
+  onShareClear,
+  onShareConfirm,
+  onShareExit,
 }: Props) {
   const t = useT();
   const tabs: { id: MyTrailTab; label: string }[] = [
@@ -132,6 +163,19 @@ export default function MyTrailPanel({
     }
   };
 
+  /** D-422：分享态把选择集 / 回调打包成一个绑定，交给原版 VisitedPanel / WishlistPanel 渲染 */
+  const shareBinding: ShareListBinding | null = shareMode
+    ? {
+        selectedPlaceIds: shareSelectedPlaceIds,
+        selectedMediaIds: shareSelectedMediaIds,
+        detailMap: shareDetailMap,
+        onToggle: (p) => onShareTogglePlace?.(p),
+        onSelectPlaces: (ps, select) => onShareSelectPlaces?.(ps, select),
+        onToggleVisit: (ids) => onShareToggleVisit?.(ids),
+        onTogglePhoto: (id) => onShareTogglePhoto?.(id),
+      }
+    : null;
+
   return (
     <aside
       className={parked ? 'panel mytrail-panel parked' : 'panel mytrail-panel'}
@@ -158,6 +202,18 @@ export default function MyTrailPanel({
       </div>
 
       <div className="mytrail-body">
+        {shareMode && (
+          <div className="mytrail-share-hint">
+            <span>
+              {t('在列表里逐级勾选：省 / 市 / 地点 / 到访 / 单张照片 · 点地点展开到访，点日期展开照片 · 视频暂不可分享')}
+            </span>
+            {onShareExit && (
+              <button type="button" className="mytrail-share-exit" onClick={onShareExit}>
+                {t('退出选择')}
+              </button>
+            )}
+          </div>
+        )}
         {tab === 'visited' ? (
           <>
             <div className="mytrail-subfilters">
@@ -169,7 +225,7 @@ export default function MyTrailPanel({
                 value={secretFilter}
                 onChange={setSecretFilter}
               />
-              {missingRegion > 0 && onFillRegions && !readOnly && (
+              {missingRegion > 0 && onFillRegions && !readOnly && !shareMode && (
                 <button
                   type="button"
                   className="mytrail-fixregion"
@@ -183,7 +239,7 @@ export default function MyTrailPanel({
             </div>
             <VisitedPanel
               embedded
-              readOnly={readOnly}
+              readOnly={readOnly || shareMode}
               places={places}
               range={range}
               focus={focus?.kind === 'visited' ? focus : null}
@@ -192,24 +248,51 @@ export default function MyTrailPanel({
               secretFilter={secretFilter}
               onClose={onClose}
               onPick={onPick}
-              onAddVisit={readOnly ? undefined : onAddVisit}
+              onAddVisit={readOnly || shareMode ? undefined : onAddVisit}
               onRefresh={onRefresh}
               onClearRange={onClearRange}
+              share={shareBinding}
             />
           </>
         ) : (
           <WishlistPanel
             embedded
-            readOnly={readOnly}
+            readOnly={readOnly || shareMode}
             focus={focus?.kind === 'wishlist' ? focus : null}
             onFocusApplied={onFocusApplied}
             onClose={onClose}
-            onPick={onPick}
+              onPick={onPick}
             onChanged={onChanged}
             onCount={setWishCount}
+            share={shareBinding}
           />
         )}
       </div>
+
+      {shareMode && (
+        <div className="mytrail-share-foot">
+          <div className="mytrail-share-counts">
+            {t('已选 {places} 地点 · {visits} 到访 · {photos} 照片', {
+              places: shareCounts.places,
+              visits: shareCounts.visits,
+              photos: shareCounts.photos,
+            })}
+          </div>
+          <div className="mytrail-share-actions">
+            <button type="button" className="ghost" onClick={() => onShareClear?.()}>
+              {t('清空')}
+            </button>
+            <button
+              type="button"
+              className="primary"
+              disabled={shareCounts.photos === 0}
+              onClick={() => onShareConfirm?.()}
+            >
+              {t('确认分享')}
+            </button>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

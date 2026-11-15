@@ -353,6 +353,8 @@ interface Props {
   onZoomChange?: (zoom: number) => void;
   /** 2026-11-12 D-404：是否显示标记上方的封面缩略图（用户可在地图上用按钮开关） */
   showCovers?: boolean;
+  /** 2026-11-14 D-416：封面 URL 注入（分享只读页用 /api/share/<token>/media/<file>；默认走 api.thumbUrl） */
+  coverSrc?: (mediaId: string) => string;
 }
 
 interface PinNode {
@@ -394,10 +396,13 @@ export default function MapView({
   markerColors = DEFAULT_MARKER_COLORS,
   onZoomChange,
   showCovers = true,
+  coverSrc,
 }: Props) {
   const t = useT();
   const tp = useTp();
   const lang = useLang();
+  // 2026-11-14 D-416：分享页把封面指向分享副本；普通应用不传时保持 api.thumbUrl
+  const mkCover = (id: string | null, onFail: () => void) => makeCover(id, onFail, coverSrc);
   const TRef = useRef<any>(null);
   const mapRef = useRef<any>(null);
   const layerRef = useRef<HTMLDivElement | null>(null);
@@ -1004,7 +1009,7 @@ export default function MapView({
           dartSize: size,
           hasCover,
         };
-        const cover = makeCover(coverId, () => {
+        const cover = mkCover(coverId, () => {
           // 封面 404（视频没抽到 poster 等）→ 回退成无封面尺寸，不留空白
           node.hasCover = false;
           node.w = node.dartSize ?? size;
@@ -1108,7 +1113,7 @@ export default function MapView({
           dartSize: size,
           hasCover,
         };
-        const cover = makeCover(coverId, () => {
+        const cover = mkCover(coverId, () => {
           // 封面 404（视频没抽到 poster 等）→ 回退成无封面尺寸，不留空白
           node.hasCover = false;
           node.w = node.dartSize ?? size;
@@ -1244,7 +1249,7 @@ export default function MapView({
         dartSize: size,
         hasCover,
       };
-      const cover = makeCover(homeCoverId, () => {
+      const cover = mkCover(homeCoverId, () => {
         // 封面 404 → 回退成无封面尺寸，不留空白
         homeNode.hasCover = false;
         homeNode.w = homeNode.dartSize ?? size;
@@ -1323,7 +1328,7 @@ export default function MapView({
     if (layer.classList.contains('zooming')) {
       requestAnimationFrame(() => layer.classList.remove('zooming'));
     }
-  }, [positionAll, t, tp, lang, spawnRipple, homeColor, markerColors, showCovers]);
+  }, [positionAll, t, tp, lang, spawnRipple, homeColor, markerColors, showCovers, coverSrc]);
 
   // 让地图事件能拿到最新的 rebuild（避免闭包捕获旧数据）
   const rebuildRef = useRef(rebuild);

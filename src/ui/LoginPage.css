@@ -238,6 +238,46 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
   line-height: 1.6;
 }
 
+/* 2026-11-14 D-417（用户反馈）：云端版登录后没填 Key 会卡在 Key 引导页 →
+   在 Key 小窗和它背后的欢迎页各给一个「换一个账号登录」入口（退出会话 → 回登录页）。 */
+.login-switch-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  margin: 14px 0 0;
+  font-size: calc(12.5px * var(--fs-scale));
+  color: var(--text-3);
+  line-height: 1.6;
+}
+
+.login-switch-name {
+  color: var(--text-3);
+}
+
+.login-switch-account {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: inherit;
+  color: var(--text-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.login-switch-account:hover {
+  color: var(--text-1);
+}
+
+.login-switch-account:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
 /* 配置天地图 Key 引导页（D-205 / D-238）：卡片比登录页略宽，说明文字左对齐更好读 */
 .key-setup-page .login-card {
   width: min(460px, 100%);
@@ -273,10 +313,12 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
      （正文需 ≥4.5:1），副文案发灰；加深到 #56697d 后约 5:1。 */
   --text-3: #56697d;
   --line: #d2e2ef;
-  --accent: #1d2b3a;
+  /* 2026-11-15 D-424：登录按钮从深蓝灰 #1d2b3a 改成与正式版浅色主题同一支的黑 #161b22
+     （用户反馈「登录按钮应该是黑色，保持一致」） */
+  --accent: #161b22;
   --accent-ink: #ffffff;
-  --accent-rgb: 29, 43, 58;
-  --accent-soft: rgba(29, 43, 58, 0.08);
+  --accent-rgb: 22, 27, 34;
+  --accent-soft: rgba(22, 27, 34, 0.08);
 }
 
 .login-page .login-card {
@@ -297,6 +339,19 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
   --seg-track: rgba(20, 40, 60, 0.07);
   --seg-thumb: #ffffff;
   --seg-thumb-shadow: 0 1px 3px rgba(20, 40, 60, 0.18);
+}
+
+/* 2026-11-15 D-424：深色 / 纯黑外观下，Segmented.css 的 `html[data-theme='black'] .seg`
+   优先级高于上面的 `.login-page .seg`，滑块会退回石板灰 #4a5462（用户反馈「登录这个应该是黑色」）。
+   这里用同等级选择器把它压回黑色，并保证选中项文字是白色。 */
+html:is([data-theme='dark'], [data-theme='black']) .login-page .seg {
+  --seg-track: rgba(20, 40, 60, 0.07);
+  --seg-thumb: #161b22;
+  --seg-thumb-shadow: 0 1px 3px rgba(20, 40, 60, 0.28);
+}
+
+html:is([data-theme='dark'], [data-theme='black']) .login-page .seg-btn.on {
+  color: #ffffff;
 }
 
 .login-page .login-foot a {

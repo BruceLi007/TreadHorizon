@@ -818,4 +818,127 @@ export const api = {
 
   /** 本地模式：检查 GitHub 上是否有新版本（2026-11-08 D-319；云端不需要，服务器更新后刷新即新版） */
   checkUpdate: () => fetch('/api/update/check').then((r) => json<UpdateCheckResult>(r)),
+
+  // ── 2026-11-14 D-416：本地分享包导出（P4）──
+
+  /** 弹出系统「选择文件夹」对话框（仅本地安装版；取消返回 canceled=true） */
+  pickShareDir: () =>
+    fetch('/api/share/export/pick-dir', { method: 'POST' }).then((r) =>
+      json<{ ok: boolean; canceled?: boolean; dir?: string }>(r)
+    ),
+
+  /** 启动分享包导出（后台任务；返回 jobId） */
+  startShareExport: (body: ShareExportStartInput) =>
+    fetch('/api/share/export/start', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((r) => json<{ jobId: string; total: number }>(r)),
+
+  /** 分享导出进度（running → done / error / canceled） */
+  shareExportStatus: (jobId: string) =>
+    fetch(`/api/share/export/status/${encodeURIComponent(jobId)}`).then((r) =>
+      json<ShareExportStatus>(r)
+    ),
+
+  /** 取消分享导出 */
+  cancelShareExport: (jobId: string) =>
+    fetch(`/api/share/export/cancel/${encodeURIComponent(jobId)}`, { method: 'POST' }).then((r) =>
+      json<{ ok: boolean }>(r)
+    ),
+
+  /** 在资源管理器里打开分享包所在目录 */
+  revealShareDir: (dir: string) =>
+    fetch('/api/share/export/reveal', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ dir }),
+    }).then((r) => json<{ ok: boolean; dir: string }>(r)),
+
+  // ── 2026-11-14 D-416：云端「我的分享」（P5）──
+
+  /** 上传分享包（multipart：file / expiresIn / password / title） */
+  importShare: (file: File, fields: { expiresIn: string; expiresHours?: number; password?: string; title?: string }) => {
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    fd.append('expiresIn', fields.expiresIn);
+    if (fields.expiresIn === 'custom' && fields.expiresHours) {
+      fd.append('expiresHours', String(fields.expiresHours));
+    }
+    if (fields.password) fd.append('password', fields.password);
+    // 标题总是带上（可能为空）：服务端看到这个字段就以它为准，否则回退到包内 manifest.title
+    fd.append('title', fields.title ?? '');
+    return fetch('/api/shares/import', { method: 'POST', body: fd }).then((r) =>
+      json<{ id: string; token: string; url: string; expiresAt: number | null; counts: ShareCounts }>(r)
+    );
+  },
+
+  /** 我的分享列表 */
+  myShares: () => fetch('/api/shares').then((r) => json<{ items: MyShareRow[] }>(r)),
+
+  /** 撤销一份分享 */
+  revokeShare: (id: string) =>
+    fetch(`/api/shares/${encodeURIComponent(id)}`, { method: 'DELETE' }).then((r) =>
+      json<{ ok: boolean; id: string }>(r)
+    ),
+
+  /** 分享用量 + 统计汇总 */
+  shareUsage: () =>
+    fetch('/api/shares/usage').then((r) =>
+      json<{
+        sharesBytes: number;
+        shareCount: number;
+        quotaBytes: number;
+        mediaBytes: number;
+        views: number;
+        visitors: number;
+      }>(r)
+    ),
 };
+
+export interface ShareCounts {
+  places: number;
+  visits: number;
+  photos: number;
+}
+
+export interface MyShareRow {
+  id: string;
+  token: string;
+  title: string;
+  url: string;
+  createdAt: number;
+  expiresAt: number | null;
+  revokedAt: number | null;
+  status: 'ok' | 'revoked' | 'expired' | 'missing';
+  hasSecret: boolean;
+  hasPassword: boolean;
+  bytes: number;
+  itemCount: number;
+  mediaCount: number;
+  viewCount: number;
+  visitorCount: number;
+  lastViewAt: number | null;
+}
+
+export interface ShareExportStartInput {
+  placeIds: string[];
+  mediaIds: string[];
+  includeNotes: boolean;
+  includeCompanions: boolean;
+  title: string;
+  dir: string;
+  displayName?: string;
+}
+
+export interface ShareExportStatus {
+  jobId: string;
+  state: 'running' | 'done' | 'error' | 'canceled';
+  total: number;
+  done: number;
+  skipped: number;
+  bytes: number;
+  savedPath: string | null;
+  savedName: string | null;
+  error: string | null;
+}

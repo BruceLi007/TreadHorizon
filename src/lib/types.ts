@@ -638,6 +638,11 @@ export interface UserUsage {
   visits: number;
   photos: number;
   videos: number;
+  /** 2026-11-14 D-416：分享副本占用 / 有效份数 / 打开次数 / 独立访客 */
+  sharesBytes?: number;
+  shareCount?: number;
+  views?: number;
+  visitors?: number;
 }
 
 /** 管理员「用户管理」列表的一行 */

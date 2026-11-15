@@ -5124,6 +5124,8 @@ button:focus-visible {
 .pick.on {
   background: var(--accent);
   border-color: var(--accent);
+  /* 勾的颜色跟随主题反色：浅色外观黑底白勾、黑色外观白底黑勾（原来写死 #fff，黑底外观下白勾白底看不见） */
+  color: var(--accent-ink);
 }
 
 .pick.some {

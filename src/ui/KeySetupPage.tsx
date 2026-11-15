@@ -25,6 +25,8 @@ export default function KeySetupPage({
   onClose,
   mode = 'multi',
   readOnlySession = false,
+  onSwitchAccount,
+  accountName,
 }: {
   onDone: () => void;
   /** 关闭小窗（回到欢迎页；缺失 Key 时欢迎页右下按钮显示「请填写地图Key」） */
@@ -36,6 +38,14 @@ export default function KeySetupPage({
    * 不写展示账号、不同访客互不覆盖；文案同步改成「本次会话」口径。
    */
   readOnlySession?: boolean;
+  /**
+   * 2026-11-14 D-417（用户反馈）：云端版登录后若没填 Key 会被卡在这一页，关浏览器回来仍是这页、
+   * 找不到回登录页的入口 → 补一个「换一个账号登录」（退出当前会话并回到登录页）。
+   * 只在 multi 模式传；local 模式没有账号，不显示。
+   */
+  onSwitchAccount?: () => void;
+  /** 当前登录账号的显示名（只用于「当前登录：xxx」文案） */
+  accountName?: string | null;
 }) {
   const t = useT();
   const isLocal = mode === 'local';
@@ -143,6 +153,18 @@ export default function KeySetupPage({
             {busy ? t('保存中…') : t('保存并继续')}
           </button>
         </form>
+
+        {/* 2026-11-14 D-417：云端版卡在 Key 页时给出回登录页的入口（退出当前会话后回到登录页） */}
+        {onSwitchAccount && !isLocal && (
+          <p className="login-switch-row">
+            {accountName ? (
+              <span className="login-switch-name">{t('当前登录：{name}', { name: accountName })}</span>
+            ) : null}
+            <button type="button" className="login-switch-account" onClick={onSwitchAccount}>
+              {t('换一个账号登录')}
+            </button>
+          </p>
+        )}
 
         <p className="login-foot">
           {t('申请地址：')}

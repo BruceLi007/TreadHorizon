@@ -37,7 +37,10 @@ import { WiggleText } from './ui/LoginSlogan';
 import KeySetupPage from './ui/KeySetupPage';
 import LocalEntryPage from './ui/LocalEntryPage';
 import SecretPrompt from './ui/SecretPrompt';
+import ShareConfirmDialog from './ui/ShareConfirmDialog';
+import ShareUploadDialog from './ui/ShareUploadDialog';
 import { api } from './lib/api';
+import { isGuestMode } from './share/guestFlag';
 import {
   loadUploadQueue,
   saveUploadQueue,
@@ -310,6 +313,16 @@ export default function App() {
   /** 从 My旅迹「+ 添加一次到访」进入时，记下要自动展开新增到访表单的地点（D-109） */
   const [autoAddVisitFor, setAutoAddVisitFor] = useState<string | null>(null);
   const [myTrailTab, setMyTrailTab] = useState<MyTrailTab>('visited');
+  // ── 2026-11-14 D-416：本地分享选择模式（P3）──
+  const [shareMode, setShareMode] = useState(false);
+  const [sharePlaces, setSharePlaces] = useState<Place[]>([]);
+  const [shareDetails, setShareDetails] = useState<Map<string, PlaceDetail>>(new Map());
+  /** 地点级勾选（含「只勾了家 / 没有照片」的地点）；照片选择以 shareMedia 为唯一真相 */
+  const [shareSelectedPlaces, setShareSelectedPlaces] = useState<Set<string>>(new Set());
+  const [shareMedia, setShareMedia] = useState<Set<string>>(new Set());
+  const [shareConfirmOpen, setShareConfirmOpen] = useState(false);
+  /** 云端「我的分享」上传对话框（P5） */
+  const [shareUploadOpen, setShareUploadOpen] = useState(false);
   const [trashCount, setTrashCount] = useState(0);
   /** 备份提醒（F-SYS-05）：启动时取一次；设置页关闭 / 恢复 / 导出后刷新 */
   const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null);
@@ -383,6 +396,8 @@ export default function App() {
    * 服务端对写请求一律 403，前端据此隐藏所有写入口（添加足迹 / 编辑 / 上传 / 删除 / 批量 / 备份恢复等）。
    */
   const readOnly = authMe?.user?.readOnly === true;
+  /** 2026-11-15 D-423：分享页以只读访客身份复用本组件——顶栏入口全部保留，但不可用时挂只读提示 */
+  const guest = isGuestMode();
   /**
    * 2026-11-11 用户拍板（v1.1.0 修订）：**云端（multi）不再提供应用内备份 / 恢复**
    * —— 管理员也一样（设置里不显示「备份与恢复」分类）；云端数据备份由管理员在服务器侧完成，
@@ -895,6 +910,297 @@ export default function App() {
     [openPlaceById]
   );
 
+  // ───────────── 分享选择模式（2026-11-14 D-416 / P3）─────────────
+
+  const shareStorageKey = useMemo(
+    () => `tm-share-selection:${authMe?.user?.id || 'local'}`,
+    [authMe?.user?.id]
+  );
+
+  useEffect(() => {
+    if (!shareMode) return;
+    try {
+      sessionStorage.setItem(
+        shareStorageKey,
+        JSON.stringify({
+          placeIds: [...shareSelectedPlaces],
+          mediaIds: [...shareMedia],
+          includeNotes: true,
+          includeCompanions: true,
+          title: '',
+          savedAt: Date.now(),
+        })
+      );
+    } catch {
+      /* 存不下就只保留内存状态 */
+    }
+  }, [shareMode, shareStorageKey, shareSelectedPlaces, shareMedia]);
+
+  const clearShareSelection = useCallback(() => {
+    setShareSelectedPlaces(new Set());
+    setShareMedia(new Set());
+    try {
+      sessionStorage.removeItem(shareStorageKey);
+    } catch {
+      /* ignore */
+    }
+  }, [shareStorageKey]);
+
+  const loadShareDetail = useCallback(
+    async (id: string) => {
+      const cached = shareDetails.get(id);
+      if (cached) return cached;
+      const p = await api.place(id);
+      setShareDetails((prev) => {
+        const next = new Map(prev);
+        next.set(p.id, p);
+        return next;
+      });
+      return p;
+    },
+    [shareDetails]
+  );
+
+  const enterShareMode = useCallback(async () => {
+    if (readOnly) return;
+    if (authMe?.mode === 'multi') {
+      setShareUploadOpen(true);
+      return;
+    }
+    setShareMode(true);
+    setShareConfirmOpen(false);
+    setShareDetails(new Map());
+    setMyTrailTab('visited');
+    setMyTrailOpen(true);
+    setMyTrailParked(false);
+    setDetail(null);
+    setSelectedId(null);
+    setStatsOpen(false);
+    setPhotoWall(null);
+    setTopAction(null);
+    let restored = 0;
+    try {
+      const raw = sessionStorage.getItem(shareStorageKey);
+      if (raw) {
+        const v = JSON.parse(raw);
+        const placeIds: string[] = Array.isArray(v?.placeIds) ? v.placeIds.filter((x: unknown) => typeof x === 'string') : [];
+        const mediaIds: string[] = Array.isArray(v?.mediaIds) ? v.mediaIds.filter((x: unknown) => typeof x === 'string') : [];
+        setShareSelectedPlaces(new Set(placeIds));
+        setShareMedia(new Set(mediaIds));
+        restored = mediaIds.length;
+      } else {
+        setShareSelectedPlaces(new Set());
+        setShareMedia(new Set());
+      }
+    } catch {
+      setShareSelectedPlaces(new Set());
+      setShareMedia(new Set());
+    }
+    try {
+      const all = await api.places();
+      setSharePlaces(all);
+      // D-422：进分享态时把去过地点的详情一起拉回来，列表勾选框的三态（全选 / 部分）才准
+      void Promise.all(
+        all
+          .filter((p) => p.kind !== 'wishlist')
+          .map(async (p) => {
+            try {
+              const d = await api.place(p.id);
+              setShareDetails((prev) => new Map(prev).set(d.id, d));
+            } catch {
+              /* 单个地点失败不影响列表 */
+            }
+          })
+      );
+    } catch {
+      setSharePlaces([]);
+    }
+    if (restored > 0) say(tr('已恢复上次选择（{n} 张照片）', { n: restored }));
+  }, [readOnly, authMe?.mode, shareStorageKey, say]);
+
+  const exitShareMode = useCallback(() => {
+    setShareMode(false);
+    setShareConfirmOpen(false);
+    setMyTrailParked(false);
+  }, []);
+
+  /** 勾选 / 取消一个地点的全部照片（三态） */
+  const toggleSharePlace = useCallback(
+    async (p: Place) => {
+      // D-427：秘密基地不参与分享（前端已禁用勾选框，这里再兜一道）
+      if (p.secret === 1) return;
+      let detail: PlaceDetail;
+      try {
+        detail = await loadShareDetail(p.id);
+      } catch (e: any) {
+        say(tr('读取地点失败：{msg}', { msg: e?.message || String(e) }));
+        return;
+      }
+      const ids = detail.visits
+        .flatMap((v) => v.media)
+        .filter((m) => m.kind === 'photo')
+        .map((m) => m.id);
+      if (!ids.length) {
+        // 没有照片的地点（如家）：只切换地点本身
+        setShareSelectedPlaces((prev) => {
+          const next = new Set(prev);
+          if (next.has(p.id)) next.delete(p.id);
+          else next.add(p.id);
+          return next;
+        });
+        return;
+      }
+      const all = ids.every((id) => shareMedia.has(id));
+      const nextMedia = new Set(shareMedia);
+      for (const id of ids) {
+        if (all) nextMedia.delete(id);
+        else nextMedia.add(id);
+      }
+      setShareMedia(nextMedia);
+      setShareSelectedPlaces((prev) => {
+        const next = new Set(prev);
+        if (all) next.delete(p.id);
+        else next.add(p.id);
+        return next;
+      });
+    },
+    [loadShareDetail, shareMedia, say]
+  );
+
+  /** 单张照片勾选（在分享抽屉里） */
+  const toggleShareMedia = useCallback(
+    (id: string) => {
+      const next = new Set(shareMedia);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      setShareMedia(next);
+      setShareSelectedPlaces((prev) => {
+        const nextPlaces = new Set(prev);
+        for (const [pid, d] of shareDetails.entries()) {
+          const ids = d.visits.flatMap((v) => v.media).filter((m) => m.kind === 'photo').map((m) => m.id);
+          if (!ids.includes(id)) continue;
+          const any = ids.some((x) => next.has(x));
+          if (any) nextPlaces.add(pid);
+          else nextPlaces.delete(pid);
+        }
+        return nextPlaces;
+      });
+    },
+    [shareMedia, shareDetails]
+  );
+
+  /** 一次到访的全选 / 清空 */
+  const toggleShareVisit = useCallback(
+    (ids: string[]) => {
+      if (!ids.length) return;
+      const all = ids.every((id) => shareMedia.has(id));
+      const next = new Set(shareMedia);
+      for (const id of ids) {
+        if (all) next.delete(id);
+        else next.add(id);
+      }
+      setShareMedia(next);
+      setShareSelectedPlaces((prev) => {
+        const nextPlaces = new Set(prev);
+        for (const [pid, d] of shareDetails.entries()) {
+          const own = new Set(
+            d.visits.flatMap((v) => v.media).filter((m) => m.kind === 'photo').map((m) => m.id)
+          );
+          if (!ids.some((x) => own.has(x))) continue;
+          const any = [...own].some((x) => next.has(x));
+          if (any) nextPlaces.add(pid);
+          else nextPlaces.delete(pid);
+        }
+        return nextPlaces;
+      });
+    },
+    [shareMedia, shareDetails]
+  );
+
+  /** 省 / 市分组级：整组勾选或整组取消（先把这些地点的详情取回来，照片 id 才算得准） */
+  const selectSharePlaces = useCallback(
+    async (list: Place[], select: boolean) => {
+      // D-427：秘密基地不参与分享，整组勾选时直接跳过
+      list = list.filter((p) => p.secret !== 1);
+      if (!list.length) return;
+      const details: PlaceDetail[] = [];
+      for (const p of list) {
+        try {
+          details.push(await loadShareDetail(p.id));
+        } catch {
+          /* 单个地点读取失败就跳过，不影响其它地点 */
+        }
+      }
+      const ids: string[] = [];
+      const withPhotos = new Set<string>();
+      for (const d of details) {
+        let n = 0;
+        for (const v of d.visits || []) {
+          for (const m of v.media || []) {
+            if (m.kind !== 'photo') continue;
+            ids.push(m.id);
+            n += 1;
+          }
+        }
+        if (n > 0) withPhotos.add(d.id);
+      }
+      if (ids.length) {
+        setShareMedia((prev) => {
+          const next = new Set(prev);
+          for (const id of ids) {
+            if (select) next.add(id);
+            else next.delete(id);
+          }
+          return next;
+        });
+      }
+      setShareSelectedPlaces((prev) => {
+        const next = new Set(prev);
+        for (const p of list) {
+          if (!select) {
+            next.delete(p.id);
+            continue;
+          }
+          // 整组勾选只把「有照片」的地点算进来（家 / 空地点不会平白多一个点）；
+          // 整组都没有照片（想去清单里的省 / 市）则按地点本身勾。
+          if (!ids.length || withPhotos.has(p.id)) next.add(p.id);
+        }
+        return next;
+      });
+    },
+    [loadShareDetail]
+  );
+
+  const shareCounts = useMemo(() => {
+    let visits = 0;
+    let minDate = '';
+    let maxDate = '';
+    for (const d of shareDetails.values()) {
+      for (const v of d.visits) {
+        const picked = v.media.filter((m) => m.kind === 'photo' && shareMedia.has(m.id));
+        if (!picked.length) continue;
+        visits += 1;
+        if (v.date) {
+          if (!minDate || v.date < minDate) minDate = v.date;
+          if (!maxDate || v.date > maxDate) maxDate = v.date;
+        }
+      }
+    }
+    return {
+      places: shareSelectedPlaces.size,
+      visits,
+      photos: shareMedia.size,
+      range: minDate || maxDate ? { from: minDate || maxDate, to: maxDate || minDate } : null,
+    };
+  }, [shareDetails, shareMedia, shareSelectedPlaces]);
+
+  const shareHomeDistance = null;
+
+  /** 确认分享：D-427 起秘密基地不再参与分享，直接开弹窗（没有解锁那一步了） */
+  const requestShareConfirm = useCallback(() => {
+    setShareConfirmOpen(true);
+  }, []);
+
   /** 从聚合簇列表点成员：飞过去 + 按「这一簇」来路打开详情（返回时恢复簇面板，D-290） */
   const selectClusterPlace = useCallback(
     (p: Place) => {
@@ -950,6 +1256,22 @@ export default function App() {
 
   /** 定位应用完成（滚动 + 高亮播完）后清掉 focus：稳定引用，避免面板里的应用 effect 被重复触发（D-290） */
   const clearMyTrailFocus = useCallback(() => setMyTrailFocus(null), []);
+
+  /**
+   * 2026-11-14 D-417（用户反馈）：云端版登录后若还没填天地图 Key，会被卡在 Key 引导页，
+   * 关掉浏览器再回来仍是这一页，找不到回「用户名登录」界面的入口。
+   * 「换一个账号登录」= 退出当前会话（POST /api/auth/logout）→ 整页重新加载 → 回到登录页。
+   * local 模式没有账号，返回 undefined（不渲染入口）。
+   */
+  const currentAccountName = authMe?.user?.displayName || authMe?.user?.username || null;
+  const switchAccount = useCallback(() => {
+    if (authMe?.mode !== 'multi') return;
+    void api
+      .logout()
+      .catch(() => undefined)
+      .finally(() => window.location.reload());
+  }, [authMe?.mode]);
+  const switchAccountProp = authMe?.mode === 'multi' ? switchAccount : undefined;
 
   /**
    * 地点详情面包屑（D-290）：跳到 My旅迹，展开到该省 / 市 / 地点并短暂高亮。
@@ -1781,6 +2103,8 @@ export default function App() {
                 readOnlySession={readOnly}
                 onDone={() => window.location.reload()}
                 onClose={() => setKeySetupClosed(true)}
+                onSwitchAccount={switchAccountProp}
+                accountName={currentAccountName}
               />
             ) : null
           }
@@ -1957,10 +2281,13 @@ export default function App() {
 
         {boot === 'ready' && (
           <div className="hud">
+            {/* 2026-11-14 D-416：分享入口（本地版进入 My旅迹选择态；云端版 P5 接上传对话框）
+                2026-11-15 D-422 修正：与「+ 添加足迹」同一样式（反色胶囊 + 分享箭头图标），
+                放在它右侧；黑底外观下也不再看不见 */}
             {/* 2026-11-09 D-333（云端版用户要求）：头像 + 名称从「+ 添加足迹」上方移到
                 HUD 行右上角，**右缘与大按钮组（.actions）右缘对齐**（见 styles.css .hud-user）。
                 点头像 / 名称都打开 设置 → 账号。 */}
-            {topbarUser && !readOnly && (
+            {topbarUser && (!readOnly || guest) && (
               <div className="hud-user">
                 <div className="hud-avatar-wrap">
                   <button
@@ -2051,7 +2378,7 @@ export default function App() {
                   </div>
                 )}
               </div>
-              {!readOnly && (
+              {(!readOnly || guest) && (
                 <div className="hud-add-wrap">
                   <button
                     type="button"
@@ -2070,6 +2397,36 @@ export default function App() {
                     {t('+ 添加足迹')}
                   </button>
                 </div>
+              )}
+              {(!readOnly || guest) && (
+                <button
+                  type="button"
+                  className={shareMode ? 'hud-share-btn on' : 'hud-share-btn'}
+                  onClick={() => {
+                    if (shareMode) exitShareMode();
+                    else void enterShareMode();
+                  }}
+                  title={
+                    shareMode
+                      ? t('退出分享选择')
+                      : t('分享（选择地点 / 到访 / 照片导出分享包）')
+                  }
+                  aria-pressed={shareMode}
+                >
+                  <svg
+                    viewBox="0 0 16 16"
+                    width="20"
+                    height="20"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path
+                      fill="#FFB703"
+                      d="M2 14.8C2.8 10.4 5.4 6.9 9 4.8L9 1.5 15.9 6.6 9 11.7 9 8.7C6.4 10.5 4.6 12.5 4.2 14.8Z"
+                    />
+                  </svg>
+                  <span>{shareMode ? t('退出分享') : t('分享')}</span>
+                </button>
               )}
             </div>
 
@@ -2341,6 +2698,19 @@ export default function App() {
           range={range}
           tab={myTrailTab}
           readOnly={readOnly}
+          shareMode={shareMode}
+          sharePlaces={sharePlaces}
+          shareSelectedPlaceIds={shareSelectedPlaces}
+          shareSelectedMediaIds={shareMedia}
+          shareDetailMap={shareDetails}
+          shareCounts={shareCounts}
+          onShareTogglePlace={(p) => void toggleSharePlace(p)}
+          onShareSelectPlaces={(ps, select) => void selectSharePlaces(ps, select)}
+          onShareToggleVisit={(ids) => toggleShareVisit(ids)}
+          onShareTogglePhoto={toggleShareMedia}
+          onShareClear={clearShareSelection}
+          onShareConfirm={requestShareConfirm}
+          onShareExit={exitShareMode}
           /* D-290：从详情面包屑跳进来时，展开定位到该省 / 市 / 地点并高亮 */
           focus={myTrailFocus}
           onFocusApplied={clearMyTrailFocus}
@@ -2371,6 +2741,23 @@ export default function App() {
             void refreshHomePlace();
           }}
         />
+      )}
+
+      {shareMode && (
+        <ShareConfirmDialog
+          open={shareConfirmOpen}
+          placeIds={[...shareSelectedPlaces]}
+          mediaIds={[...shareMedia]}
+          counts={shareCounts}
+          range={shareCounts.range}
+          displayName={topbarUser?.displayName || topbarUser?.username || ''}
+          onClose={() => setShareConfirmOpen(false)}
+          onExported={clearShareSelection}
+        />
+      )}
+
+      {shareUploadOpen && (
+        <ShareUploadDialog open={shareUploadOpen} onClose={() => setShareUploadOpen(false)} />
       )}
 
       {settingsOpen && (

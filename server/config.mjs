@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, statSync, accessSync, constants as fsConstants } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -46,6 +47,27 @@ export function saveLocalConfig(patch) {
     console.error('[config] 写入 config.json 失败：', e.message);
     return false;
   }
+}
+
+/**
+ * 分享功能的 HMAC 密钥（2026-11-14 D-416）：解锁 Cookie + 匿名访客去重都用它。
+ * 首次使用时随机生成并写进 data/config.json；不进备份、不下发前端。
+ * 写盘失败时本次进程用临时密钥兜底（重启后旧 Cookie 失效，可接受）。
+ */
+let memoShareCookieSecret = '';
+export function getShareCookieSecret() {
+  if (memoShareCookieSecret) return memoShareCookieSecret;
+  const cur = readLocalConfig().shareCookieSecret;
+  if (typeof cur === 'string' && cur.length >= 32) {
+    memoShareCookieSecret = cur;
+    return memoShareCookieSecret;
+  }
+  const secret = randomBytes(32).toString('hex');
+  if (!saveLocalConfig({ shareCookieSecret: secret })) {
+    console.warn('[config] ⚠️ 分享 Cookie 密钥写入 data/config.json 失败，本次使用临时密钥');
+  }
+  memoShareCookieSecret = secret;
+  return memoShareCookieSecret;
 }
 
 // 默认路径：开发期用仓内 .dev-media，正式运行用 MEDIA_ROOT
@@ -249,6 +271,13 @@ export const CONFIG = {
    * 账号本人仍可用密码正常登录维护展示内容。留空 = 关闭（默认，local 模式完全不受影响）。
    */
   demoUsername: typeof env.DEMO_USERNAME === 'string' ? env.DEMO_USERNAME.trim() : '',
+  /**
+   * 分享链接基座（2026-11-14 D-416）：优先用部署配置 PUBLIC_BASE_URL（如 http://60.205.95.110:8080），
+   * 留空则按请求协议 + Host 自动拼（Fastify trustProxy 已开，反代后可取真实域名）。
+   * 代码不写死端口 / 域名。
+   */
+  publicBaseUrl:
+    typeof env.PUBLIC_BASE_URL === 'string' ? env.PUBLIC_BASE_URL.trim().replace(/\/+$/, '') : '',
   tdtTk: localTdtTk || envTdtTk,
   dataDir,
   thumbDir,

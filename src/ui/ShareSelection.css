@@ -1,0 +1,1022 @@
+/* 顶栏「分享 / 退出分享」：与「+ 添加足迹」完全同一套反色胶囊（高 38 / 14px 字 / 999 圆角），
+   左侧加一个向上右转的分享箭头图标（2026-11-15 D-422 用户要求：黑底外观下也要看得见） */
+.hud-share-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--text-1);
+  color: var(--bg-panel);
+  font-family: inherit;
+  font-size: calc(14px * var(--fs-scale));
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    filter 140ms ease,
+    box-shadow 140ms ease,
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.hud-share-btn:hover {
+  filter: brightness(1.08);
+}
+
+.hud-share-btn svg {
+  flex: none;
+}
+
+/* 选中状态只是把文案换成「退出分享」并轻微压暗；底色 / 字色与「+ 添加足迹」始终一致，
+   避免黑底外观下变成「白字白描边」贴在浅色地图上看不见（用户反馈） */
+.hud-share-btn.on {
+  filter: brightness(0.94);
+}
+
+.share-place-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0 10px;
+}
+
+.mytrail-share {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* 分享态的说明行：跟搜索行同样的留白 / 字号，不再做成琥珀色提示框 */
+.mytrail-share-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 14px 0;
+  color: var(--text-3);
+  font-size: calc(12px * var(--fs-scale));
+  line-height: 1.5;
+}
+
+.mytrail-share-exit {
+  flex: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: calc(12px * var(--fs-scale));
+  cursor: pointer;
+}
+
+.mytrail-share-exit:hover {
+  color: var(--text-1);
+  text-decoration: underline;
+}
+
+/* 底部计数条：照抄 My旅迹 批量条（白底 / 顶边线 / 26px 胶囊按钮），不再是黑条 */
+.mytrail-share-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-panel);
+}
+
+.mytrail-share-counts {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-1);
+  font-size: calc(12px * var(--fs-scale));
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mytrail-share-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mytrail-share-actions .ghost,
+.mytrail-share-actions .primary {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: calc(12px * var(--fs-scale));
+  cursor: pointer;
+}
+
+.mytrail-share-actions .ghost {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-1);
+}
+
+.mytrail-share-actions .primary {
+  border: 0;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.mytrail-share-actions .primary:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.share-prov-head {
+  padding: 12px 16px 6px;
+  color: var(--text-3);
+  font-size: calc(12px * var(--fs-scale));
+  letter-spacing: 0.04em;
+}
+
+.share-place-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.share-place-row:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.share-place-row.picked {
+  border-left-color: #f4ae62;
+  background: rgba(244, 174, 98, 0.07);
+}
+
+.share-place-row.disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.share-place-row .pick,
+.share-visit-head .pick {
+  margin-top: 2px;
+  flex: none;
+}
+
+.share-place-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.share-place-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: calc(14px * var(--fs-scale));
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.share-lock {
+  font-size: calc(11px * var(--fs-scale));
+}
+
+.share-place-meta {
+  margin-top: 3px;
+  color: var(--text-3);
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.share-place-note {
+  margin-top: 5px;
+  color: #f4ae62;
+  font-size: calc(11.5px * var(--fs-scale));
+}
+
+.share-unlock-btn {
+  flex: none;
+  align-self: center;
+  border: 1px solid rgba(244, 174, 98, 0.5);
+  background: rgba(244, 174, 98, 0.1);
+  color: #f4ae62;
+  border-radius: 8px;
+  padding: 5px 9px;
+  font-size: calc(12px * var(--fs-scale));
+  cursor: pointer;
+}
+
+.share-empty-hint {
+  padding: 24px 16px;
+  color: var(--text-3);
+  font-size: calc(13px * var(--fs-scale));
+  text-align: center;
+}
+
+/* ── 右侧抽屉 ── */
+.share-sidebar {
+  width: min(460px, calc(100vw - 28px));
+  z-index: 31;
+}
+
+.share-sidebar-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 18px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.share-sidebar-head h2 {
+  margin: 0;
+  font-size: calc(20px * var(--fs-scale));
+  overflow-wrap: anywhere;
+}
+
+.share-sidebar-region {
+  margin: 4px 0 0;
+  color: var(--text-2);
+  font-size: calc(12.5px * var(--fs-scale));
+}
+
+.share-sidebar-meta {
+  margin: 6px 0 0;
+  color: #f4ae62;
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.share-sidebar-body {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 16px 20px;
+}
+
+.share-visit {
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.share-visit:last-child {
+  border-bottom: 0;
+}
+
+.share-visit-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.share-visit-date {
+  font-weight: 600;
+  font-size: calc(13px * var(--fs-scale));
+}
+
+.share-visit-title {
+  color: var(--text-2);
+  font-size: calc(12.5px * var(--fs-scale));
+}
+
+.share-visit-count {
+  color: var(--text-3);
+  font-size: calc(11.5px * var(--fs-scale));
+}
+
+.share-mini-btn {
+  margin-left: auto;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-2);
+  border-radius: 7px;
+  padding: 2px 7px;
+  font-size: calc(11.5px * var(--fs-scale));
+  cursor: pointer;
+}
+
+.share-media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.share-media-tile {
+  position: relative;
+  aspect-ratio: 1;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  padding: 0;
+  background: var(--bg-raised);
+  cursor: pointer;
+}
+
+.share-media-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.share-media-tile.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.share-media-tile.on img {
+  filter: brightness(0.82);
+}
+
+.share-tile-pick {
+  position: absolute !important;
+  left: 5px;
+  top: 5px;
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px;
+  border-radius: 50%;
+  background: rgba(11, 13, 16, 0.62) !important;
+  border: 1px solid rgba(255, 255, 255, 0.55) !important;
+  color: var(--accent-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.share-tile-pick.on {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+
+.share-media-tile.video {
+  cursor: default;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-raised);
+  color: var(--text-3);
+}
+
+.share-video-badge {
+  font-size: calc(20px * var(--fs-scale));
+  opacity: 0.5;
+}
+
+.share-video-time {
+  position: absolute;
+  right: 5px;
+  bottom: 4px;
+  font-size: calc(10.5px * var(--fs-scale));
+  color: var(--text-2);
+}
+
+/* ── 确认 / 进度 / 成功弹窗 ── */
+.share-modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(5, 7, 9, 0.72);
+}
+
+.share-modal {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--bg-panel);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+  padding: 26px 26px 22px;
+}
+
+.share-modal h2 {
+  margin: 0 0 16px;
+  font-size: calc(22px * var(--fs-scale));
+}
+
+.share-modal-x {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.share-confirm-stats {
+  margin: 0 0 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 18px;
+}
+
+.share-confirm-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.share-confirm-stats dt {
+  color: var(--text-3);
+  font-size: calc(11.5px * var(--fs-scale));
+}
+
+.share-confirm-stats dd {
+  margin: 0;
+  font-size: calc(14px * var(--fs-scale));
+}
+
+.share-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: calc(12.5px * var(--fs-scale));
+  color: var(--text-2);
+}
+
+.share-field input {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--bg-raised);
+  color: var(--text-1);
+  padding: 9px 11px;
+  font-size: calc(14px * var(--fs-scale));
+}
+
+.share-checks {
+  display: flex;
+  gap: 18px;
+  margin-bottom: 12px;
+  color: var(--text-2);
+  font-size: calc(13px * var(--fs-scale));
+}
+
+.share-checks label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+/* 弹窗里的原生勾选框也跟随主题强调色（与 .pick 同一套观感） */
+.share-modal input[type='checkbox'] {
+  accent-color: var(--accent);
+}
+
+.share-warn {
+  margin: 8px 0;
+  color: var(--bad);
+  font-size: calc(12.5px * var(--fs-scale));
+  line-height: 1.6;
+}
+
+.share-note {
+  margin: 10px 0;
+  color: var(--text-3);
+  font-size: calc(12px * var(--fs-scale));
+  line-height: 1.7;
+}
+
+.share-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.share-modal-actions.wrap {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+/* D-428（用户拍板）：弹窗动作按钮也抬到 38px，与字段 / 下拉 /「自动生成」同一档 */
+.share-modal-actions .ghost,
+.share-modal-actions .primary {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: calc(13px * var(--fs-scale));
+  cursor: pointer;
+}
+
+.share-modal-actions .ghost {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-1);
+}
+
+.share-modal-actions .primary {
+  border: 0;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.share-modal-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.share-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-raised);
+  overflow: hidden;
+  margin: 14px 0 8px;
+}
+
+.share-progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.share-file-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 8px;
+  font-size: calc(14px * var(--fs-scale));
+}
+
+.share-file-line span {
+  color: var(--text-2);
+  flex: none;
+}
+
+.share-path {
+  margin: 0 0 12px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--bg-raised);
+  color: var(--text-2);
+  font-size: calc(12px * var(--fs-scale));
+  overflow-wrap: anywhere;
+}
+
+.share-next {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.share-next p {
+  margin: 0 0 10px;
+  color: var(--text-2);
+  font-size: calc(12.5px * var(--fs-scale));
+  line-height: 1.7;
+}
+
+.share-site-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  font-size: calc(13px * var(--fs-scale));
+  text-decoration: none;
+}
+
+.share-error-text {
+  color: var(--bad);
+  font-size: calc(13px * var(--fs-scale));
+  line-height: 1.7;
+}
+
+/* ── 云端「我的分享」上传 / 列表（P5） ── */
+.share-upload-modal {
+  width: min(640px, 100%);
+}
+
+.share-usage-line {
+  margin: 0 0 14px;
+  color: var(--text-3);
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.share-upload-row {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 12px;
+}
+
+.share-upload-row select {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--bg-raised);
+  color: var(--text-1);
+  padding: 9px 11px;
+  font-size: calc(14px * var(--fs-scale));
+}
+
+.share-password-row {
+  display: flex;
+  gap: 8px;
+}
+
+.share-password-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.share-password-row .ghost {
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-2);
+  padding: 0 12px;
+  font-size: calc(12px * var(--fs-scale));
+  cursor: pointer;
+}
+
+.share-check-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0 12px;
+  color: var(--text-1);
+  font-size: calc(12.5px * var(--fs-scale));
+  line-height: 1.6;
+}
+
+.share-check-line input {
+  margin-top: 3px;
+}
+
+.share-upload-result h3 {
+  margin: 0 0 10px;
+  font-size: calc(16px * var(--fs-scale));
+}
+
+.myshares {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.myshares h3 {
+  margin: 0 0 10px;
+  font-size: calc(15px * var(--fs-scale));
+}
+
+.myshare-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.myshare-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.myshare-main b {
+  font-size: calc(13px * var(--fs-scale));
+  overflow-wrap: anywhere;
+}
+
+.myshare-main span {
+  color: var(--text-3);
+  font-size: calc(11.5px * var(--fs-scale));
+}
+
+.myshare-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+}
+
+.myshare-status {
+  font-size: calc(11px * var(--fs-scale));
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+
+.myshare-status.ok {
+  color: #77c38b;
+  border-color: rgba(119, 195, 139, 0.4);
+}
+
+.myshare-status.revoked,
+.myshare-status.expired {
+  color: var(--text-3);
+}
+
+.myshare-actions button,
+.myshare-actions .link {
+  border: 1px solid var(--line);
+  background: transparent;
+  border-radius: 7px;
+  padding: 3px 8px;
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-2);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.myshare-actions button.danger {
+  border-color: #e06c75;
+  color: #e06c75;
+}
+
+/* 2026-11-14 D-422：分享态复用原版 My旅迹 列表时，仅视频 / 未解锁的秘密基地行置灰 */
+.place-row.share-disabled {
+  opacity: 0.55;
+}
+.place-row.share-disabled .pick {
+  cursor: default;
+}
+
+/* D-422：分享选择全部在 My旅迹 原列表里就地展开——点地点展开到访，点到访展开照片 */
+.share-row-caret {
+  flex: none;
+  margin-left: 4px;
+}
+
+.share-inline-block {
+  padding: 0 14px 6px 40px;
+}
+
+.share-inline-visit {
+  padding: 3px 0;
+}
+
+.share-inline-visit + .share-inline-visit {
+  border-top: 1px solid var(--line);
+}
+
+.share-inline-visit-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.share-inline-visit-head:hover {
+  background: var(--accent-soft);
+}
+
+.share-inline-date {
+  font-weight: 600;
+  font-size: calc(12.5px * var(--fs-scale));
+}
+
+.share-inline-title {
+  color: var(--text-2);
+  font-size: calc(12px * var(--fs-scale));
+}
+
+.share-inline-count {
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: calc(11.5px * var(--fs-scale));
+  white-space: nowrap;
+}
+
+/* D-424：分享包文件选择器改用主题胶囊按钮，和输入框 / 下拉框同一套字体与配色 */
+.share-field input[type='file'] {
+  padding: 6px 8px;
+  font-size: calc(12.5px * var(--fs-scale));
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.share-field input[type='file']::file-selector-button {
+  margin-right: 10px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-panel);
+  color: var(--text-1);
+  font: inherit;
+  font-size: calc(12.5px * var(--fs-scale));
+  cursor: pointer;
+}
+
+/* D-424：我的分享行里的「有效 / 复制链接 / 预览 / 撤销」统一成同一套小胶囊，
+   修 <a> 默认 inline 导致的「预览」按钮不与其他按钮对齐 */
+.myshare-status {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.myshare-actions .ghost,
+.myshare-actions .danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: calc(12px * var(--fs-scale));
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.myshare-actions .ghost {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-1);
+}
+
+.myshare-actions .danger {
+  border: 1px solid rgba(224, 108, 117, 0.45);
+  background: rgba(224, 108, 117, 0.12);
+  color: var(--bad);
+  font-weight: 600;
+}
+
+/* D-424：分享包文件选择改成「主题按钮 + 文件名」，不再用浏览器原生 file 控件 */
+.share-file-pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.share-file-pick .ghost {
+  flex: none;
+  height: 34px;
+  padding: 0 14px;
+  font-size: calc(12.5px * var(--fs-scale));
+}
+
+.share-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+  font-size: calc(12.5px * var(--fs-scale));
+}
+
+/* D-424：我的分享默认只显示标题 + 操作按钮，有效期 / 访问统计收进「详情」 */
+.myshare-title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.myshare-title-line b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.myshare-row .myshare-main {
+  flex: 1;
+}
+
+/* D-424：我的分享行改成「标题 + 操作」一行，详情抽屉独占一行，避免详情文字把按钮挤成两行 */
+.myshare-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+.myshare-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.myshare-meta {
+  margin: 0;
+  color: var(--text-3);
+  font-size: calc(11.5px * var(--fs-scale));
+  line-height: 1.6;
+}
+
+.myshares-more {
+  display: block;
+  margin: 8px auto 0;
+  padding: 2px 10px;
+  color: var(--text-2);
+}
+
+.myshares-more:hover {
+  color: var(--text-1);
+}
+
+/* D-424：分享弹窗里的 <select> 没有继承界面字体（浏览器 UA 样式只给了 font-size），
+   导致「有效期」和下拉选项是系统默认字体；统一跟随主题字体与字号 */
+.share-field select,
+.share-upload-row select {
+  font: inherit;
+  font-size: calc(14px * var(--fs-scale));
+  line-height: 1.4;
+  color: var(--text-1);
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 9px 11px;
+}
+
+.share-field select:focus,
+.share-upload-row select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+/* D-424：自定义时效 = 数字 + 「小时」 */
+.share-custom-expiry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.share-custom-expiry input {
+  width: 96px;
+  padding: 7px 10px;
+  font-size: calc(13px * var(--fs-scale));
+}
+
+.share-custom-expiry span {
+  color: var(--text-2);
+  font-size: calc(12px * var(--fs-scale));
+}
+
+/* D-424：分享弹窗里输入框 / 下拉框 / 自动生成按钮统一高度（之前 select 比 input 高几像素） */
+.share-field input:not([type='file']),
+.share-field select,
+.share-upload-row select {
+  height: 38px;
+  box-sizing: border-box;
+  padding: 0 11px;
+  font-size: calc(14px * var(--fs-scale));
+  line-height: 1.35;
+}
+
+.share-password-row .ghost {
+  height: 38px;
+}
+
+.share-custom-expiry input {
+  height: 34px;
+}
+
+/* 2026-11-15 D-426（用户验收反馈「还有没统一的」）：
+   顶栏「分享」按钮必须和「+ 添加足迹」同档。`.hud-add` 在 styles.css 的
+   `@media (max-width: 1419px)` 里压扁成 34px / 13px 字号，而 `.hud-share-btn`
+   原本只有宽屏那一条（38px / 14px）→ 窄屏下两个按钮差 4px 高、1.3px 字号，并排看着不齐。
+   这里补上同一档，两处规则保持一致。 */
+@media (max-width: 1419px) {
+  .hud-share-btn {
+    height: 34px;
+    padding: 0 16px;
+    font-size: calc(13px * var(--fs-scale));
+  }
+}

@@ -18,6 +18,7 @@ import settings from './settings';
 import sidebar from './sidebar';
 import panels from './panels';
 import lists from './lists';
+import share from './share';
 
 export const EN: Dict = {
   ...common,
@@ -25,4 +26,5 @@ export const EN: Dict = {
   ...sidebar,
   ...panels,
   ...lists,
+  ...share,
 };

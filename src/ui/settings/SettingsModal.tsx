@@ -16,6 +16,7 @@ import SecuritySettings from './SecuritySettings';
 import AccountSettings from './AccountSettings';
 import UserManagementSettings from './UserManagementSettings';
 import UploadSettings from './UploadSettings';
+import SharesSettings from './SharesSettings';
 import AboutSettings from './AboutSettings';
 import './SettingsModal.css';
 
@@ -109,6 +110,7 @@ export type TabId =
   | 'general'
   | 'backup'
   | 'library'
+  | 'myshares'
   | 'upload'
   | 'trash'
   | 'tdt'
@@ -153,6 +155,13 @@ const TRASH_TAB: { id: TabId; label: string; desc: string } = {
   id: 'trash',
   label: '回收站',
   desc: '已删除的地点 / 到访 / 照片视频',
+};
+
+/** 我的分享：2026-11-15 D-424（用户要求）——单独一栏，放在「素材库」下面；只在云端（multi）且非只读时出现 */
+const MYSHARES_TAB: { id: TabId; label: string; desc: string } = {
+  id: 'myshares',
+  label: '我的分享',
+  desc: '已上传的分享链接、访问统计与撤销',
 };
 
 /** 窗口默认大小与拖拽下限（实际还会被视口大小限制） */
@@ -261,6 +270,12 @@ function NavIcon({ id }: { id: TabId }) {
             <path d="M2.8 9.4v2.4a1.4 1.4 0 0 0 1.4 1.4h7.6a1.4 1.4 0 0 0 1.4-1.4V9.4" />
           </>
         )}
+        {id === 'myshares' && (
+          <>
+            <path d="M2.8 12.8c.7-4 3.4-6.4 7.2-6.4" />
+            <path d="M8.6 3.5 11.7 6.4 8.6 9.3" />
+          </>
+        )}
         {id === 'about' && (
           <>
             <circle cx="8" cy="8" r="5.8" />
@@ -341,7 +356,7 @@ export default function SettingsModal({
     ? visibleMainTabs.filter((item) => item.id === 'general' || item.id === 'tdt')
     : visibleMainTabs;
   // 2026-11-07 用户要求（D-221 修订）：回收站放回分类列表、位于「关于」上面；multi 下「账号」固定到左下角单独显示。
-  const tabs = readOnly
+  const baseTabs = readOnly
     ? [...mainTabs, ABOUT_TAB]
     : multi
       ? [
@@ -351,6 +366,11 @@ export default function SettingsModal({
           ABOUT_TAB,
         ]
       : [...mainTabs, TRASH_TAB, ABOUT_TAB];
+  // 2026-11-15 D-424：云端多用户多一栏「我的分享」，紧跟「素材库」后面
+  const tabs =
+    multi && !readOnly
+      ? baseTabs.flatMap((item) => (item.id === 'library' ? [item, MYSHARES_TAB] : [item]))
+      : baseTabs;
   // 2026-11-11 D-370（用户要求）：云端（multi）素材库只读——不显示服务器路径、不能切换路径，
   // 分类说明统一改成「我的素材使用量」；本地模式说明不变。
   const tabsShown = multi
@@ -531,6 +551,7 @@ export default function SettingsModal({
             {activeTab === 'library' && (
               <LibrarySettings onChanged={onChanged} multi={multi} isAdmin={isAdmin} />
             )}
+            {activeTab === 'myshares' && <SharesSettings />}
             {/* 2026-11-10 D-350（用户要求）：上传队列独立板块（按地点 · 到访分组，可收起 / 展开） */}
             {activeTab === 'upload' && (
               <UploadSettings

@@ -521,7 +521,18 @@ export const QUOTA_MAX_BYTES = 1024 ** 4;
 
 /** 空用量兜底（无账号 / local 模式不会被调用，防御性返回零） */
 function emptyUsage() {
-  return { mediaBytes: 0, mediaCount: 0, places: 0, visits: 0, photos: 0, videos: 0 };
+  return {
+    mediaBytes: 0,
+    mediaCount: 0,
+    places: 0,
+    visits: 0,
+    photos: 0,
+    videos: 0,
+    sharesBytes: 0,
+    shareCount: 0,
+    views: 0,
+    visitors: 0,
+  };
 }
 
 /**
@@ -537,9 +548,24 @@ export function userUsage(userId) {
       'SELECT COALESCE(SUM(COALESCE(bytes, 0)), 0) AS bytes, COUNT(*) AS n FROM media WHERE user_id = ?'
     )
     .get(userId);
+  // 2026-11-14 D-416：分享副本也占配额（到期 / 撤销后 bytes 清零、purged_at 置位 → 自动回落）
+  const share = db
+    .prepare(
+      `SELECT COALESCE(SUM(COALESCE(bytes, 0)), 0) AS bytes,
+              COUNT(*) AS n,
+              COALESCE(SUM(view_count), 0) AS views,
+              COALESCE(SUM(visitor_count), 0) AS visitors
+         FROM share
+        WHERE user_id = ? AND revoked_at IS NULL AND purged_at IS NULL`
+    )
+    .get(userId);
   return {
     mediaBytes: Number(media?.bytes) || 0,
     mediaCount: Number(media?.n) || 0,
+    sharesBytes: Number(share?.bytes) || 0,
+    shareCount: Number(share?.n) || 0,
+    views: Number(share?.views) || 0,
+    visitors: Number(share?.visitors) || 0,
     places: count('SELECT COUNT(*) AS n FROM place WHERE user_id = ? AND deleted_at IS NULL', userId),
     visits: count('SELECT COUNT(*) AS n FROM visit WHERE user_id = ? AND deleted_at IS NULL', userId),
     photos: count(

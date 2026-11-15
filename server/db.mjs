@@ -130,6 +130,48 @@ CREATE TABLE IF NOT EXISTS user_setting (
 `);
 
 /**
+ * 分享（F-SHR-01 / 2026-11-14 D-416，v1.2.0）：
+ * - 每个分享一行；明细全在 data/shares/<userId>/<shareId>/manifest.json，不建 share_item；
+ * - expires_at 为 NULL = 不限时（直到手动撤销）；
+ * - 到期 / 撤销后媒体目录与访客行立即删除，行只留 7 天做 410 墓碑（purged_at），之后删行；
+ * - view_count / visitor_count 只做展示（不存 IP / UA / 原始访客 id）。
+ * 注意：share 引用 user，必须在 user 表之后建。
+ */
+db.exec(`
+CREATE TABLE IF NOT EXISTS share (
+  id            TEXT PRIMARY KEY,
+  user_id       TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+  token         TEXT NOT NULL UNIQUE,
+  title         TEXT,
+  created_at    INTEGER NOT NULL,
+  expires_at    INTEGER,
+  revoked_at    INTEGER,
+  password_hash TEXT,
+  password_salt TEXT,
+  has_secret    INTEGER NOT NULL DEFAULT 0,
+  bytes         INTEGER NOT NULL DEFAULT 0,
+  item_count    INTEGER NOT NULL DEFAULT 0,
+  media_count   INTEGER NOT NULL DEFAULT 0,
+  app_version   TEXT,
+  view_count    INTEGER NOT NULL DEFAULT 0,
+  visitor_count INTEGER NOT NULL DEFAULT 0,
+  last_view_at  INTEGER,
+  purged_at     INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_share_user    ON share(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_share_expires ON share(expires_at);
+
+-- 独立访客去重：只存 HMAC 摘要，不存 IP / UA / 原始访客 id；删除分享时按 share_id 显式删
+CREATE TABLE IF NOT EXISTS share_visitor (
+  share_id      TEXT NOT NULL,
+  visitor_hash  TEXT NOT NULL,
+  first_seen_at INTEGER NOT NULL,
+  PRIMARY KEY (share_id, visitor_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_share_visitor ON share_visitor(share_id);
+`);
+
+/**
  * 扩容申请（2026-11-08 D-310，用户要求：云端版每账号默认 1 GiB，可以申请扩容）。
  * 每个账号同一时间最多一条 pending；管理员批准后把 user.quota_bytes 改成批准额度；
  * 历史申请保留（用户可以在设置 → 账号里看到状态与结果）。

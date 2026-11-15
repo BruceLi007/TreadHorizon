@@ -484,6 +484,16 @@ export default function AccountSettings({
                 videos: summary.usage.videos,
               })}
             </p>
+            {(summary.usage.sharesBytes ?? 0) > 0 && (
+              <p className="hint">
+                {t('分享占用 {size} · {n} 份 · 被打开 {views} 次 · 独立访客 {visitors} 人', {
+                  size: formatBytes(summary.usage.sharesBytes ?? 0),
+                  n: summary.usage.shareCount ?? 0,
+                  views: summary.usage.views ?? 0,
+                  visitors: summary.usage.visitors ?? 0,
+                })}
+              </p>
+            )}
             {overQuota && (
               <p className="hint err">
                 {t(

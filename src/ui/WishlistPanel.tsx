@@ -9,6 +9,12 @@ import { FolderIcon } from './TreeIcons';
 import { useT, useTp, type TFn } from '../i18n';
 import CloseIcon from './CloseIcon';
 import { isHmtProvince } from '../lib/region';
+import {
+  sharePlaceDisabled,
+  sharePlaceSecret,
+  sharePlaceState,
+  type ShareListBinding,
+} from './shareList';
 
 interface Props {
   onClose: () => void;
@@ -24,6 +30,11 @@ interface Props {
   onFocusApplied?: () => void;
   /** 2026-11-09 D-335：只读样板会话——隐藏「选择 / 批量操作 / 转为去过 / 删除」等写入口 */
   readOnly?: boolean;
+  /**
+   * 2026-11-14 D-422（用户验收反馈）：分享选择态——列表与 My旅迹「想去」**完全一致**，
+   * 只在每个地点行前多一个三态勾选框；点行改为打开分享抽屉。
+   */
+  share?: ShareListBinding | null;
 }
 
 const NA = '未标注';
@@ -95,10 +106,12 @@ function TriPick({
   state,
   onClick,
   label,
+  disabled = false,
 }: {
   state: 0 | 1 | 2;
   onClick: () => void;
   label: string;
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -106,8 +119,9 @@ function TriPick({
       className={state === 2 ? 'pick on' : state === 1 ? 'pick some' : 'pick'}
       onClick={(e) => {
         e.stopPropagation();
-        onClick();
+        if (!disabled) onClick();
       }}
+      disabled={disabled}
       aria-label={label}
       title={label}
       aria-pressed={state === 2}
@@ -140,6 +154,7 @@ export default function WishlistPanel({
   focus = null,
   onFocusApplied,
   readOnly = false,
+  share = null,
 }: Props) {
   const t = useT();
   const tp = useTp();
@@ -162,6 +177,13 @@ export default function WishlistPanel({
   const [confirmBulk, setConfirmBulk] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkErr, setBulkErr] = useState<string | null>(null);
+  // 进入分享选择时先退出「批量多选」，否则两组勾选框会叠在同一行（用户反馈）
+  const shareActive = !!share;
+  useEffect(() => {
+    if (!shareActive) return;
+    setSelectMode(false);
+    setSelected(new Set());
+  }, [shareActive]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -383,32 +405,71 @@ export default function WishlistPanel({
     }
   };
 
+  /** 分享态：一组地点（省 / 市）的三态与整组勾选（想去地点没有照片，只按地点计） */
+  const shareGroupState = (list: Place[]): 0 | 1 | 2 => {
+    if (!share) return 0;
+    const n = list.filter((p) => share.selectedPlaceIds.has(p.id)).length;
+    return n === 0 ? 0 : n === list.length ? 2 : 1;
+  };
+  const toggleShareGroup = (list: Place[]) => {
+    if (!share) return;
+    share.onSelectPlaces(list, shareGroupState(list) !== 2);
+  };
+
   const row = (p: Place) => {
     const picked = selected.has(p.id);
+    // D-422：分享态的三态与可用性；普通 / 多选态沿用原来的 picked
+    const shareOn = !!share;
+    const shareState = share ? sharePlaceState(p, share) : 0;
+    // D-427：秘密基地不参与分享（行照常显示，勾选框禁用）；仅视频同样不可勾
+    const shareSecret = share ? sharePlaceSecret(p) : false;
+    const shareDisabled = share ? sharePlaceDisabled(p) : false;
+    const triState: 0 | 1 | 2 = share ? shareState : picked ? 2 : 0;
+    const rowPicked = share ? shareState === 2 : picked;
+    const openRow = () => {
+      if (share) {
+        if (!shareDisabled) share.onToggle(p);
+        return;
+      }
+      if (selectMode) toggleIds([p.id]);
+      else onPick(p);
+    };
     return (
       <div
         key={p.id}
         data-place-id={p.id}
         className={
-          (selectMode ? 'place-row selectable' : 'place-row has-actions') + (picked ? ' picked' : '')
+          (selectMode || shareOn ? 'place-row selectable' : 'place-row has-actions') +
+          (rowPicked ? ' picked' : '') +
+          (shareDisabled ? ' share-disabled' : '')
         }
         role="button"
         tabIndex={0}
-        aria-pressed={selectMode ? picked : undefined}
-        onClick={() => (selectMode ? toggleIds([p.id]) : onPick(p))}
+        aria-pressed={selectMode || shareOn ? rowPicked : undefined}
+        onClick={openRow}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            if (selectMode) toggleIds([p.id]);
-            else onPick(p);
+            openRow();
           }
         }}
       >
-        {selectMode && (
+        {(selectMode || shareOn) && (
           <TriPick
-            state={picked ? 2 : 0}
-            onClick={() => toggleIds([p.id])}
-            label={t('选择 {name}', { name: p.name })}
+            state={triState}
+            disabled={shareOn ? shareDisabled : false}
+            onClick={() => {
+              if (share) {
+                if (!shareDisabled) share.onToggle(p);
+                return;
+              }
+              toggleIds([p.id]);
+            }}
+            label={
+              shareSecret
+                ? t('秘密基地不参与分享')
+                : t('选择 {name}', { name: p.name })
+            }
           />
         )}
         <PlaceThumb place={p} className="place-row-cover" />
@@ -419,7 +480,7 @@ export default function WishlistPanel({
           {countyLabel(p, t) ? countyLabel(p, t) + ' · ' : ''}
           {createdLabel(p) ? t('加入 {date}', { date: createdLabel(p) }) : ''}
         </span>
-        {!selectMode && !readOnly && (
+        {!selectMode && !readOnly && !shareOn && (
           <span className="place-row-actions" onClick={(e) => e.stopPropagation()}>
             <button className="text-btn" onClick={() => toVisited(p)} disabled={busy === p.id}>
               {t('转为去过')}
@@ -544,14 +605,24 @@ export default function WishlistPanel({
                 }}
               >
                 <span className="grp-main">
-                  {selectMode && (
+                  {share ? (
                     <TriPick
-                      state={selState(idsOfProv(pg))}
-                      onClick={() => toggleIds(idsOfProv(pg))}
+                      state={shareGroupState(pg.cities.flatMap((c) => c.items))}
+                      onClick={() => toggleShareGroup(pg.cities.flatMap((c) => c.items))}
                       label={t('选择 {name}', {
                         name: pg.name === NA ? t('未标注') : tp(pg.name),
                       })}
                     />
+                  ) : (
+                    selectMode && (
+                      <TriPick
+                        state={selState(idsOfProv(pg))}
+                        onClick={() => toggleIds(idsOfProv(pg))}
+                        label={t('选择 {name}', {
+                          name: pg.name === NA ? t('未标注') : tp(pg.name),
+                        })}
+                      />
+                    )
                   )}
                   <span
                     className={provOpen(pg.name) ? 'grp-caret open' : 'grp-caret'}
@@ -596,14 +667,24 @@ export default function WishlistPanel({
                         }}
                       >
                         <span className="grp-main">
-                          {selectMode && (
+                          {share ? (
                             <TriPick
-                              state={selState(idsOfCity(cg))}
-                              onClick={() => toggleIds(idsOfCity(cg))}
+                              state={shareGroupState(cg.items)}
+                              onClick={() => toggleShareGroup(cg.items)}
                               label={t('选择 {name}', {
                                 name: cg.name === NA ? t('未标注') : cg.name,
                               })}
                             />
+                          ) : (
+                            selectMode && (
+                              <TriPick
+                                state={selState(idsOfCity(cg))}
+                                onClick={() => toggleIds(idsOfCity(cg))}
+                                label={t('选择 {name}', {
+                                  name: cg.name === NA ? t('未标注') : cg.name,
+                                })}
+                              />
+                            )
                           )}
                           <span
                             className={open ? 'grp-caret open' : 'grp-caret'}

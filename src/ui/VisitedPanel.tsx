@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { Place } from '../lib/types';
 import type { RangeValue } from './Timeline';
 import type { MyTrailFocus } from './MyTrailPanel';
@@ -9,6 +9,15 @@ import PlaceThumb from './PlaceThumb';
 import { FolderIcon } from './TreeIcons';
 import { useT, useTp } from '../i18n';
 import CloseIcon from './CloseIcon';
+import {
+  shareIdsState,
+  sharePhotoIds,
+  sharePlaceDisabled,
+  sharePlaceSecret,
+  sharePlaceState,
+  sharePlaceVideoOnly,
+  type ShareListBinding,
+} from './shareList';
 // 秘密基地共用样式（styles.css 由 Lead 维护，本任务不改）
 import './SecretPrompt.css';
 
@@ -33,6 +42,12 @@ interface Props {
   onFocusApplied?: () => void;
   /** 2026-11-09 D-335：只读样板会话——隐藏「选择 / 批量移到回收站 / + 到访」等写入口 */
   readOnly?: boolean;
+  /**
+   * 2026-11-14 D-422（用户验收反馈）：分享选择态——列表与 My旅迹 **完全一致**（省 → 市 → 地点、
+   * 搜索、排序、折叠、普通 / 秘密基地筛选、计数），只在每个地点行前多一个三态勾选框；
+   * 点行改为打开分享抽屉。
+   */
+  share?: ShareListBinding | null;
 }
 
 const NA = '未标注';
@@ -77,10 +92,12 @@ function TriPick({
   state,
   onClick,
   label,
+  disabled = false,
 }: {
   state: 0 | 1 | 2;
   onClick: () => void;
   label: string;
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -88,8 +105,9 @@ function TriPick({
       className={state === 2 ? 'pick on' : state === 1 ? 'pick some' : 'pick'}
       onClick={(e) => {
         e.stopPropagation();
-        onClick();
+        if (!disabled) onClick();
       }}
+      disabled={disabled}
       aria-label={label}
       title={label}
       aria-pressed={state === 2}
@@ -131,6 +149,7 @@ export default function VisitedPanel({
   focus = null,
   onFocusApplied,
   readOnly = false,
+  share = null,
 }: Props) {
   const t = useT();
   const tp = useTp();
@@ -151,6 +170,30 @@ export default function VisitedPanel({
   const [confirmBulk, setConfirmBulk] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkErr, setBulkErr] = useState<string | null>(null);
+  // ── 分享选择（2026-11-14 D-422）：地点行就地展开到访、到访行再展开照片，全部在原列表里完成 ──
+  const [expandedShare, setExpandedShare] = useState<Set<string>>(new Set());
+  const [expandedShareVisit, setExpandedShareVisit] = useState<Set<string>>(new Set());
+  const toggleShareOpen = (id: string) =>
+    setExpandedShare((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const toggleShareVisitOpen = (id: string) =>
+    setExpandedShareVisit((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  // 进入分享选择时先退出「批量多选」，否则两组勾选框会叠在同一行（用户反馈）
+  const shareActive = !!share;
+  useEffect(() => {
+    if (!shareActive) return;
+    setSelectMode(false);
+    setSelected(new Set());
+  }, [shareActive]);
 
   /** 过滤时强制展开，避免用户搜了东西却看不到结果 */
   const provOpen = (name: string) => filtering || expandedProv.includes(name);
@@ -382,35 +425,92 @@ export default function VisitedPanel({
       : t('共 {totalSum} 次', { totalSum });
   };
 
+  /**
+   * 分享态：一组地点（省 / 市）的三态与整组勾选。
+   * D-427：秘密基地不参与分享 —— 统计与整组勾选都把它们排除在外，
+   * 否则含秘密基地的省会永远停在「部分」态、整组勾选还会把秘密基地带进去。
+   */
+  const shareSelectable = (list: Place[]) => list.filter((p) => !sharePlaceSecret(p));
+  const shareGroupState = (list: Place[]): 0 | 1 | 2 => {
+    if (!share) return 0;
+    const usable = shareSelectable(list);
+    if (!usable.length) return 0;
+    const ids = usable.flatMap((p) => sharePhotoIds(share.detailMap.get(p.id)));
+    if (ids.length) return shareIdsState(ids, share.selectedMediaIds);
+    const n = usable.filter((p) => share.selectedPlaceIds.has(p.id)).length;
+    return n === 0 ? 0 : n === usable.length ? 2 : 1;
+  };
+  const toggleShareGroup = (list: Place[]) => {
+    if (!share) return;
+    const usable = shareSelectable(list);
+    if (!usable.length) return;
+    share.onSelectPlaces(usable, shareGroupState(usable) !== 2);
+  };
+
   /** 地点行（正常「省 → 市 → 地点」与「省下直接挂地点」两种结构共用） */
   const placeRow = (p: Place) => {
     const picked = selected.has(p.id);
+    // D-422：分享态的三态与可用性；普通 / 多选态沿用原来的 picked
+    const shareOn = !!share;
+    const shareState = share ? sharePlaceState(p, share) : 0;
+    // D-427：秘密基地不参与分享（行照常显示，勾选框禁用）；仅视频同样不可勾
+    const shareSecret = share ? sharePlaceSecret(p) : false;
+    const shareDisabled = share ? sharePlaceDisabled(p) : false;
+    const triState: 0 | 1 | 2 = share ? shareState : picked ? 2 : 0;
+    const rowPicked = share ? shareState === 2 : picked;
+    const openRow = () => {
+      if (share) {
+        // 秘密基地不可选，也不展开（里面的照片本来就不能分享）
+        if (shareSecret) return;
+        toggleShareOpen(p.id);
+        return;
+      }
+      if (selectMode) toggleIds([p.id]);
+      else onPick(p);
+    };
+    const opened = shareOn && expandedShare.has(p.id);
+    const detail = share?.detailMap.get(p.id);
+    const visits = detail?.visits || [];
     return (
+      <Fragment key={p.id}>
       <div
         key={p.id}
         data-place-id={p.id}
         className={
-          (onAddVisit && !selectMode ? 'place-row has-actions' : 'place-row') +
-          (selectMode ? ' selectable' : '') +
-          (picked ? ' picked' : '')
+          (onAddVisit && !selectMode && !shareOn ? 'place-row has-actions' : 'place-row') +
+          (selectMode || shareOn ? ' selectable' : '') +
+          (rowPicked ? ' picked' : '') +
+          (shareDisabled ? ' share-disabled' : '')
         }
         role="button"
         tabIndex={0}
-        aria-pressed={selectMode ? picked : undefined}
-        onClick={() => (selectMode ? toggleIds([p.id]) : onPick(p))}
+        aria-pressed={selectMode || shareOn ? rowPicked : undefined}
+        onClick={openRow}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            if (selectMode) toggleIds([p.id]);
-            else onPick(p);
+            openRow();
           }
         }}
       >
-        {selectMode && (
+        {(selectMode || shareOn) && (
           <TriPick
-            state={picked ? 2 : 0}
-            onClick={() => toggleIds([p.id])}
-            label={t('选择 {name}', { name: p.name })}
+            state={triState}
+            disabled={shareOn ? shareDisabled : false}
+            onClick={() => {
+              if (share) {
+                if (!shareDisabled) share.onToggle(p);
+                return;
+              }
+              toggleIds([p.id]);
+            }}
+            label={
+              shareSecret
+                ? t('秘密基地不参与分享')
+                : share && sharePlaceVideoOnly(p)
+                  ? t('仅视频，暂不可分享')
+                  : t('选择 {name}', { name: p.name })
+            }
           />
         )}
         <PlaceThumb place={p} className="place-row-cover" />
@@ -434,7 +534,7 @@ export default function VisitedPanel({
             : ''}
           {recentOf(p) ? ' · ' + t('最近 {date}', { date: shortDate(recentOf(p)) }) : ''}
         </span>
-        {onAddVisit && !selectMode && (
+        {onAddVisit && !selectMode && !shareOn && (
           <span className="place-row-actions" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
@@ -446,7 +546,99 @@ export default function VisitedPanel({
             </button>
           </span>
         )}
+        {shareOn && (
+          <span
+            className={opened ? 'grp-caret open share-row-caret' : 'grp-caret share-row-caret'}
+            aria-hidden="true"
+          />
+        )}
       </div>
+      {opened && share && (
+        <div className="share-inline-block">
+          {!detail && <div className="muted pad">{t('正在读取到访…')}</div>}
+          {detail && visits.length === 0 && (
+            <div className="muted pad">{t('这个地点还没有到访。')}</div>
+          )}
+          {visits.map((v) => {
+            const photos = v.media.filter((m) => m.kind === 'photo');
+            const videos = v.media.filter((m) => m.kind === 'video');
+            const ids = photos.map((m) => m.id);
+            const vState = shareIdsState(ids, share.selectedMediaIds);
+            const vOpen = expandedShareVisit.has(v.id);
+            return (
+              <div className="share-inline-visit" key={v.id}>
+                <div
+                  className="share-inline-visit-head"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => toggleShareVisitOpen(v.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleShareVisitOpen(v.id);
+                    }
+                  }}
+                >
+                  <TriPick
+                    state={vState}
+                    disabled={!ids.length}
+                    onClick={() => {
+                      if (ids.length) share.onToggleVisit(ids);
+                    }}
+                    label={t('选择这次到访的全部照片')}
+                  />
+                  <span className="share-inline-date">{v.date || t('未标注日期')}</span>
+                  {v.title ? <span className="share-inline-title">{v.title}</span> : null}
+                  <span className="share-inline-count">
+                    {photos.length ? t('{n} 张照片', { n: photos.length }) : ''}
+                    {videos.length
+                      ? `${photos.length ? ' · ' : ''}${t('{n} 段视频', { n: videos.length })}`
+                      : ''}
+                  </span>
+                  <span className={vOpen ? 'grp-caret open' : 'grp-caret'} aria-hidden="true" />
+                </div>
+                {vOpen && photos.length > 0 && (
+                  <div className="share-media-grid">
+                    {photos.map((m) => {
+                      const on = share.selectedMediaIds.has(m.id);
+                      return (
+                        <button
+                          type="button"
+                          key={m.id}
+                          className={'share-media-tile' + (on ? ' on' : '')}
+                          onClick={() => share.onTogglePhoto(m.id)}
+                          aria-pressed={on}
+                          title={on ? t('取消选择') : t('选择这张照片')}
+                        >
+                          <img src={api.thumbUrl(m.id)} alt="" loading="lazy" decoding="async" />
+                          <span
+                            className={on ? 'pick on share-tile-pick' : 'pick share-tile-pick'}
+                            aria-hidden="true"
+                          >
+                            {on && (
+                              <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
+                                <path
+                                  d="M2 6.4 4.6 9 10 3.2"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.9"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            )}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      </Fragment>
     );
   };
 
@@ -588,14 +780,24 @@ export default function VisitedPanel({
               }}
             >
               <span className="grp-main">
-                {selectMode && (
+                {share ? (
                   <TriPick
-                    state={selState(idsOfProv(pg))}
-                    onClick={() => toggleIds(idsOfProv(pg))}
-                    label={t('选择 {name}', {
+                    state={shareGroupState(pg.cities.flatMap((c) => c.items))}
+                    onClick={() => toggleShareGroup(pg.cities.flatMap((c) => c.items))}
+                    label={t('选择 {name} 的全部照片', {
                       name: pg.name === NA ? t('未标注') : tp(pg.name),
                     })}
                   />
+                ) : (
+                  selectMode && (
+                    <TriPick
+                      state={selState(idsOfProv(pg))}
+                      onClick={() => toggleIds(idsOfProv(pg))}
+                      label={t('选择 {name}', {
+                        name: pg.name === NA ? t('未标注') : tp(pg.name),
+                      })}
+                    />
+                  )
                 )}
                 <span
                   className={provOpen(pg.name) ? 'grp-caret open' : 'grp-caret'}
@@ -640,14 +842,24 @@ export default function VisitedPanel({
                       }}
                     >
                       <span className="grp-main">
-                        {selectMode && (
+                        {share ? (
                           <TriPick
-                            state={selState(idsOfCity(cg))}
-                            onClick={() => toggleIds(idsOfCity(cg))}
-                            label={t('选择 {name}', {
+                            state={shareGroupState(cg.items)}
+                            onClick={() => toggleShareGroup(cg.items)}
+                            label={t('选择 {name} 的全部照片', {
                               name: cg.name === NA ? t('未标注') : cg.name,
                             })}
                           />
+                        ) : (
+                          selectMode && (
+                            <TriPick
+                              state={selState(idsOfCity(cg))}
+                              onClick={() => toggleIds(idsOfCity(cg))}
+                              label={t('选择 {name}', {
+                                name: cg.name === NA ? t('未标注') : cg.name,
+                              })}
+                            />
+                          )
                         )}
                         <span
                           className={open ? 'grp-caret open' : 'grp-caret'}

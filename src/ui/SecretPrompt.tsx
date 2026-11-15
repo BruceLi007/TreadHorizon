@@ -8,8 +8,8 @@ import './SecretPrompt.css';
 interface Props {
   /** 副标题：通常是地点名（秘密基地在列表里本来就可见，显示名字不算泄密） */
   title?: string;
-  /** 密码校验通过（App 负责把「当前会话已解锁」状态记在内存里） */
-  onSuccess: () => void;
+  /** 密码校验通过（App 负责把「当前会话已解锁」状态记在内存里）；回传密码供分享导出服务端兜底 */
+  onSuccess: (password?: string) => void;
   onCancel: () => void;
   /**
    * 2026-11-09 D-332（用户选择方案 B）：multi（云端版）不再用单独的秘密基地密码，
@@ -88,8 +88,8 @@ export default function SecretPrompt({ title, onSuccess, onCancel, mode = 'local
         ? api.unlockSecretWithAccountPassword(pwd)
         : api.verifySecret(pwd)); // 服务端只回 ok，不泄露任何地点信息
       if (!aliveRef.current) return;
+      onSuccess(pwd);
       setPwd('');
-      onSuccess();
     } catch (e2: unknown) {
       if (!aliveRef.current) return;
       setErr(friendlyError(e2, t));
