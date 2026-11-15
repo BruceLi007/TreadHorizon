@@ -1418,3 +1418,171 @@ html:is([data-theme='light'], [data-theme='white']) .set-dup-row:hover {
   color: var(--text-3);
   white-space: nowrap;
 }
+
+/* ── 2026-11-15 D-431：设置 → 后台任务（上传 / 备份 / 分享 / 回收站 分类汇总） ── */
+.tasks-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.tasks-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.tasks-summary .hint {
+  margin: 0;
+}
+.tasks-summary .ghost.sm {
+  flex: none;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: calc(12px * var(--fs-scale));
+}
+.tasks-section {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--bg-raised);
+}
+.tasks-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tasks-section-head b {
+  font-size: calc(13.5px * var(--fs-scale));
+}
+.tasks-section-desc {
+  margin-left: 8px;
+  color: var(--text-3);
+  font-size: calc(11.5px * var(--fs-scale));
+}
+.tasks-section-count {
+  flex: none;
+  color: var(--text-3);
+  font-size: calc(11.5px * var(--fs-scale));
+  white-space: nowrap;
+}
+.tasks-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tasks-row {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--bg-panel);
+}
+.tasks-row.running {
+  border-color: var(--accent);
+}
+.tasks-row.error {
+  border-color: rgba(224, 108, 117, 0.5);
+}
+.tasks-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tasks-kind {
+  font-size: calc(12.5px * var(--fs-scale));
+  font-weight: 600;
+}
+.tasks-progress-text {
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.tasks-time {
+  margin-left: auto;
+  font-size: calc(11px * var(--fs-scale));
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.tasks-bar {
+  margin-top: 6px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  overflow: hidden;
+}
+.tasks-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 200ms ease;
+}
+.tasks-detail {
+  margin: 6px 0 0;
+  font-size: calc(11.5px * var(--fs-scale));
+  color: var(--text-2);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.tasks-detail.err {
+  color: var(--bad);
+}
+.tasks-empty {
+  margin: 8px 0 0;
+  font-size: calc(12px * var(--fs-scale));
+  color: var(--text-3);
+}
+/* D-432：分类可折叠（头部整行可点）+ 列表「展开全部」 */
+.tasks-section-head {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tasks-section-head:hover b {
+  color: var(--accent);
+}
+.tasks-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.tasks-caret {
+  flex: none;
+  width: 0;
+  height: 0;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  opacity: 0.55;
+  transition: transform 140ms ease;
+}
+.tasks-caret.open {
+  transform: rotate(90deg);
+}
+.tasks-more {
+  display: block;
+  margin: 8px auto 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: calc(11.5px * var(--fs-scale));
+  padding: 2px 10px;
+  cursor: pointer;
+}
+.tasks-more:hover {
+  color: var(--text-1);
+}

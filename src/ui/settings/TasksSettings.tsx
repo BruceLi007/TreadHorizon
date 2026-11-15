@@ -1,0 +1,404 @@
+/**
+ * 设置 →「后台任务」（2026-11-15 D-431，用户要求）。
+ *
+ * 用户原话：「这也算是有持续时间的任务，需要能在后台运行；这样吧，你在设置里加一个"后台任务"栏，
+ * 这里面就放现有的一些有持续时间的后台任务状态，像之前的上传等等，把后台任务都分类放在这里面」。
+ *
+ * 实现约定：
+ * - 一栏集中展示**所有有持续时间**的任务，按来源分类：
+ *   ① 上传（本机队列，状态由 App 持有，直接复用 `UploadSettings`）；
+ *   ② 备份（备份导出 / 备份恢复 / 备份包检查）；
+ *   ③ 分享（本地分享包导出）；
+ *   ④ 回收站（批量恢复 / 彻底删除）。
+ * - 服务端任务（②③④）每 2 秒轮询 `GET /api/background-tasks`，只在本页显示时轮询；
+ *   上传（①）是纯前端状态，跟着 props 变。
+ * - 只读样板会话 / 云端非管理员：接口会 403，这里静默显示「没有可查看的后台任务」。
+ */
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useT } from '../../i18n';
+import { api } from '../../lib/api';
+import type {
+  BackgroundTasks,
+  BackupExportJobStatus,
+  BackupInspectJobStatus,
+  BackupRestoreJobStatus,
+  ShareExportJob,
+  TrashJob,
+  UploadItem,
+} from '../../lib/types';
+import UploadSettings from './UploadSettings';
+
+interface Props {
+  uploads: UploadItem[];
+  onCancelUpload: (key: string) => void;
+  onCancelAllUploads: () => void;
+  onRetryUpload: (key: string) => void;
+  onClearFinishedUploads: () => void;
+  onCloseUploadQueue: () => void;
+  readOnly?: boolean;
+}
+
+type Tone = 'running' | 'done' | 'error' | 'idle';
+
+interface Row {
+  id: string;
+  kind: string;
+  tone: Tone;
+  done?: number;
+  total?: number;
+  detail?: string;
+  error?: string | null;
+  createdAt?: number;
+}
+
+const EMPTY: BackgroundTasks = {
+  exportJobs: [],
+  restoreJobs: [],
+  inspectJobs: [],
+  shareExportJobs: [],
+  trashJobs: [],
+};
+
+/** 每个分类最多先显示几条（多了折在「展开全部」里） */
+const SECTION_PREVIEW = 5;
+const TASKS_COLLAPSED_KEY = 'tm-tasks-collapsed';
+
+function pct(done?: number, total?: number): number | null {
+  if (typeof done !== 'number' || typeof total !== 'number' || total <= 0) return null;
+  return Math.max(0, Math.min(100, Math.round((done / total) * 100)));
+}
+
+function fmtBytes(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '0 B';
+  const u = ['B', 'KB', 'MB', 'GB'];
+  let i = 0;
+  let v = n;
+  while (v >= 1024 && i < u.length - 1) {
+    v /= 1024;
+    i += 1;
+  }
+  return `${v >= 100 ? Math.round(v) : v.toFixed(1)} ${u[i]}`;
+}
+
+function fmtTime(ts?: number): string {
+  if (!ts) return '';
+  try {
+    return new Date(ts).toLocaleTimeString('zh-CN', { hour12: false });
+  } catch {
+    return '';
+  }
+}
+
+export default function TasksSettings({
+  uploads,
+  onCancelUpload,
+  onCancelAllUploads,
+  onRetryUpload,
+  onClearFinishedUploads,
+  onCloseUploadQueue,
+  readOnly = false,
+}: Props) {
+  const t = useT();
+  const [tasks, setTasks] = useState<BackgroundTasks>(EMPTY);
+  const [denied, setDenied] = useState(false);
+
+  // D-432：分类折叠 + 列表「展开全部」，状态存本机（localStorage），刷新后保持
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem(TASKS_COLLAPSED_KEY);
+      return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [listExpanded, setListExpanded] = useState<Record<string, boolean>>({});
+
+  const toggleCollapsed = useCallback((key: string) => {
+    setCollapsedSections((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      try {
+        localStorage.setItem(TASKS_COLLAPSED_KEY, JSON.stringify(next));
+      } catch {
+        /* 隐私模式写不进去：忽略 */
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleListExpanded = useCallback((key: string) => {
+    setListExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  const load = useCallback(async () => {
+    try {
+      const next = await api.backgroundTasks();
+      setTasks({
+        exportJobs: next?.exportJobs || [],
+        restoreJobs: next?.restoreJobs || [],
+        inspectJobs: next?.inspectJobs || [],
+        trashJobs: next?.trashJobs || [],
+        shareExportJobs: next?.shareExportJobs || [],
+      });
+      setDenied(false);
+    } catch {
+      // 只读会话 / 云端非管理员：接口 403，这里不报错，当作没有任务
+      setDenied(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void load();
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [load]);
+
+  /** 上传（本机队列）：按状态统计，行在下面的 UploadSettings 里 */
+  const uploadStats = useMemo(() => {
+    const total = uploads.length;
+    const done = uploads.filter((x) => x.status === 'done' || x.status === 'skipped').length;
+    const failed = uploads.filter((x) => x.status === 'error').length;
+    const active = uploads.filter((x) => x.status === 'queued' || x.status === 'uploading').length;
+    return { total, done, failed, active };
+  }, [uploads]);
+
+  const backupRows: Row[] = useMemo(() => {
+    const rows: Row[] = [];
+    for (const j of tasks.exportJobs as BackupExportJobStatus[]) {
+      rows.push({
+        id: `export-${j.jobId}`,
+        kind: t('备份导出'),
+        tone: j.state === 'building' ? 'running' : j.state === 'error' ? 'error' : 'done',
+        done: j.filesDone,
+        total: j.filesTotal,
+        detail: j.state === 'done' ? j.savedName || fmtBytes(j.zipBytes) : fmtBytes(j.bytesDone),
+        error: j.error,
+        createdAt: j.createdAt,
+      });
+    }
+    for (const j of tasks.restoreJobs as BackupRestoreJobStatus[]) {
+      rows.push({
+        id: `restore-${j.jobId}`,
+        kind: t('备份恢复'),
+        tone: j.state === 'running' ? 'running' : j.state === 'error' ? 'error' : 'done',
+        detail: j.result ? t('已恢复') : undefined,
+        error: j.error,
+        createdAt: j.createdAt,
+      });
+    }
+    for (const j of tasks.inspectJobs as BackupInspectJobStatus[]) {
+      const tone: Tone =
+        j.state === 'error' ? 'error' : j.state === 'done' ? 'done' : 'running';
+      rows.push({
+        id: `inspect-${j.jobId}`,
+        kind: t('备份包检查'),
+        tone,
+        detail:
+          j.state === 'uploading'
+            ? t('上传中')
+            : j.state === 'validating'
+              ? t('校验中')
+              : j.state === 'done'
+                ? t('已完成')
+                : undefined,
+        error: j.error,
+        createdAt: j.createdAt,
+      });
+    }
+    return rows.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  }, [tasks, t]);
+
+  const shareRows: Row[] = useMemo(
+    () =>
+      (tasks.shareExportJobs as ShareExportJob[])
+        .map((j) => ({
+          id: `share-${j.jobId}`,
+          kind: t('分享包导出'),
+          tone: (j.state === 'running' ? 'running' : j.canceled ? 'idle' : j.state === 'error' ? 'error' : 'done') as Tone,
+          done: j.done,
+          total: j.total,
+          detail:
+            j.state === 'done'
+              ? `${j.savedName || ''} · ${fmtBytes(j.bytes)}`
+              : t('{n} 张照片', { n: j.total }),
+          error: j.error,
+          createdAt: j.createdAt,
+        }))
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)),
+    [tasks, t]
+  );
+
+  const trashRows: Row[] = useMemo(
+    () =>
+      (tasks.trashJobs as TrashJob[])
+        .map((j) => {
+          let detail: string | undefined;
+          const r: any = j.result;
+          if (r && j.kind === 'restore') {
+            detail = t('恢复 {p} 地点 · {v} 到访 · {m} 媒体', {
+              p: r.restoredPlaces ?? 0,
+              v: (r.restoredVisits ?? 0) + (r.restoredEarlierVisits ?? 0),
+              m: (r.restoredMedia ?? 0) + (r.restoredEarlierMedia ?? 0),
+            });
+          } else if (r && j.kind === 'purge') {
+            detail = t('彻底删除 {p} 地点 · {v} 到访 · {m} 媒体', {
+              p: r.purgedPlaces ?? 0,
+              v: r.purgedVisits ?? 0,
+              m: r.purgedMedia ?? 0,
+            });
+          }
+          return {
+            id: `trash-${j.jobId}`,
+            kind: j.kind === 'restore' ? t('回收站恢复') : t('回收站彻底删除'),
+            tone: (j.state === 'running' ? 'running' : j.state === 'error' ? 'error' : 'done') as Tone,
+            detail,
+            error: j.error,
+            createdAt: j.createdAt,
+          };
+        })
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)),
+    [tasks, t]
+  );
+
+  const runningCount =
+    uploadStats.active +
+    backupRows.filter((r) => r.tone === 'running').length +
+    shareRows.filter((r) => r.tone === 'running').length +
+    trashRows.filter((r) => r.tone === 'running').length;
+
+  const emptyHint = denied ? t('当前账号没有可查看的后台任务。') : t('暂无任务。');
+
+  /**
+   * 2026-11-15 D-432（用户：「都做成收起和展开了吧？任务多了的话放不下」）：
+   * 每个分类可折叠（状态存本机 localStorage），列表默认只显示 5 条，多出来的折在「展开全部 N 个」里。
+   */
+  const section = (key: string, title: string, subtitle: string, rows: Row[], children?: ReactNode) => {
+    const runningRows = rows.filter((r) => r.tone === 'running');
+    const collapsed = collapsedSections[key] ?? false;
+    const allShown = listExpanded[key] ?? false;
+    const shown = allShown ? rows : rows.slice(0, SECTION_PREVIEW);
+    const hidden = rows.length - shown.length;
+    return (
+      <section className={`tasks-section${collapsed ? ' collapsed' : ''}`} key={key}>
+        <button
+          type="button"
+          className="tasks-section-head"
+          onClick={() => toggleCollapsed(key)}
+          aria-expanded={!collapsed}
+        >
+          <span className={`tasks-caret${collapsed ? '' : ' open'}`} aria-hidden="true" />
+          <span className="tasks-section-title">
+            <b>{title}</b>
+            <span className="tasks-section-desc">{subtitle}</span>
+          </span>
+          <span className="tasks-section-count">
+            {runningRows.length > 0
+              ? t('进行中 {n} 个', { n: runningRows.length })
+              : rows.length > 0
+                ? t('最近 {n} 个', { n: rows.length })
+                : t('空闲')}
+          </span>
+        </button>
+        {!collapsed && (
+          <>
+            {children}
+            {rows.length > 0 && (
+              <ul className="tasks-list">
+                {shown.map((r) => {
+                  const p = pct(r.done, r.total);
+                  return (
+                    <li className={`tasks-row ${r.tone}`} key={r.id}>
+                      <div className="tasks-row-main">
+                        <span className="tasks-kind">{r.kind}</span>
+                        {typeof p === 'number' && (
+                          <span className="tasks-progress-text">
+                            {r.done} / {r.total}
+                          </span>
+                        )}
+                        <span className="tasks-time">{fmtTime(r.createdAt)}</span>
+                      </div>
+                      {typeof p === 'number' && r.tone === 'running' && (
+                        <div className="tasks-bar">
+                          <span style={{ width: `${Math.max(2, p)}%` }} />
+                        </div>
+                      )}
+                      {r.detail && <p className="tasks-detail">{r.detail}</p>}
+                      {r.error && <p className="tasks-detail err">{r.error}</p>}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {hidden > 0 && (
+              <button type="button" className="tasks-more" onClick={() => toggleListExpanded(key)}>
+                {t('展开全部 {n} 个', { n: rows.length })}
+              </button>
+            )}
+            {allShown && rows.length > SECTION_PREVIEW && (
+              <button type="button" className="tasks-more" onClick={() => toggleListExpanded(key)}>
+                {t('收起')}
+              </button>
+            )}
+            {rows.length === 0 && !children && <p className="tasks-empty">{emptyHint}</p>}
+          </>
+        )}
+      </section>
+    );
+  };
+
+  return (
+    <div className="tasks-wrap">
+      <div className="tasks-summary">
+        <p className="hint">
+          {runningCount > 0
+            ? t('正在后台运行 {n} 个任务；关掉设置、切换页面或刷新都不会中断。', { n: runningCount })
+            : t('这些任务在后台运行，关掉设置、切换页面或刷新都不会中断。')}
+        </p>
+        <button type="button" className="ghost sm" onClick={() => void load()}>
+          {t('刷新')}
+        </button>
+      </div>
+
+      {section(
+        'upload',
+        t('上传'),
+        t('本机队列：按地点 · 到访分组，可取消 / 重试'),
+        uploadStats.total > 0
+          ? [
+              {
+                id: 'upload-summary',
+                kind: t('上传队列'),
+                tone: uploadStats.active > 0 ? 'running' : uploadStats.failed > 0 ? 'error' : 'done',
+                done: uploadStats.done,
+                total: uploadStats.total,
+                detail: t('失败 {n} 个', { n: uploadStats.failed }),
+              } as Row,
+            ]
+          : [],
+        uploadStats.total > 0 ? (
+          <UploadSettings
+            uploads={uploads}
+            onCancelUpload={onCancelUpload}
+            onCancelAllUploads={onCancelAllUploads}
+            onRetryUpload={onRetryUpload}
+            onClearFinishedUploads={onClearFinishedUploads}
+            onCloseUploadQueue={onCloseUploadQueue}
+            readOnly={readOnly}
+          />
+        ) : undefined
+      )}
+
+      {section(
+        'backup',
+        t('备份'),
+        t('备份导出 / 备份恢复 / 备份包检查'),
+        backupRows
+      )}
+
+      {section('share', t('分享'), t('本地分享包导出'), shareRows)}
+
+      {section('trash', t('回收站'), t('批量恢复 / 彻底删除'), trashRows)}
+    </div>
+  );
+}

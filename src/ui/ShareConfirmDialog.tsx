@@ -200,6 +200,11 @@ export default function ShareConfirmDialog({
             <p className="share-note">
               {t('确认导出会生成一个压缩包。它不会自动上传，也不会删除或修改你的任何原数据。')}
             </p>
+            {phase === 'starting' && (
+              <p className="share-warn">
+                {t('已弹出「浏览文件夹」窗口：如果没看到，按 Alt+Tab 或点任务栏里的「浏览文件夹」（它可能在浏览器后面）。')}
+              </p>
+            )}
             <div className="share-modal-actions">
               <button type="button" className="ghost" onClick={onClose} disabled={phase === 'starting'}>
                 {t('取消')}

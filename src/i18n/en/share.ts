@@ -39,6 +39,8 @@ const dict: Dict = {
   '视频暂不可分享': 'Videos can’t be shared yet',
   '确认导出会生成一个压缩包。它不会自动上传，也不会删除或修改你的任何原数据。':
     'This creates a zip file. It won’t be uploaded automatically and won’t change or delete any of your data.',
+  '已弹出「浏览文件夹」窗口：如果没看到，按 Alt+Tab 或点任务栏里的「浏览文件夹」（它可能在浏览器后面）。':
+    'The “Browse for folder” dialog is open. If you don’t see it, press Alt+Tab or click it in the taskbar — it may be behind the browser.',
   '{n} 个': '{n}',
   '未选择到访': 'No visits selected',
   '时段': 'Date range',

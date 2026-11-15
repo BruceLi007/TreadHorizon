@@ -2555,7 +2555,7 @@ export default function App() {
                     : updateAvailable
                       ? 'about'
                       : uploadFailedCount > 0
-                        ? 'upload'
+                        ? 'tasks'
                         : undefined
               );
               setSettingsOpen(true);
@@ -2619,8 +2619,9 @@ export default function App() {
           onPickFiles={enqueueUploads}
           onToast={say}
           onOpenUploadSettings={() => {
-            // 2026-11-10 D-350：侧栏上传摘要的「在设置中查看」→ 直接落到设置 → 上传
-            setSettingsInitialTab('upload');
+            // 2026-11-10 D-350：侧栏上传摘要的「在设置中查看」→ 设置；
+            // 2026-11-15 D-431：上传并进「后台任务」，落到那一栏
+            setSettingsInitialTab('tasks');
             setSettingsOpen(true);
           }}
           onOpenLightbox={(visitId, index) => setLightbox({ visitId, index })}

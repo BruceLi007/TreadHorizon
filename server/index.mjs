@@ -108,6 +108,7 @@ import { pruneShares, registerShareRoutes, revokeAllSharesForUser } from './shar
 import {
   cancelShareExport,
   getShareExportStatus,
+  listShareExportJobs,
   startShareExport,
 } from './share-export.mjs';
 // 首次初始化示例足迹（2026-11-09）：local 启动时 / multi 首次登录注册后生成 34 省省会示例数据
@@ -3496,34 +3497,64 @@ app.post('/api/backup/dir', async (req, reply) => {
 /**
  * Windows 原生「选择文件夹」对话框：PowerShell FolderBrowserDialog，结果写临时文件（避免管道限制）。
  * 返回选中的绝对路径；用户取消 / 超时返回 null。
+ *
+ * 2026-11-15 D-430（用户实测「导出一直卡在正在准备」）：
+ *  - 原来的对话框没有 owner，窗口管理器把它放在调用方（浏览器）**后面**，用户看不到 → 以为卡死；
+ *    现在先显示一个 1×1、TopMost、不占任务栏的 owner 窗口，再 `ShowDialog($owner)`，
+ *    对话框会被 owner 顶到最前面。
+ *  - 同一时刻只允许一个选择框：新请求会先杀掉上一个还在等用户点选的进程，避免叠出多个「浏览文件夹」。
+ *  - 超时 180s → **120s**，超时视同取消（前端会回到「确认分享」而不是一直转圈）。
  */
+let pickDirChild = null;
 function pickDirectoryWindows(current) {
   mkdirSync(resolve(CONFIG.dataDir, 'tmp'), { recursive: true });
   const outFile = resolve(CONFIG.dataDir, 'tmp', `pick-dir-${randomUUID()}.txt`);
   const q = (s) => JSON.stringify(String(s ?? ''));
   const ps = [
     'Add-Type -AssemblyName System.Windows.Forms',
+    'Add-Type -AssemblyName System.Drawing',
+    '$owner = New-Object System.Windows.Forms.Form',
+    "$owner.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None",
+    '$owner.Size = New-Object System.Drawing.Size(1, 1)',
+    "$owner.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen",
+    '$owner.TopMost = $true',
+    '$owner.ShowInTaskbar = $false',
+    '$owner.Opacity = 0',
+    '$owner.Show()',
     '$d = New-Object System.Windows.Forms.FolderBrowserDialog',
     '$d.Description = ' + q('选择 Tread Horizon 备份目录'),
     '$d.ShowNewFolderButton = $true',
     `$d.SelectedPath = ${q(current)}`,
-    `if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [System.IO.File]::WriteAllText(${q(outFile)}, $d.SelectedPath) }`,
+    `if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { [System.IO.File]::WriteAllText(${q(outFile)}, $d.SelectedPath) }`,
+    '$owner.Close()',
   ].join('; ');
   return new Promise((resolvePick, rejectPick) => {
+    // 上一个选择框还开着就先关掉，避免多个「浏览文件夹」叠在一起
+    if (pickDirChild) {
+      try {
+        pickDirChild.kill();
+      } catch {
+        /* ignore */
+      }
+      pickDirChild = null;
+    }
     const child = spawn('powershell.exe', ['-NoProfile', '-STA', '-Command', ps], { windowsHide: true, stdio: 'ignore' });
+    pickDirChild = child;
     const timer = setTimeout(() => {
       try {
         child.kill();
       } catch {
         /* ignore */
       }
-    }, 180000);
+    }, 120000);
     child.once('error', (e) => {
       clearTimeout(timer);
+      if (pickDirChild === child) pickDirChild = null;
       rejectPick(e);
     });
     child.once('exit', () => {
       clearTimeout(timer);
+      if (pickDirChild === child) pickDirChild = null;
       let picked = '';
       try {
         picked = readFileSync(outFile, 'utf8').trim();
@@ -3627,7 +3658,9 @@ app.post('/api/backup/dir/open', async (req, reply) => {
   }
 });
 
-/** 后台任务列表（导出 / 恢复 / 备份包检查）：设置关掉再打开可恢复进度显示；刷新页面也能看到任务还在 */
+/** 后台任务列表（导出 / 恢复 / 备份包检查 / 回收站 / 分享导出）：
+ *  设置关掉再打开可恢复进度显示；刷新页面也能看到任务还在。
+ *  2026-11-15 D-431：补上 trashJobs 与 shareExportJobs，供「设置 → 后台任务」分类汇总。 */
 app.get('/api/background-tasks', async (req, reply) => {
   if (!requireAdminInMulti(req, reply)) return;
   const owner = ownerOf(req);
@@ -3635,6 +3668,8 @@ app.get('/api/background-tasks', async (req, reply) => {
     exportJobs: listExportJobs(owner),
     restoreJobs: listRestoreJobs(owner),
     inspectJobs: listInspectJobs(owner),
+    trashJobs: req.authUser?.readOnly ? [] : listTrashJobs(owner),
+    shareExportJobs: listShareExportJobs(),
   };
 });
 

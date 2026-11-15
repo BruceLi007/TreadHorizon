@@ -894,11 +894,31 @@ export interface BackupInspectJobStatus {
   expiresAt: number | null;
 }
 
+/** 本地分享包导出任务（2026-11-15 D-431：设置 → 后台任务 汇总用） */
+export interface ShareExportJob {
+  jobId: string;
+  state: 'running' | 'done' | 'error';
+  total: number;
+  done: number;
+  skipped: number;
+  bytes: number;
+  savedPath: string | null;
+  savedName: string | null;
+  error: string | null;
+  canceled: boolean;
+  createdAt: number;
+  finishedAt: number | null;
+}
+
 /** GET /api/background-tasks：当前 + 最近的后台任务（设置重开 / 刷新页面后恢复进度用） */
 export interface BackgroundTasks {
   exportJobs: BackupExportJobStatus[];
   restoreJobs: BackupRestoreJobStatus[];
   /** 2026-11-12 D-401：备份包检查（上传 + 校验）后台任务 */
   inspectJobs: BackupInspectJobStatus[];
+  /** 2026-11-15 D-431：回收站批量恢复 / 彻底删除 */
+  trashJobs: TrashJob[];
+  /** 2026-11-15 D-431：本地分享包导出 */
+  shareExportJobs: ShareExportJob[];
 }
 

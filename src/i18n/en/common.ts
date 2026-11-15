@@ -319,6 +319,40 @@ const dict: Dict = {
 
   // ── 登录页：折叠卡 / 地图打标签（2026-11-08，D-272）──
   '开始记录我的旅迹': 'Start recording my journey',
+
+  // ── 设置 → 后台任务（2026-11-15，D-431）：上传 / 备份 / 分享 / 回收站 分类汇总 ──
+  '进行中 {n} 个': '{n} running',
+  '最近 {n} 个': '{n} recent',
+  '空闲': 'idle',
+  '暂无任务。': 'No tasks.',
+  '当前账号没有可查看的后台任务。': 'This account has no background tasks to show.',
+  '刷新': 'Refresh',
+  '正在后台运行 {n} 个任务；关掉设置、切换页面或刷新都不会中断。':
+    '{n} task(s) running in the background — closing settings, switching pages or refreshing won’t stop them.',
+  '这些任务在后台运行，关掉设置、切换页面或刷新都不会中断。':
+    'These tasks run in the background — closing settings, switching pages or refreshing won’t stop them.',
+  '本机队列：按地点 · 到访分组，可取消 / 重试': 'Local queue, grouped by place / visit — cancel or retry',
+  '失败 {n} 个': '{n} failed',
+  '上传队列': 'Upload queue',
+  '备份导出': 'Backup export',
+  '备份恢复': 'Backup restore',
+  '备份包检查': 'Backup package check',
+  '已完成': 'Done',
+  '校验中': 'Validating',
+  '已恢复': 'Restored',
+  '分享包导出': 'Share package export',
+  '{n} 张照片': '{n} photos',
+  '回收站恢复': 'Trash restore',
+  '回收站彻底删除': 'Trash purge',
+  '恢复 {p} 地点 · {v} 到访 · {m} 媒体': 'Restored {p} place(s) · {v} visit(s) · {m} media',
+  '彻底删除 {p} 地点 · {v} 到访 · {m} 媒体': 'Permanently deleted {p} place(s) · {v} visit(s) · {m} media',
+  '上传': 'Upload',
+  '备份': 'Backup',
+  '分享': 'Share',
+  '备份导出 / 备份恢复 / 备份包检查': 'Export / restore / package check',
+  '本地分享包导出': 'Local share package export',
+  '批量恢复 / 彻底删除': 'Batch restore / permanent delete',
+  '展开全部 {n} 个': 'Show all {n}',
 };
 
 export default dict;

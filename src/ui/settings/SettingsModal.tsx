@@ -15,7 +15,7 @@ import TdtSettings from './TdtSettings';
 import SecuritySettings from './SecuritySettings';
 import AccountSettings from './AccountSettings';
 import UserManagementSettings from './UserManagementSettings';
-import UploadSettings from './UploadSettings';
+import TasksSettings from './TasksSettings';
 import SharesSettings from './SharesSettings';
 import AboutSettings from './AboutSettings';
 import './SettingsModal.css';
@@ -111,7 +111,7 @@ export type TabId =
   | 'backup'
   | 'library'
   | 'myshares'
-  | 'upload'
+  | 'tasks'
   | 'trash'
   | 'tdt'
   | 'security'
@@ -138,8 +138,9 @@ const MAIN_TABS: { id: TabId; label: string; desc: string }[] = [
   { id: 'general', label: '通用', desc: '外观明暗、界面语言、主题与字体' },
   { id: 'backup', label: '备份与恢复', desc: '导出到备份目录 / 从备份恢复 / 备份提醒' },
   { id: 'library', label: '素材库', desc: '素材库路径、重新关联与视频封面' },
-  // 2026-11-10 D-350（用户要求）：上传队列单独成板块，按地点 · 到访分组显示进度 / 失败重试
-  { id: 'upload', label: '上传', desc: '上传队列、进度与失败重试' },
+  // 2026-11-15 D-431（用户要求）：原来单独一栏的「上传」并进「后台任务」，
+  // 这里集中放所有有持续时间的任务（上传 / 备份 / 分享 / 回收站），按分类显示。
+  { id: 'tasks', label: '后台任务', desc: '上传、备份、分享、回收站的运行状态' },
   { id: 'tdt', label: '天地图 Key', desc: '天地图 Key（Key 只存本机）' },
   { id: 'security', label: '安全', desc: '秘密基地密码' },
 ];
@@ -263,11 +264,15 @@ function NavIcon({ id }: { id: TabId }) {
             <path d="M8.6 12.8c.4-1.8 1.5-2.9 2.4-2.9s2 1.1 2.4 2.9" />
           </>
         )}
-        {id === 'upload' && (
+        {id === 'tasks' && (
           <>
-            <path d="M8 10.6V2.8" />
-            <path d="M5.2 5.4 8 2.6l2.8 2.8" />
-            <path d="M2.8 9.4v2.4a1.4 1.4 0 0 0 1.4 1.4h7.6a1.4 1.4 0 0 0 1.4-1.4V9.4" />
+            {/* 2026-11-15 D-431：后台任务 = 有序的任务清单，用三条带缩进的行表示 */}
+            <path d="M2.8 4h2.4" />
+            <path d="M2.8 8h2.4" />
+            <path d="M2.8 12h2.4" />
+            <path d="M7.2 4h6" />
+            <path d="M7.2 8h6" />
+            <path d="M7.2 12h3.6" />
           </>
         )}
         {id === 'myshares' && (
@@ -552,9 +557,9 @@ export default function SettingsModal({
               <LibrarySettings onChanged={onChanged} multi={multi} isAdmin={isAdmin} />
             )}
             {activeTab === 'myshares' && <SharesSettings />}
-            {/* 2026-11-10 D-350（用户要求）：上传队列独立板块（按地点 · 到访分组，可收起 / 展开） */}
-            {activeTab === 'upload' && (
-              <UploadSettings
+            {/* 2026-11-15 D-431（用户要求）：后台任务统一一栏 —— 上传 / 备份 / 分享 / 回收站 分类汇总 */}
+            {activeTab === 'tasks' && (
+              <TasksSettings
                 uploads={uploads}
                 onCancelUpload={onCancelUpload}
                 onCancelAllUploads={onCancelAllUploads}

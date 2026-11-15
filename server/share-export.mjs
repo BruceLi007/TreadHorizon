@@ -499,3 +499,31 @@ export function cancelShareExport(jobId) {
   if (j.state === 'running') j.canceled = true;
   return true;
 }
+
+/**
+ * 2026-11-15 D-431（用户要求「设置里加一个后台任务栏，把有持续时间的任务分类放进去」）：
+ * 列出本地分享包导出任务，供 `/api/background-tasks` 汇总。
+ * 只回公开字段（不含内部 `sel` 选区），按创建时间倒序。
+ */
+export function listShareExportJobs() {
+  pruneJobs();
+  const out = [];
+  for (const j of jobs.values()) {
+    out.push({
+      jobId: j.jobId,
+      state: j.state,
+      total: j.total,
+      done: j.done,
+      skipped: j.skipped,
+      bytes: j.bytes,
+      savedPath: j.savedPath,
+      savedName: j.savedName,
+      error: j.error,
+      canceled: j.canceled,
+      createdAt: j.createdAt,
+      finishedAt: j.finishedAt,
+    });
+  }
+  out.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  return out;
+}
