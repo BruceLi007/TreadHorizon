@@ -5,7 +5,7 @@ import sharp from 'sharp';
 import { randomUUID, createHash } from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, statSync, statfsSync, readdirSync, unlinkSync, rmSync, renameSync } from 'node:fs';
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, statSync, statfsSync, readdirSync, unlinkSync, rmSync, renameSync, copyFileSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { join, extname, basename, resolve, sep, dirname } from 'node:path';
 import { CONFIG, clearHome, getDefaultBackupDir, setBackupDir, setHome, setMediaRoot, setTdtKey } from './config.mjs';
@@ -332,6 +332,101 @@ function uniquePath(dir, filename) {
   let i = 1;
   while (existsSync(p)) p = join(dir, `${base}-${i++}${ext}`);
   return p;
+}
+
+/**
+ * 2026-11-15 D-443（用户反馈）：素材在库里的归档目录 = 省 / 市 / 区县 / 日期_地点名，
+ * 和上传落盘规则完全一致；rel_path 带 owner 前缀（multi），所以这里也带上。
+ */
+function mediaFolderRel(owner, v) {
+  const segs = [
+    safeSeg(v.province),
+    safeSeg(v.city),
+    safeSeg(v.county),
+    `${v.date}_${safeName(v.place_name)}`,
+  ];
+  return (owner ? `${owner}/` : '') + segs.join('/');
+}
+
+/**
+ * 把素材文件搬到目标归档目录（移动 / 改地点后保持磁盘结构与地点一致）。
+ * - 已在目标目录：原样返回 rel_path，不碰文件；
+ * - 源文件不存在：返回 null（调用方决定是否只改库）；
+ * - 移动失败：抛错（调用方回 500，不写库，避免库和磁盘对不上）。
+ */
+function moveMediaFileToFolder(mediaBase, relPath, targetDirRel) {
+  const rel = String(relPath ?? '');
+  if (!rel) return null;
+  const parts = rel.split('/');
+  const fileName = parts.pop();
+  if (!fileName) return null;
+  const curDir = parts.join('/');
+  if (curDir === targetDirRel) return rel;
+  const srcAbs = mediaAbs(mediaBase, rel);
+  if (!srcAbs || !existsSync(srcAbs)) return null;
+  const destDirAbs = resolve(mediaBase, targetDirRel);
+  mkdirSync(destDirAbs, { recursive: true });
+  const destAbs = uniquePath(destDirAbs, fileName);
+  try {
+    renameSync(srcAbs, destAbs);
+  } catch (e) {
+    // 跨盘（素材库在另一个分区）rename 会 EXDEV，退回复制 + 删源
+    if (e?.code !== 'EXDEV') throw e;
+    copyFileSync(srcAbs, destAbs);
+    try {
+      unlinkSync(srcAbs);
+    } catch {
+      /* 复制成功但删源失败：不阻塞，目标文件已就位 */
+    }
+  }
+  return absToRel(mediaBase, destAbs);
+}
+
+/**
+ * 2026-11-15 D-443：启动时把「库和磁盘对不上」的素材归位。
+ * 移动照片的旧版本只改了 visit_id，文件还留在原地；也可能因为改地点名 / 日期而错位。
+ * 只处理仍然有效的素材（回收站里的不动），源文件不存在就跳过。
+ */
+function reconcileMediaPaths() {
+  const rows = db
+    .prepare(`
+      SELECT m.id, m.user_id, m.rel_path, v.date,
+             p.province, p.city, p.county, p.name AS place_name
+      FROM media m
+      JOIN visit v ON v.id = m.visit_id
+      JOIN place p ON p.id = v.place_id
+      WHERE m.deleted_at IS NULL AND v.deleted_at IS NULL AND p.deleted_at IS NULL
+    `)
+    .all();
+  const bases = new Map();
+  let moved = 0;
+  let missing = 0;
+  let failed = 0;
+  for (const r of rows) {
+    const owner = r.user_id || null;
+    if (!bases.has(owner)) bases.set(owner, resolve(mediaBaseFor(owner)));
+    try {
+      const next = moveMediaFileToFolder(
+        bases.get(owner),
+        r.rel_path,
+        mediaFolderRel(owner, r)
+      );
+      if (next === null) {
+        missing += 1;
+        continue;
+      }
+      if (next !== r.rel_path) {
+        db.prepare('UPDATE media SET rel_path = ? WHERE id = ?').run(next, r.id);
+        moved += 1;
+      }
+    } catch (e) {
+      failed += 1;
+      console.warn('[media] 归档路径同步失败：', r.id, e?.message || e);
+    }
+  }
+  if (moved || failed) {
+    console.log(`[media] 归档路径同步：移动 ${moved}，缺失 ${missing}，失败 ${failed}`);
+  }
 }
 
 const hashFile = (path) =>
@@ -875,6 +970,8 @@ app.delete('/api/admin/invites/:id', async (req, reply) => {
 bootstrapAdmin();
 // 清理过期会话（重启后顺手回收）
 pruneSessions();
+// 2026-11-15 D-443：把「移动过但文件没搬」的素材归位（只动仍然有效的素材，源文件不在就跳过）
+reconcileMediaPaths();
 
 // ───────────── M6 P2-3：用量 / 管理后台 / 用户数据导出（仅 AUTH_MODE=multi）─────────────
 // 全部 multi-only：local 模式由 requireAuth / requireAdmin 直接 400「本地模式没有账号」。
@@ -2604,15 +2701,29 @@ app.patch('/api/media/:id', async (req, reply) => {
   if (b.visit_id !== undefined) {
     // multi：目标到访也必须是自己的，否则按无效参数处理（不泄露对方到访存在性）
     const v = db
-      .prepare(`SELECT id, place_id FROM visit WHERE id = ? AND deleted_at IS NULL${ownerSql(owner)}`)
+      .prepare(`
+        SELECT v.id, v.date, v.place_id, p.province, p.city, p.county, p.name AS place_name
+        FROM visit v JOIN place p ON p.id = v.place_id
+        WHERE v.id = ? AND v.deleted_at IS NULL AND p.deleted_at IS NULL${ownerSql(owner, 'v.user_id')}
+      `)
       .get(...ownerArgs(owner, b.visit_id));
     if (!v) return reply.code(400).send({ error: '目标到访无效' });
+    // 2026-11-15 D-443（用户反馈）：文件也要按目标地点的「省/市/区县/日期_地点名」搬过去，
+    // 不能只改 visit_id 让磁盘结构停在原地。
+    const mediaBase = resolve(mediaBaseFor(owner));
+    let newRel = m.rel_path;
+    try {
+      const moved = moveMediaFileToFolder(mediaBase, m.rel_path, mediaFolderRel(owner, v));
+      if (moved) newRel = moved;
+    } catch (e) {
+      return reply.code(500).send({ error: `移动素材文件失败：${e?.message || e}` });
+    }
     // 2026-11-15 D-439：媒体可能被移动到别的地点，原地点若拿它当封面要及时清掉，
     // 否则原地点会留下一个指向已移走媒体的 cover_media_id。
     const oldPlace = db
       .prepare('SELECT p.id AS place_id FROM visit v JOIN place p ON p.id = v.place_id WHERE v.id = ?')
       .get(m.visit_id);
-    db.prepare('UPDATE media SET visit_id = ? WHERE id = ?').run(v.id, m.id);
+    db.prepare('UPDATE media SET visit_id = ?, rel_path = ? WHERE id = ?').run(v.id, newRel, m.id);
     if (oldPlace?.place_id && oldPlace.place_id !== v.place_id) {
       db.prepare(
         'UPDATE place SET cover_media_id = NULL WHERE id = ? AND cover_media_id = ?'
