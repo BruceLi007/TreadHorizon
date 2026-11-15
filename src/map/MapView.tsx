@@ -247,6 +247,8 @@ function readZoomAnimationTiming(map: any): { dur: number; ease: (t: number) => 
 export interface MapApi {
   flyTo(lng: number, lat: number, zoom?: number): void;
   getZoom(): number;
+  /** 2026-11-15 D-471（手机添加足迹）：取当前地图中心，作为初始落点 */
+  getCenter(): { lng: number; lat: number };
   /** 2026-11-11 用户要求：地图上加下减两个按钮，点击逐级缩放 */
   zoomIn(): void;
   zoomOut(): void;
@@ -334,6 +336,8 @@ interface Props {
   apiRef: React.MutableRefObject<MapApi | null>;
   onPick: (id: string) => void;
   onDraftMoved: (lng: number, lat: number) => void;
+  /** 2026-11-15 D-471：手机端点一下草稿点（没有拖动）时通知 App 打开添加面板 */
+  onDraftTap?: () => void;
   onStatus: (s: { ready: boolean; error?: string }) => void;
   /** 单击聚合靶盘：App 用它打开「这一簇」列表（F-BRW-07）；成员是点击那一刻的快照 */
   onCluster?: (cluster: Cluster) => void;
@@ -386,6 +390,7 @@ export default function MapView({
   apiRef,
   onPick,
   onDraftMoved,
+  onDraftTap,
   onStatus,
   onCluster,
   onBlank,
@@ -451,8 +456,8 @@ export default function MapView({
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const cbs = useRef({ onPick, onDraftMoved, onCluster, onBlank, pinMode, onMapClick });
-  cbs.current = { onPick, onDraftMoved, onCluster, onBlank, pinMode, onMapClick };
+  const cbs = useRef({ onPick, onDraftMoved, onDraftTap, onCluster, onBlank, pinMode, onMapClick });
+  cbs.current = { onPick, onDraftMoved, onDraftTap, onCluster, onBlank, pinMode, onMapClick };
 
   placesRef.current = places;
   selectedRef.current = selectedId;
@@ -1471,6 +1476,10 @@ export default function MapView({
         apiRef.current = {
           flyTo: (lng, lat, zoom) => flyStepped(lng, lat, zoom ?? map.getZoom()),
           getZoom: () => map.getZoom(),
+          getCenter: () => {
+            const c = map.getCenter();
+            return { lng: c.getLng(), lat: c.getLat() };
+          },
           zoomIn: () => zoomStep(1),
           zoomOut: () => zoomStep(-1),
         };
@@ -1774,6 +1783,7 @@ export default function MapView({
 
       el.addEventListener('pointerdown', (ev) => {
         ev.preventDefault();
+        ev.stopPropagation();
         dragging = true;
         moved = false;
         startX = ev.clientX;
@@ -1782,8 +1792,19 @@ export default function MapView({
         el!.classList.add('dragging');
       });
 
+      // 触屏上地图/浏览器可能先接管手势：把 touch 事件截在草稿点上
+      const stopTouch = (e: Event) => e.stopPropagation();
+      el.addEventListener('touchstart', stopTouch, { passive: true });
+      el.addEventListener('touchmove', stopTouch, { passive: true });
+
+      el.addEventListener('pointercancel', () => {
+        dragging = false;
+        el!.classList.remove('dragging');
+      });
+
       el.addEventListener('pointermove', (ev) => {
         if (!dragging) return;
+        ev.stopPropagation();
         // D-160：4px 拖动阈值——单纯点击（哪怕手抖 1~2px）不算拖动，
         // 否则 pointerup 会把草稿锚点改到「点击图标的位置」，视觉上向上跳一截。
         if (!moved) {
@@ -1802,6 +1823,11 @@ export default function MapView({
         if (!dragging) return;
         dragging = false;
         el!.classList.remove('dragging');
+        // 2026-11-15 D-471：没拖动 = 点了一下草稿点 → 通知 App（手机端打开添加面板）
+        if (!moved) {
+          cbs.current.onDraftTap?.();
+          return;
+        }
         // 只有真正拖动过才更新草稿坐标；点击图标本体不改变落点。
         if (moved) {
           const rect = layer.getBoundingClientRect();

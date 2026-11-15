@@ -138,7 +138,12 @@ export default function BackupSettings({ onRestored, onBackupStatus }: Props) {
             <button type="button" className="ghost" onClick={() => void doPickDir()} disabled={dirBusy !== null}>
               {dirBusy === 'pick' ? t('正在选择…') : t('选择备份目录')}
             </button>
-            <button type="button" className="ghost" onClick={() => void doOpenDir()} disabled={dirBusy !== null}>
+            <button
+              type="button"
+              className="ghost bk-open-dir"
+              onClick={() => void doOpenDir()}
+              disabled={dirBusy !== null}
+            >
               {dirBusy === 'open' ? t('正在打开…') : t('打开备份目录')}
             </button>
           </div>

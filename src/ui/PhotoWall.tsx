@@ -69,11 +69,11 @@ const savePhotoWallSize = (s: { w: number; h: number } | null) => {
   }
 };
 
-/** 照片墙每行照片张数（2026-11-06 用户要求）：4 / 6 / 8 / 10，默认 6；只存本机浏览器 */
+/** 照片墙每行照片张数（2026-11-15 用户要求）：2 / 4 / 6，默认 4；只存本机浏览器 */
 const PW_COLS_KEY = 'tm-photowall-cols';
-const PHOTOWALL_COLS = [4, 6, 8, 10] as const;
+const PHOTOWALL_COLS = [2, 4, 6] as const;
 type PhotoWallCols = (typeof PHOTOWALL_COLS)[number];
-const DEFAULT_PW_COLS: PhotoWallCols = 6;
+const DEFAULT_PW_COLS: PhotoWallCols = 4;
 
 const readPhotoWallCols = (): PhotoWallCols => {
   try {

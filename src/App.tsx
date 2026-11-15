@@ -293,6 +293,8 @@ export default function App() {
   const [mergeFrom, setMergeFrom] = useState<PlaceDetail | null>(null);
   /** 地图打点模式 */
   const [pinMode, setPinMode] = useState(false);
+  /** 2026-11-15 D-471：手机端「先落点、再点开面板」模式（桌面端不进入） */
+  const [pinPlacing, setPinPlacing] = useState(false);
   /** 顶栏搜索图标是否展开（D-130：点图标向左展开搜索框） */
   const [hudSearch, setHudSearch] = useState(false);
   /** 顶栏 6 键的滑动选中块（D-158）：位置/宽度由当前选中键实测，像 Segmented 一样滑动 */
@@ -479,7 +481,8 @@ export default function App() {
 
   // D-158：顶栏 6 键的滑动选中块（与 Segmented 同一套思路）——
   // 测量当前选中键的 offsetLeft / offsetWidth，写入滑块 transform / width；
-  // 选中键本身用 scale(1.1, 1) 横向放大，所以滑块宽度乘 1.1 并按中心对齐。
+  // 2026-11-15 D-464：选中键不再放大，滑块宽度 = 按钮宽度、位置 = 按钮 offsetLeft。
+  // 2026-11-15 D-466（用户截图）：首 / 末键的滑块要顶到轨道两端（覆盖轨道左右内边距）。
   useLayoutEffect(() => {
     const wrap = actionsRef.current;
     if (!wrap) return;
@@ -490,11 +493,22 @@ export default function App() {
       }
       const el = actionBtnRefs.current[activeActionIndex];
       if (!el) return;
-      const rawW = el.offsetWidth;
-      const w = rawW * 1.1;
-      const x = el.offsetLeft + rawW / 2 - w / 2;
+      const w = el.offsetWidth;
+      const x = el.offsetLeft;
+      const lastIndex =
+        actionBtnRefs.current.reduce((n, btn) => (btn ? n + 1 : n), 0) - 1;
+      let thumbX = x;
+      let thumbW = w;
+      if (activeActionIndex === 0) {
+        thumbW += x; // 覆盖左侧内边距，左缘贴轨道左端
+        thumbX = 0;
+      } else if (activeActionIndex === lastIndex) {
+        thumbW = wrap.clientWidth - x; // 覆盖右侧内边距，右缘贴轨道右端
+      }
       setActionThumb((cur) =>
-        cur.x === x && cur.w === w && cur.visible ? cur : { x, w, visible: true }
+        cur.x === thumbX && cur.w === thumbW && cur.visible
+          ? cur
+          : { x: thumbX, w: thumbW, visible: true }
       );
     };
     measure();
@@ -700,13 +714,127 @@ export default function App() {
   // ── 顶栏搜索（D-130）：展开后点外面自动收起 ──
   useEffect(() => {
     if (!hudSearch) return;
-    const onDown = (e: MouseEvent) => {
+    const onDown = (e: Event) => {
       const el = hudSearchRef.current;
       if (el && !el.contains(e.target as Node)) setHudSearch(false);
     };
+    // 2026-11-15 D-470：手机上地图会吃掉 mousedown（touch 后不一定补发），
+    // 这里补 pointerdown 捕获阶段，点搜索框外（地图 / 按钮 / 空白）都能恢复图标。
+    document.addEventListener('pointerdown', onDown, true);
     document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
+    return () => {
+      document.removeEventListener('pointerdown', onDown, true);
+      document.removeEventListener('mousedown', onDown);
+    };
   }, [hudSearch]);
+
+  // ── 2026-11-15 D-482/D-484：手机端四个大框可上下拖拽调整高度（宽度锁死不调），
+  //    底部中间拖条；上缘固定、拖下缘；高度存 localStorage，关掉重开保持。 ──
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!window.matchMedia('(max-width: 820px)').matches) return;
+    const KEY_PREFIX = 'tm-panel-h:';
+    const SEL = '.panel.mytrail-panel, .panel.detail-panel, .st-panel, .pw-panel, .set-modal';
+    const keyOf = (el: HTMLElement) =>
+      el.classList.contains('mytrail-panel')
+        ? 'mytrail'
+        : el.classList.contains('detail-panel')
+          ? 'detail'
+          : el.classList.contains('st-panel')
+            ? 'stats'
+            : el.classList.contains('pw-panel')
+              ? 'photowall'
+              : el.classList.contains('set-modal')
+                ? 'settings'
+                : '';
+    const maxHeightFor = (el: HTMLElement) => {
+      const r = el.getBoundingClientRect();
+      const parent = el.offsetParent as HTMLElement | null;
+      const pr = parent?.getBoundingClientRect();
+      const top = pr ? r.top - pr.top : r.top;
+      const ph = pr ? pr.height : window.innerHeight;
+      return Math.max(170, ph - top - 10);
+    };
+    const applySaved = (el: HTMLElement) => {
+      const key = keyOf(el);
+      if (!key) return;
+      let h = 0;
+      try {
+        h = Number(localStorage.getItem(KEY_PREFIX + key));
+      } catch {
+        /* ignore */
+      }
+      if (!h) return;
+      const next = Math.min(Math.max(h, 170), maxHeightFor(el));
+      el.style.height = `${next}px`;
+      el.style.bottom = 'auto';
+    };
+    const attach = () => {
+      document.querySelectorAll<HTMLElement>(SEL).forEach((el) => {
+        if (el.querySelector(':scope > .panel-grip')) return;
+        const grip = document.createElement('div');
+        grip.className = 'panel-grip';
+        grip.setAttribute('aria-hidden', 'true');
+        el.appendChild(grip);
+        applySaved(el);
+        let startY = 0;
+        let startH = 0;
+        let maxH = 0;
+        let moved = false;
+        let dragging = false;
+        const onMove = (ev: PointerEvent) => {
+          if (!dragging) return;
+          if (Math.abs(ev.clientY - startY) > 2) moved = true;
+          // 上缘不动，拖下缘：向下拖 = 下缘跟着手指往下（变高），向上拖 = 变矮
+          const h = Math.min(Math.max(170, startH + (ev.clientY - startY)), maxH);
+          el.style.height = `${h}px`;
+          el.style.bottom = 'auto';
+        };
+        const onUp = (ev: PointerEvent) => {
+          if (!dragging) return;
+          dragging = false;
+          try {
+            grip.releasePointerCapture(ev.pointerId);
+          } catch {
+            /* ignore */
+          }
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          window.removeEventListener('pointercancel', onUp);
+          const key = keyOf(el);
+          if (moved && key) {
+            try {
+              localStorage.setItem(KEY_PREFIX + key, String(Math.round(el.getBoundingClientRect().height)));
+            } catch {
+              /* ignore */
+            }
+          }
+        };
+        grip.addEventListener('pointerdown', (ev) => {
+          const r = el.getBoundingClientRect();
+          startY = ev.clientY;
+          startH = r.height;
+          maxH = maxHeightFor(el);
+          moved = false;
+          dragging = true;
+          ev.preventDefault();
+          ev.stopPropagation();
+          try {
+            grip.setPointerCapture(ev.pointerId);
+          } catch {
+            /* ignore */
+          }
+          window.addEventListener('pointermove', onMove);
+          window.addEventListener('pointerup', onUp);
+          window.addEventListener('pointercancel', onUp);
+        });
+      });
+    };
+    attach();
+    const mo = new MutationObserver(attach);
+    mo.observe(document.body, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  }, []);
 
   // ── 启动 ──
   useEffect(() => {
@@ -819,6 +947,7 @@ export default function App() {
     setAdding(false);
     setPinMode(false);
     setDraft(null);
+    setPinPlacing(false);
   }, []);
 
   /**
@@ -1457,14 +1586,42 @@ export default function App() {
     closePanels();
     setStatsOpen(false);
     setPhotoWall(null);
+    setSelectedId(null);
+    setDetail(null);
+    // 2026-11-15 D-471（用户要求）：手机端不直接弹大面板（会挡住地图）——
+    // 先在地图中间落一个可拖的草稿点，拖好位置后「点一下这个点」再打开添加面板。
+    // 电脑端（>820）保持原来的「开面板 + 地图点选」。
+    const isPhone = typeof window !== 'undefined' && window.matchMedia('(max-width: 820px)').matches;
+    if (isPhone) {
+      setAdding(false);
+      setPinMode(true);
+      setPinPlacing(true);
+      const c = mapApi.current?.getCenter?.();
+      if (c) {
+        setDraft({
+          lng: c.lng,
+          lat: c.lat,
+          name: '',
+          addr: null,
+          date: today(),
+          kind: 'visited',
+          nameTouched: false,
+          nameAuto: true,
+        });
+        refreshAddr(c.lng, c.lat);
+      } else {
+        setDraft(null);
+      }
+      // 预取省界数据（约 40KB）：第一次在地图上打点时立刻能判断「国内 / 国外」
+      void loadChinaBounds();
+      return;
+    }
     setAdding(true);
     setPinMode(true);
     setDraft(null);
-    setSelectedId(null);
-    setDetail(null);
     // 预取省界数据（约 40KB）：第一次在地图上打点时立刻能判断「国内 / 国外」
     void loadChinaBounds();
-  }, [adding, pinMode, closePanels, exitAdd, readOnly]);
+  }, [adding, pinMode, closePanels, exitAdd, readOnly, refreshAddr]);
 
   /**
    * 补全「未标注」地区（2026-11-04）：找出没有省/市（或 city 为空）的活地点，
@@ -1717,6 +1874,7 @@ export default function App() {
       setAdding(false);
       setPinMode(false);
       setDraft(null);
+      setPinPlacing(false);
       setSelectedId(p.id);
       setDetail(p);
       say(tr('已保存 · 侧栏里可以拖入照片'));
@@ -2259,6 +2417,13 @@ export default function App() {
           apiRef={mapApi}
           onPick={selectPlace}
           onDraftMoved={onDraftMoved}
+          onDraftTap={() => {
+            // 2026-11-15 D-471：手机端先落点，点一下草稿点才打开添加面板
+            if (pinPlacing) {
+              setAdding(true);
+              setPinPlacing(false);
+            }
+          }}
           onCluster={(c) => {
             // F-BRW-07：靶盘列表与地点侧栏互斥；内容用点击这一刻的成员快照
             setSelectedId(null);

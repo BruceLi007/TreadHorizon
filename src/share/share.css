@@ -187,9 +187,17 @@ body {
   border:0;
   text-decoration:underline
 }
+/* 2026-11-15 D-486（用户要求）：分享页不再把「没有权限」的入口**删掉** ——
+   Logo / 标语 / 头像 / 用户名 / 搜索 / 「+ 添加足迹」/「分享」/ 大按钮组里的「设置」
+   都保留显示，只做灰色禁用（ShareEntry.lockHud() 给它们挂 .guest-locked + disabled）。
+   此前 ≤820px 规则把 `.guest-locked` 一起 display:none，移动端顶栏就只剩 5 个大按钮。
+   灰化（grayscale）只作用于 ≤820 手机断点，电脑端分享页保持原来的「变淡」外观不变。 */
 .guest-locked {
   opacity:.55;
   cursor:not-allowed!important
+}
+.guest-locked:hover {
+  opacity:.55
 }
 .readonly-chip {
   display:none!important
@@ -260,136 +268,43 @@ body {
   text-align:center
 }
 
-/* ── 2026-11-15 D-450：分享页手机端适配 ──────────────────────────────
-   只作用于 html[data-share]（/s/<token>），且只在 ≤820px / ≤480px 生效；
-   安装版、云端登录后的正式界面和电脑端分享页都不受影响。 */
+/* ── 2026-11-15 D-486（用户要求）：分享页手机端「按云端版这版来」 ─────────────
+   D-450 ~ D-479 期间分享页在下面自己维护了一整套手机布局（左右 30px + zoom .9、
+   大按钮 30px、四框固定 70/220 …），与云端 D-467 ~ D-485 的新版越走越远。
+   现在**布局统一由 styles.css 的 ≤820px 块提供**（该块已去掉 `html:not([data-share])`
+   限制，对分享页同样生效）：顶栏三行（Logo + 标语 / 头像 · 搜索 · 添加 · 分享 / 六个大按钮）、
+   四个大框左右 27px + 字号档 0.99/1.17/1.35（设置 0.95/1.05/1.15）、底拖条调高度并记忆、
+   照片墙每行 2/4/6、灯箱 / 回收站 / 到访卡 / 英文按钮那一套，分享页与云端主页完全同一套。
+
+   本文件只保留分享页独有的三件事：
+     1. 欢迎信息卡（分享自 / 标题 / 时段 / 失效 / 地图 Key）—— 云端欢迎页没有这块；
+     2. 地图层把双指手势交给地图本身（share.html 的 viewport 允许页面缩放）；
+     3. 「没有权限」的入口不删、只灰显 —— 见文件上方 `.guest-locked`。 */
 @media (max-width: 820px) {
-  html[data-share] .topbar {
-    height: auto;
-    padding: calc(30px + env(safe-area-inset-top)) 12px 0;
-    align-items: flex-start;
+  /* 手机端：无权限入口在变淡的基础上再灰化（电脑端分享页保持原样） */
+  .guest-locked,
+  .guest-locked:hover {
+    filter: grayscale(1);
+  }
+  /* 2026-11-15 D-487（用户要求「头像只降不灰」）：头像只变淡、不上灰滤镜，
+     这样分享者的头像照片仍然看得出是谁。 */
+  .hud-avatar.guest-locked,
+  .hud-avatar.guest-locked:hover {
+    filter: none;
   }
 
-  /* 只读页面：Logo / 用户 / 分享 / 设置 / 添加 全部收起 */
-  html[data-share] .topbar-brand,
-  html[data-share] .hud-user,
-  html[data-share] .guest-locked,
-  html[data-share] .readonly-chip {
-    display: none !important;
-  }
-
-  html[data-share] .hud {
-    display: flex;
-    width: 100%;
-    margin: 0;
-    gap: 6px;
-    transform: none;
-    align-items: center;
-  }
-
-  html[data-share] .hud-tools {
-    gap: 4px;
-    flex: none;
-  }
-
-  html[data-share] .hud-icon {
-    width: 34px;
-    height: 34px;
-  }
-
-  html[data-share] .actions {
-    flex: 1;
-    min-width: 0;
-    height: 30px;
-    gap: 2px;
-    padding: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  html[data-share] .actions::-webkit-scrollbar {
-    display: none;
-  }
-
-  html[data-share] .topbar .actions .ghost {
-    flex: 1 1 0;
-    min-width: 0;
-    height: 28px;
-    padding: 0 2px;
-    font-size: calc(10.5px * var(--fs-scale));
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    transform: none;
-  }
-
-  html[data-share] .topbar .actions .ghost.on {
-    height: 28px;
-    font-size: calc(10.5px * var(--fs-scale));
-    transform: none;
-    /* 手机端隐藏了 .actions-thumb 滑块，选中态自己给一个可见底色，否则白字白底看不见 */
-    color: var(--text-1);
-    background: var(--bg-raised);
-    border-radius: 999px;
-    font-weight: 700;
-  }
-
-  /* 2026-11-15 D-457（用户要求）：手机上恢复时间轴 —— 与四个大框同宽（左右各 27px 渲染值）、距底部 80px */
-  html[data-share] .timeline {
-    display: block !important;
-    left: 27px;
-    right: 27px;
-    transform: none;
-    width: auto;
-    bottom: 30px;
-    /* 2026-11-15 D-457（用户要求）：时间轴字体稍小一点（0.9 倍） */
-    --fs-scale: 0.9;
-  }
-
-  html[data-share] .actions-thumb {
-    display: none;
-  }
-
-  /* 欢迎页：背景地图完整显示；2026-11-15 D-456：缩放后可见地图左右边距各约 10px */
-  html[data-share] .login-backdrop .lb-map {
-    left: -2.6%;
-    top: 30%;
-    width: 102.6%;
-    height: auto;
-    opacity: 1;
-  }
-
-  /* 太阳单独往下移 40px（只动太阳，地图和云不动） */
-  html[data-share] .lb-sun-page {
-    top: calc(clamp(6px, 1.6vh, 20px) + 40px + env(safe-area-inset-top));
-  }
-
-  /* 左上角品牌行：距顶部 30px，标语再小一档 */
-  html[data-share] .login-brand-row {
-    top: calc(30px + env(safe-area-inset-top));
-    transform: none;
-  }
-  html[data-share] .login-slogan {
-    max-width: 46vw;
-  }
-  html[data-share] .login-slogan-line {
-    gap: 0.6em;
-    font-size: clamp(7px, 1.6vw, 9px);
-  }
-  html[data-share] .login-slogan-custom {
-    font-size: clamp(7px, 2vw, 9.5px);
-    max-width: 46vw;
-  }
-  html[data-share] .login-brand-logo {
-    --brand-scale: 0.8;
-  }
-
-  /* 欢迎信息卡 + 开始浏览：再缩小一档 */
+  /* 欢迎信息卡：放在「开始浏览」按钮上方
+     （styles.css：按钮距底 90、高 46 → 上沿 136，卡片底 150 留 14px） */
   html[data-share] .share-welcome-card {
-    left: 30px;
-    right: 30px;
-    padding: 6px 10px;
-    bottom: calc(54px + env(safe-area-inset-bottom));
+    left: 32px;
+    right: 32px;
+    bottom: calc(150px + env(safe-area-inset-bottom));
+    max-width: none;
+    transform: none;
+    text-align: center;
+    align-items: center;
     gap: 1px;
+    padding: 6px 10px;
   }
   html[data-share] .share-welcome-by {
     font-size: calc(9.5px * var(--fs-scale));
@@ -404,200 +319,14 @@ body {
   html[data-share] .share-welcome-key {
     font-size: calc(9px * var(--fs-scale));
   }
-  html[data-share] .login-launch {
-    height: 34px;
-    padding: 0 14px;
-    font-size: calc(12.5px * var(--fs-scale));
-    bottom: calc(12px + env(safe-area-inset-bottom));
-  }
-
-  /* 灯箱：底部工具条一行、胶片带在其上方，避免按钮压住缩略图；
-     只读分享页隐藏「打开本地文件夹」 */
-  html[data-share] .lb-reveal {
-    display: none;
-  }
-  html[data-share] .lb-bar {
-    left: 50%;
-    transform: translateX(-50%);
-    width: max-content;
-    max-width: calc(100vw - 20px);
-    bottom: calc(10px + env(safe-area-inset-bottom));
-    gap: 8px;
-    font-size: calc(11px * var(--fs-scale));
-    white-space: nowrap;
-  }
-  html[data-share] .lb-bar a,
-  html[data-share] .lb-bar .lb-reset {
-    height: 24px;
-    padding: 0 8px;
-    font-size: calc(11px * var(--fs-scale));
-  }
-  html[data-share] .lb-strip {
-    bottom: calc(46px + env(safe-area-inset-bottom));
-    width: calc(100vw - 20px);
-  }
-  html[data-share] .lb-hint {
-    display: none;
-  }
 
   /* 地图层：把双指手势交给地图本身（否则浏览器会先当成页面缩放） */
   html[data-share] #map {
     touch-action: none;
   }
-
-  /* 2026-11-15 D-456（用户指定）：My旅迹 / 统计 / 照片墙 三个窗口
-     渲染后上边距 70px（大按钮组下沿 60 + 10）、下边距 220px，水平左右各 30px。
-     元素带 zoom .9 → 渲染值 = 0.9 × CSS 值，反推：
-       CSS top  = (60 + 10 + safe) / 0.9 ≈ 77.8px（safe 用 /0.9 补偿）
-       CSS 高度 = (100vh − 70 − 220) / 0.9 = calc(111.111vh − 322.22px)
-     设置窗口（.set-modal）暂不动。 */
-  html[data-share] .panel {
-    top: calc((70px + env(safe-area-inset-top)) / 0.9);
-    bottom: calc((50px + var(--tl-h, 146px)) / 0.9);
-    left: 30px;
-    right: 30px;
-    width: auto;
-    max-width: none;
-    height: auto;
-    max-height: none;
-    border-radius: 16px;
-    border-bottom: 1px solid var(--line);
-    zoom: 0.9;
-  }
-
-  html[data-share] .panel-head {
-    padding: 10px 12px 6px;
-  }
-
-  /* My旅迹里的搜索行在 440px 宽内容区里会挤，收一收 */
-  html[data-share] .mytrail-embedded-head {
-    padding: 8px 10px 4px;
-    gap: 6px;
-  }
-  html[data-share] .mytrail-search {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-  html[data-share] .mytrail-search input {
-    width: 100%;
-    font-size: calc(12px * var(--fs-scale));
-  }
-  html[data-share] .head-tools {
-    flex: none;
-    gap: 4px;
-  }
-  html[data-share] .head-tools .text-btn {
-    font-size: calc(11px * var(--fs-scale));
-    padding: 0 6px;
-  }
-
-  html[data-share] .search {
-    padding: 6px 12px !important;
-  }
-
-  /* 欢迎页信息卡：放在「开始浏览」按钮上方；2026-11-15 D-456：左右各再收 20px，随按钮上移 */
-  html[data-share] .share-welcome-card {
-    left: 32px;
-    right: 32px;
-    bottom: calc(150px + env(safe-area-inset-bottom));
-    max-width: none;
-    transform: none;
-    text-align: center;
-    align-items: center;
-  }
-
-  /* 「开始浏览」：手机端底部居中；2026-11-15 D-456：距屏幕底部 90px */
-  html[data-share] .login-launch {
-    left: 0;
-    right: 0;
-    margin: 0 auto;
-    width: max-content;
-    max-width: calc(100vw - 32px);
-    bottom: calc(90px + env(safe-area-inset-bottom));
-    height: 46px;
-    padding: 0 22px;
-    font-size: calc(16px * var(--fs-scale));
-    z-index: 6;
-  }
-
-  /* 照片墙：与另外两个同一个框（左右 30、同高、垂直居中）；fixed 定位避开 overlay 的 flex 底对齐 */
-  html[data-share] .pw-overlay {
-    align-items: flex-end;
-    justify-content: center;
-    padding: 0 30px calc(30px + env(safe-area-inset-bottom));
-  }
-  /* 2026-11-15 D-459（用户反馈）：手机上隐藏两个窗口的右下角缩放点（一点就把窗口撑出屏幕） */
-  html[data-share] .pw-resize,
-  html[data-share] .set-resize {
-    display: none;
-  }
-
-  html[data-share] .pw-panel {
-    position: absolute;
-    /* 照片墙的包含块是 .pw-overlay（fixed inset:0），同样 0.9 缩放：
-       渲染 top = 0.9 × CSS top，200px 对应渲染 180px */
-    top: calc((70px + env(safe-area-inset-top)) / 0.9);
-    bottom: calc((50px + var(--tl-h, 146px)) / 0.9);
-    left: 30px;
-    right: 30px;
-    width: auto;
-    height: auto;
-    max-height: none;
-    border-radius: 16px;
-    /* 关掉 pw-in 入场动画：它结束态带 scale(.99)+translateY(14)，会让照片墙比另外两个小 1%、低十几 px */
-    animation: none;
-    zoom: 0.9;
-  }
-
-  html[data-share] .set-overlay {
-    align-items: flex-end;
-    justify-content: center;
-    padding: 0 30px calc(30px + env(safe-area-inset-bottom));
-  }
-  /* 设置：2026-11-15 D-456（用户要求）四个大窗口统一 —— 上边距 70、下边距 220、左右 30px */
-  html[data-share] .set-modal {
-    position: absolute;
-    top: calc((70px + env(safe-area-inset-top)) / 0.9);
-    bottom: calc((50px + var(--tl-h, 146px)) / 0.9);
-    left: 30px;
-    right: 30px;
-    width: auto;
-    height: auto;
-    max-height: none;
-    border-radius: 16px;
-    zoom: 0.9;
-  }
-
-  /* 统计：同 My旅迹，上边距 70px、下边距 220px、左右 30px */
-  html[data-share] .st-panel {
-    top: calc((70px + env(safe-area-inset-top)) / 0.9);
-    bottom: calc((50px + var(--tl-h, 146px)) / 0.9);
-    left: 30px;
-    right: 30px;
-    width: auto;
-    max-width: none;
-    height: auto;
-    max-height: none;
-    border-radius: 16px;
-    zoom: 0.9;
-  }
-
-  html[data-share] .pw-head {
-    padding: 10px 12px;
-  }
-
-  html[data-share] .pw-filters {
-    padding: 0 12px 8px;
-  }
 }
 
 @media (max-width: 480px) {
-  html[data-share] .topbar .actions .ghost,
-  html[data-share] .topbar .actions .ghost.on {
-    font-size: calc(10px * var(--fs-scale));
-    padding: 0 1px;
-  }
-
   html[data-share] .share-welcome-card {
     padding: 6px 10px;
   }

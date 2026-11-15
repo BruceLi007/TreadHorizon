@@ -568,6 +568,12 @@ code {
   width: 46px;
   height: 46px;
   cursor: grab;
+  /* 2026-11-15 D-471：触屏拖动草稿点时必须由我们接管手势，
+     否则浏览器/地图会当成页面滚动，拖两下就 pointercancel。 */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .pin.draft.dragging {
@@ -753,7 +759,8 @@ html:is([data-theme='light'], [data-theme='white']) .brand-logo-svg {
      组内 6 键 32px、选中键 42px（上下各突出 1px，维持原来 +2 的关系），
      抽屉挂点同步下移 3px（见文件末尾 .app-panel-open 的 top 注释）。 */
   height: 40px;
-  padding: 3px;
+  /* 2026-11-15 D-465（用户：白块上下多出来的黑边）：去掉上下内边距，按钮 / 滑块与轨道同高 */
+  padding: 0 3px;
   border-radius: 999px;
   background: var(--bg-raised);
 }
@@ -766,12 +773,11 @@ html:is([data-theme='light'], [data-theme='white']) .brand-logo-svg {
   position: absolute;
   top: 50%;
   left: 0;
-  /* 2026-11-08 D-300：轨道 40 / 选中键 42 → 滑块 42 */
-  height: 42px;
+  /* 2026-11-15 D-465（用户：白块上下多出来的黑边）：滑块和轨道同高（40），上下不再留黑边 */
+  height: 40px;
   width: 0;
   border-radius: 999px;
   background: var(--text-1);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
   pointer-events: none;
   z-index: 0;
   opacity: 0;
@@ -914,7 +920,8 @@ html:is([data-theme='light'], [data-theme='white']) .brand-logo-svg {
   align-items: center;
   justify-content: center;
   line-height: 1;
-  height: 32px;
+  /* 2026-11-15 D-465：按钮与轨道同高（40），选中白块才能上下顶满 */
+  height: 40px;
   /* 左右内边距 16px：固定宽 632px 均分后每个键约 102px，放得下最长标签，
      配合下面的 white-space: nowrap，文字不会再折成两行。
      （D-143：字号跟随三档后，大档下「My旅迹」等长标签余量变小，内边距 20 → 16 留余量；
@@ -955,12 +962,7 @@ html:is([data-theme='light'], [data-theme='white']) .brand-logo-svg {
 .topbar .actions .ghost.on:hover {
   position: relative;
   z-index: 1;
-  /* D-141 随轨道压扁 42 → 36；2026-11-08 D-300 轨道 40 → 选中键 42（上下各突出 1px） */
-  height: 42px;
-  /* D-143：选中键字号也跟随字号三档（15 × --fs-scale；16.5px 在 36px 高度内仍宽松） */
-  font-size: calc(15px * var(--fs-scale));
-  transform: scale(1.1, 1);
-  /* D-158：反色背景改由 .actions-thumb 负责滑动，选中键只保留反色文字 */
+  /* 2026-11-15 D-464（用户要求）：选中键不再放大 / 字号不变，只保留滑块滑动 */
   background: transparent;
   color: var(--bg-panel);
 }
@@ -997,15 +999,15 @@ html:is([data-theme='light'], [data-theme='white']) .brand-logo-svg {
     height: 38px;
   }
 
-  /* D-158：窄屏选中键高 34，滑块同样 34；D-300：34 → 40 */
+  /* 2026-11-15 D-465：窄屏滑块也与轨道同高（38） */
   .actions-thumb {
-    height: 40px;
+    height: 38px;
   }
 
   .topbar .actions .ghost {
     flex: 0 0 auto;
-    /* D-141：窄屏按钮 30 → 24；D-300：24 → 30（配合轨道 38） */
-    height: 30px;
+    /* D-141：窄屏按钮 30 → 24；D-300：24 → 30；D-465：30 → 38（与轨道同高） */
+    height: 38px;
     /* D-143：和宽屏一致（20 → 16），给大字号留余量；窄屏按钮是 auto 宽度，不受轨道约束 */
     padding: 0 16px;
     /* D-143：顶栏键字号跟随三档 */
@@ -1013,8 +1015,7 @@ html:is([data-theme='light'], [data-theme='white']) .brand-logo-svg {
   }
 
   .topbar .actions .ghost.on {
-    /* D-141：窄屏选中 40 → 34；D-300：34 → 40 */
-    height: 40px;
+    height: 38px;
   }
 }
 
@@ -2151,6 +2152,9 @@ html:is([data-theme='light'], [data-theme='white']) .visit.picked {
   display: grid;
   place-items: center;
   overflow: hidden;
+  /* 2026-11-15 D-477：容器查询试点 —— 灯箱文案按容器宽度自适应 */
+  container-type: inline-size;
+  container-name: lightbox;
 }
 
 .lb-stage {
@@ -4180,6 +4184,10 @@ html:is([data-theme='light'], [data-theme='white']) .upload-queue {
   flex: none;
 }
 
+.trash-spacer {
+  flex: 1;
+}
+
 .trash-selectall {
   display: flex;
   align-items: center;
@@ -5464,7 +5472,16 @@ button:focus-visible {
    四个大框（My旅迹 / 统计 / 照片墙 / 设置）统一上 70px（大按钮组下沿 60 + 10）、下边距 = 时间轴高度 + 50px（20px 间距 + 30px 底边）、左右 27px。
    只在 ≤820px 生效，桌面 / 安装版宽窗口不受影响；分享页由 share.css 单独控制。 */
 @media (max-width: 820px) {
-  html:not([data-share]) .timeline {
+  /* 2026-11-15 D-486（用户要求）：云端手机版这套布局**同时用于分享页** ——
+     原先每条规则都带 `html:not([data-share])`，分享页另在 share.css 里维护了一整套
+     （左右 30px + zoom .9、字号也不一样），两边越走越远；现在本块对**所有页面**生效，
+     `html[data-share]` 的分享页与云端主页 / 安装版手机端完全同一套。
+     写法说明：用 `html:root`（= 文档根元素）而不是裸 `html` —— 它和原来的
+     `html:not([data-share])` **特异度完全相同**（都是 0,1,1），所以云端页的层叠结果
+     逐条等价，不会因为「去掉了 :not() 让选择器变弱」而被别的桌面规则反压；
+     分享页则因为不再被排除而套上同一套规则。
+     分享页只额外保留：欢迎信息卡（share.css）、只读入口灰显（`.guest-locked`）。 */
+  html:root .timeline {
     left: 27px;
     right: 27px;
     width: auto;
@@ -5475,63 +5492,183 @@ button:focus-visible {
   }
 
   /* 2026-11-15 D-459（用户反馈）：手机上隐藏两个窗口的右下角缩放点 */
-  html:not([data-share]) .pw-resize,
-  html:not([data-share]) .set-resize {
+  html:root .pw-resize,
+  html:root .set-resize {
     display: none;
   }
 
   /* 2026-11-15 D-461（用户要求）：手机主页恢复左上 Logo + 标语、右上头像 + 用户名，
      按钮组（总览/家/My旅迹/统计/照片墙）单独一行、整体下移。 */
-  html:not([data-share]) .topbar {
+  html:root .topbar {
     height: auto;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     padding: calc(8px + env(safe-area-inset-top)) 12px 0;
   }
-  html:not([data-share]) .topbar-brand {
+  /* 2026-11-15 D-463（用户线框图）：第 1 行 = Logo 左 + 标语右对齐；
+     第 2 行 = 头像/用户名 + 搜索 … 添加地点 / 分享；第 3 行 = 大按钮组整行 */
+  html:root .topbar-brand {
     position: static;
     transform: none;
     top: auto;
     left: auto;
     order: 0;
-    flex: 1 1 auto;
+    flex: 1 1 100%;
     min-width: 0;
-    max-width: calc(100% - 104px);
-    gap: 8px;
+    max-width: none;
+    gap: 12px;
+    justify-content: center;
   }
-  html:not([data-share]) .brand-logo {
+  html:root .brand-logo {
     display: flex;
-    --brand-scale: 0.55;
+    flex: none;
+    --brand-scale: 1.05;
   }
-  html:not([data-share]) .hud-slogan {
+  html:root .hud-slogan {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.6em;
-    font-size: 10px;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    gap: 0.4em;
+    font-size: calc(8px * var(--fs-scale));
+    flex: 0 1 auto;
+    max-width: 50%;
+    white-space: normal;
+    line-height: 1.35;
+  }
+  /* 2026-11-15 D-463：头像/用户名放到第 2 行最左（线框图里第 1 行右侧留给标语） */
+  html:root .hud {
+    position: static;
+  }
+  html:root .hud-user {
+    display: flex;
+    position: static;
+    order: 0;
+    margin: 0 2px 0 0;
+    gap: 6px;
+    flex: none;
+  }
+
+  /* 2026-11-15 D-462（用户要求）：云端/本地的欢迎页也按分享页那套 —— 地图左右约 10px、开始按钮距底 90px */
+  html:root .login-backdrop .lb-map {
+    left: -2.6%;
+    top: 30%;
+    width: 102.6%;
+    height: auto;
+    opacity: 1;
+  }
+  html:root .lb-sun-page {
+    top: calc(clamp(6px, 1.6vh, 20px) + 40px + env(safe-area-inset-top));
+  }
+  html:root .login-brand-row {
+    top: calc(30px + env(safe-area-inset-top));
+    transform: none;
+  }
+  html:root .login-slogan {
     max-width: 46vw;
   }
-  html:not([data-share]) .hud-user {
-    display: flex;
-    position: absolute;
-    top: calc(10px + env(safe-area-inset-top));
-    right: 12px;
-    bottom: auto;
-    gap: 6px;
+  /* 2026-11-15 D-467（用户要求）：欢迎页外观与分享页一致 —— 标语再小一档、Logo 同分享页 0.8 */
+  html:root .login-slogan-line {
+    gap: 0.6em;
+    font-size: clamp(7px, 1.6vw, 9px);
   }
-  html:not([data-share]) .hud-avatar,
-  html:not([data-share]) .hud-avatar-photo {
+  html:root .login-slogan-custom {
+    font-size: clamp(7px, 2vw, 9.5px);
+    max-width: 46vw;
+  }
+  html:root .login-brand-logo {
+    --brand-scale: 0.8;
+  }
+  html:root .login-launch {
+    left: 0;
+    right: 0;
+    margin: 0 auto;
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    bottom: calc(90px + env(safe-area-inset-bottom));
+    height: 46px;
+    padding: 0 22px;
+    font-size: calc(16px * var(--fs-scale));
+    z-index: 6;
+  }
+  /* 2026-11-15 D-469（用户要求）：手机登录卡缩小并居中；
+     卡片比屏幕高时 `safe center` 不会把顶部裁掉，整页仍可滚。 */
+  html:root .login-page {
+    place-items: center;
+    place-items: safe center;
+    padding: 16px;
+  }
+  html:root .login-page .login-card {
+    width: min(280px, calc(100vw - 32px));
+    padding: 18px 14px 14px;
+    border-radius: 14px;
+    --fs-scale: 1.0;
+  }
+  html[data-fontsize='sm']:root .login-page .login-card {
+    --fs-scale: 0.86;
+  }
+  html[data-fontsize='lg']:root .login-page .login-card {
+    --fs-scale: 1.16;
+  }
+  /* 2026-11-15 D-469（用户要求「再扁一点」）：只压竖直方向的间距 / 控件高度，宽度保持 280 */
+  html:root .login-page .login-card {
+    padding: 14px 14px 12px;
+  }
+  html:root .login-page .login-card .login-brand {
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+  html:root .login-page .login-card .login-lead {
+    margin: 0 0 10px;
+    line-height: 1.45;
+  }
+  html:root .login-page .login-card .login-tabs {
+    margin-bottom: 10px;
+  }
+  html:root .login-page .login-card .login-form {
+    gap: 8px;
+  }
+  html:root .login-page .login-card .login-field {
+    gap: 4px;
+  }
+  html:root .login-page .login-card .login-field input,
+  html:root .login-page .login-card .login-submit {
+    height: 34px;
+  }
+  html:root .login-page .login-card .login-submit {
+    margin-top: 2px;
+  }
+  html:root .login-page .login-card .login-demo {
+    margin: 0 0 8px;
+  }
+  html:root .login-page .login-card .login-demo-btn {
+    min-height: 36px;
+    padding: 8px 12px;
+  }
+  html:root .login-page .login-card .login-foot {
+    margin: 10px 0 0;
+  }
+  html:root .login-page .login-card .login-note {
+    margin: 4px 0 0;
+  }
+  html:root .login-page .login-card .login-switch-row {
+    margin: 8px 0 0;
+  }
+  html:root .hud-avatar,
+  html:root .hud-avatar-photo {
     width: 28px;
     height: 28px;
   }
-  html:not([data-share]) .hud-avatar-marker {
+  html:root .hud-avatar-marker {
     height: 26px;
   }
-  html:not([data-share]) .hud-username {
+  html:root .hud-username {
     max-width: 84px;
     font-size: 11px;
   }
-  html:not([data-share]) .hud {
+  html:root .hud {
     order: 1;
     flex: 1 1 100%;
     width: 100%;
@@ -5544,22 +5681,67 @@ button:focus-visible {
     margin: 6px 0 0;
     transform: none;
   }
-  html:not([data-share]) .hud-tools {
+  html:root .hud-tools {
     gap: 6px;
+    flex: 1 1 auto;
   }
-  html:not([data-share]) .hud-add {
-    height: 30px;
-    padding: 0 10px;
-    font-size: calc(12px * var(--fs-scale));
+  /* 2026-11-15 D-470（用户要求）：手机搜索框放到「+ 添加足迹」左边、
+     点开时左缘正好到账号名右缘。搜索框改为占满中间空档的绝对面板：
+     - .hud-search 吃掉中间剩余宽度（图标仍在左端）；
+     - 面板 left: -8px = 账号名右缘（hud-user margin 2 + .hud gap 6）；
+       right: -6px = 添加足迹左缘（hud-tools gap 6）。 */
+  html:root .hud-tools .hud-search {
+    flex: 1 1 0;
+    margin-right: 0;
   }
-  html:not([data-share]) .actions {
+  html:root .hud-search-panel {
+    left: -8px;
+    right: -6px;
+    width: auto;
+    max-width: none;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  /* 2026-11-15 D-470（用户要求）：搜索框和里面的字再小一点；高度 / 字号与「+ 添加足迹」一致；去掉灰色描边 */
+  html:root .hud-search-panel .searchbox input {
+    height: 28px;
+    padding: 0 9px;
+    font-size: calc(11px * var(--fs-scale));
+    border: 0;
+    box-shadow: none;
+  }
+  html:root .hud-search-panel .searchbox input:focus {
+    border: 0;
+    box-shadow: none;
+  }
+  html:root .hud-search-panel .search-results {
+    top: 36px;
+  }
+  /* 2026-11-15 D-468（用户要求）：手机顶栏「+ 添加足迹」和「分享」一起做小、并保持同高同字号。
+     之前 .hud-add 走手机块 30px、.hud-share-btn 只到 ≤1419 的 34px，两个差 4px。 */
+  html:root .hud-add,
+  html:root .hud-share-btn {
+    height: 28px;
+    padding: 0 9px;
+    font-size: calc(11px * var(--fs-scale));
+  }
+  html:root .hud-share-btn {
+    gap: 5px;
+  }
+  html:root .hud-share-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+  html:root .actions {
     flex: 1 1 100%;
     height: 34px;
   }
-  html:not([data-share]) .actions .ghost {
+  html:root .topbar .actions .ghost,
+  html:root .topbar .actions .ghost.on {
     flex: 1 1 0;
     min-width: 0;
-    height: 28px;
+    /* 2026-11-15 D-465：与轨道同高（34），去掉白块上下的黑边 */
+    height: 34px;
     padding: 0 2px;
     font-size: calc(10.5px * var(--fs-scale));
     white-space: nowrap;
@@ -5567,11 +5749,20 @@ button:focus-visible {
     text-overflow: ellipsis;
     transform: none;
   }
+  html:root .actions-thumb {
+    height: 34px;
+  }
 
-  html:not([data-share]) .app .panel,
-  html:not([data-share]) .app .st-panel,
-  html:not([data-share]) .pw-panel,
-  html:not([data-share]) .set-modal {
+  /* 2026-11-15 D-467（用户要求）：「云端版」四个大框与分享页同一套字号 / 边距 ——
+     字号整体缩 10%（局部 --fs-scale ×0.9，等价分享页 zoom .9）；
+     **不再用 zoom**：zoom 会让 .set-modal 的高度退化成内容高度，设置各页就滚不动。
+     左右 27，上沿 = 大按钮组下沿 + 10，下沿 = 时间轴上方 20（与分享页渲染值一致）。
+     只定位 .app 的**一级**面板：设置里的 .trash-panel-embedded / My旅迹里的 .mytrail-embedded
+     也是 .panel，不能一起被绝对定位（否则会被塞成一个小框、内容不滚动）。 */
+  html:root .app > .panel,
+  html:root .app > .st-panel,
+  html:root .pw-panel,
+  html:root .set-modal {
     position: absolute;
     top: calc(var(--actions-bottom, 120px) + 10px);
     bottom: calc(20px + var(--tl-h, 146px));
@@ -5582,6 +5773,342 @@ button:focus-visible {
     max-height: none;
     height: auto;
     margin: 0;
-    zoom: 1;
+    border-radius: 16px;
+    /* 面板内字号整体缩 10%（等价分享页 zoom .9；不用 zoom，避免破坏内部滚动） */
+    --fs-scale: 1.17;
+  }
+  /* 跟随用户字号三档，统一 ×0.9：小 0.99 / 中 1.17 / 大 1.35 */
+  html[data-fontsize='sm']:root .app > .panel,
+  html[data-fontsize='sm']:root .app > .st-panel,
+  html[data-fontsize='sm']:root .pw-panel,
+  html[data-fontsize='sm']:root .set-modal {
+    --fs-scale: 0.99;
+  }
+  html[data-fontsize='md']:root .app > .panel,
+  html[data-fontsize='md']:root .app > .st-panel,
+  html[data-fontsize='md']:root .pw-panel,
+  html[data-fontsize='md']:root .set-modal {
+    --fs-scale: 1.17;
+  }
+  html[data-fontsize='lg']:root .app > .panel,
+  html[data-fontsize='lg']:root .app > .st-panel,
+  html[data-fontsize='lg']:root .pw-panel,
+  html[data-fontsize='lg']:root .set-modal {
+    --fs-scale: 1.35;
+  }
+  /* 设置窗口的兜底滚动：万一内部 .set-body 高度没约束住，整窗也能滑 */
+  html:root .set-modal {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  /* 2026-11-15 D-474（用户要求）：设置窗口往下拉长，刚好盖住底部时间轴
+     （时间轴 bottom 10 + 自身高度；窗口底边取 10px 就等于把时间轴框完全覆盖）。 */
+  html:root .set-modal {
+    bottom: 10px;
+  }
+  /* 2026-11-15 D-474：照片墙也同样拉长盖住时间轴 */
+  html:root .pw-panel {
+    bottom: 10px;
+  }
+  /* 设置内容区上下 / 左右都能滑（字体调大时内容放不下，允许横向滚） */
+  html:root .set-main {
+    /* 关键：列方向 flex 子项默认 min-height:auto，内容高时会把 .set-body 顶成内容高度，
+       看起来就是「滑不动」；这里归零，.set-body 才能拿到可滚动的确定高度。 */
+    min-height: 0;
+  }
+  html:root .set-body {
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* 2026-11-15 D-475（用户要求）：设置里不要左右滑 —— 改为把设置窗内的字号上限压住
+     （小 0.95 / 中 1.05 / 大 1.15），避免大字号把行挤错位；其它三个窗口仍按 0.99/1.17/1.35。 */
+  html:root .set-modal {
+    --fs-scale: 1.05;
+  }
+  html[data-fontsize='sm']:root .set-modal {
+    --fs-scale: 0.95;
+  }
+  html[data-fontsize='lg']:root .set-modal {
+    --fs-scale: 1.15;
+  }
+  /* 2026-11-15 D-475：英文大按钮组在手机上按屏宽自适应字号（中文仍跟随字号档），
+     保证 Overview / Home / My Trail / Stats / Photo wall / Settings 都放得下。 */
+  html[lang='en']:root .topbar .actions .ghost,
+  html[lang='en']:root .topbar .actions .ghost.on {
+    font-size: clamp(8.5px, 2.6vw, 10.5px);
+    letter-spacing: 0;
+    padding: 0 1px;
+  }
+  /* 2026-11-15 D-475：设置里不再横向滚（内容放不下时改压字号上限） */
+  html:root .app > .panel {
+    border-bottom: 1px solid var(--line);
+  }
+  /* 照片墙关掉入场动画：结束态 scale(.99)+translateY(14) 会让它比另外三个小 1%、低十几 px */
+  html:root .pw-panel {
+    animation: none;
+  }
+  /* 与分享页一致的窄屏内边距（内容更紧凑，设置里不再错位） */
+  html:root .panel-head {
+    padding: 10px 12px 6px;
+  }
+  html:root .mytrail-embedded-head {
+    padding: 8px 10px 4px;
+    gap: 6px;
+  }
+  html:root .mytrail-search {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  html:root .mytrail-search input {
+    width: 100%;
+    font-size: calc(12px * var(--fs-scale));
+  }
+  html:root .head-tools {
+    flex: none;
+    gap: 4px;
+  }
+  html:root .head-tools .text-btn {
+    font-size: calc(11px * var(--fs-scale));
+    padding: 0 6px;
+  }
+  html:root .search {
+    padding: 6px 12px !important;
+  }
+  html:root .pw-head {
+    padding: 10px 12px;
+  }
+  html:root .pw-filters {
+    padding: 0 12px 8px;
+  }
+  /* 2026-11-15 D-476（用户反馈）：回收站手机排版 —— 汇总/说明收边距，
+     4 个分类 tab 收紧字距，工具栏分两行（全选一行、清空/刷新一行）。 */
+  html:root .trash-summary {
+    padding: 10px 12px 0;
+  }
+  html:root .trash-summary-main {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+  html:root .trash-size {
+    font-size: calc(18px * var(--fs-scale));
+  }
+  html:root .trash-sub {
+    font-size: calc(11px * var(--fs-scale));
+  }
+  html:root .trash-hint {
+    padding: 8px 12px 0;
+    font-size: calc(11px * var(--fs-scale));
+    line-height: 1.55;
+  }
+  html:root .trash-tabs {
+    padding: 8px 10px 0;
+  }
+  html:root .trash-tabs .seg-btn {
+    padding: 0 4px;
+    font-size: calc(10.5px * var(--fs-scale));
+    gap: 3px;
+  }
+  html:root .trash-toolbar {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding: 8px 12px;
+  }
+  html:root .trash-toolbar .trash-selectall {
+    font-size: calc(11px * var(--fs-scale));
+  }
+  html:root .trash-toolbar .muted {
+    font-size: calc(11px * var(--fs-scale));
+  }
+  html:root .trash-toolbar .trash-spacer {
+    flex: 1;
+  }
+  html:root .trash-toolbar .text-btn {
+    white-space: nowrap;
+    padding: 0 8px;
+    font-size: calc(11px * var(--fs-scale));
+  }
+  /* 2026-11-15 D-480（用户反馈）：大字号下到访卡片挤成竖排 ——
+     第一行日期/标题/数量，操作按钮整行换到第二行且不折字。 */
+  html:root .visit-head {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  html:root .visit-head .date {
+    white-space: nowrap;
+  }
+  html:root .visit-head .vtitle {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  html:root .visit-actions {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    row-gap: 4px;
+    margin-left: 0;
+  }
+  html:root .visit-actions .text-btn {
+    white-space: nowrap;
+  }
+  html:root .visit-cols {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  /* 2026-11-15 D-481（用户反馈）：「照片每行 2/3/4/5 张」超出屏幕 ——
+     分段控件改为可收缩、占满剩余宽度，按钮均分不撑破。 */
+  html:root .visit-cols .seg,
+  html:root .pw-cols .seg {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+  html:root .visit-cols .seg-btn,
+  html:root .pw-cols .seg-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 3px;
+    font-size: calc(10.5px * var(--fs-scale));
+  }
+  /* 2026-11-15 D-483（用户反馈）：编辑地点贴边 / 切底 —— 编辑时隐藏到访列表，
+     让**整个面板**上下滚（头部也一起滚，保证能滚到底），并禁掉横向滑动。 */
+  html:root .panel:has(> .place-edit) {
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  html:root .panel:has(> .place-edit) .visits {
+    display: none;
+  }
+  html:root .panel:has(> .place-edit) .place-edit {
+    flex: none;
+    max-height: none;
+    overflow: visible;
+    padding-bottom: 18px;
+  }
+  html:root .panel:has(> .place-edit) .pe-toggles {
+    margin-left: 0;
+    flex-wrap: wrap;
+  }
+  html:root .panel:has(> .place-edit) .pe-field input {
+    min-width: 0;
+  }
+  /* 2026-11-15 D-487（用户反馈「编辑框底部的小拖条没固定在窗口下面，上下滑动位置会变」）：
+     D-483 把编辑态的面板本身变成了滚动容器，而 `.panel-grip` 是 `position:absolute`
+     的子元素 —— 绝对定位的子元素会跟着内容一起滚，于是拖条在窗口里上下漂。
+     编辑态改成 `position:sticky`：拖条变成流内元素（`margin-top:auto` 在没有富余高度时
+     自动落到内容末尾），`bottom:5px` 让它在滚动时始终贴在窗口底边；
+     其它三个面板本身不滚（内部 body 滚），继续走下面的 absolute 版本。 */
+  html:root .panel:has(> .place-edit) > .panel-grip {
+    position: sticky;
+    flex: none;
+    align-self: center;
+    left: auto;
+    margin-left: 0;
+    margin-top: auto;
+    bottom: 5px;
+  }
+  /* 2026-11-15 D-482：四个大框底部中间的「上下调整高度」拖条（上缘固定、宽度不可调） */
+  .panel-grip {
+    position: absolute;
+    bottom: 5px;
+    left: 50%;
+    width: 44px;
+    height: 5px;
+    margin-left: -22px;
+    border-radius: 999px;
+    background: var(--text-3);
+    opacity: 0.55;
+    z-index: 7;
+    cursor: ns-resize;
+    touch-action: none;
+  }
+  .panel-grip:active {
+    opacity: 0.9;
+  }
+  /* 2026-11-15 D-478（用户反馈）：回收站底部「恢复所选 / 彻底删除所选」在英文下
+     被挤成两行 —— 手机上改成两个整行按钮，文字不再折行。 */
+  html:root .trash-panel-embedded .panel-foot {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  html:root .trash-panel-embedded .panel-foot > button {
+    width: 100%;
+    justify-content: center;
+    white-space: nowrap;
+    font-size: calc(11.5px * var(--fs-scale));
+  }
+  /* 2026-11-15 D-476：灯箱底部手机排版 —— 提示一行放上面，工具条两行居中 */
+  html:root .lb-hint {
+    bottom: 84px;
+    font-size: calc(10.5px * var(--fs-scale));
+    white-space: nowrap;
+  }
+  html:root .lb-bar {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    column-gap: 10px;
+    row-gap: 6px;
+    font-size: calc(11px * var(--fs-scale));
+  }
+  html:root .lb-strip {
+    bottom: 108px;
+  }
+  /* 2026-11-15 D-479（用户要求）：手机上删除所有「打开本地文件夹」入口
+     （灯箱 / 侧栏媒体 / 素材库 / 备份目录 / 分享导出目录）——手机上这些路径都在电脑/服务器上，点了没意义。 */
+  html:root .lb-reveal,
+  html:root .media-reveal,
+  html:root .lib-open-btn,
+  html:root .bk-open-dir,
+  html:root .share-open-folder {
+    display: none !important;
+  }
+  /* 2026-11-15 D-477：设置内容用容器查询做自适应字号试点 */
+  html:root .set-modal {
+    container-type: inline-size;
+    container-name: settings;
+  }
+}
+
+/* 2026-11-15 D-477：容器查询试点（不支持 @container 的浏览器自动忽略，回落到上面的固定值）
+   - 设置：字号 = min(原字号 × 用户档位, 容器宽度比例)，带上下限；
+   - 灯箱：工具条 / 提示 / 小胶囊同法。 */
+@container settings (max-width: 420px) {
+  html:root .set-title {
+    font-size: clamp(14px, min(calc(16px * var(--fs-scale)), 4.6cqi), 17px);
+  }
+  html:root .set-sub {
+    font-size: clamp(10.5px, min(calc(12px * var(--fs-scale)), 3.5cqi), 12.5px);
+  }
+  html:root .set-section-title {
+    font-size: clamp(11.5px, min(calc(13.5px * var(--fs-scale)), 3.9cqi), 14px);
+  }
+  html:root .set-section-desc {
+    font-size: clamp(10.5px, min(calc(12px * var(--fs-scale)), 3.55cqi), 12.5px);
+  }
+  html:root .trash-size {
+    font-size: clamp(16px, min(calc(20px * var(--fs-scale)), 5.2cqi), 20px);
+  }
+}
+
+@container lightbox (max-width: 820px) {
+  html:root .lb-bar {
+    font-size: clamp(10px, min(calc(11px * var(--fs-scale)), 3.1cqi), 12.5px);
+  }
+  html:root .lb-hint {
+    font-size: clamp(9.5px, min(calc(10.5px * var(--fs-scale)), 3cqi), 12px);
+  }
+  html:root .lb-reset {
+    font-size: clamp(9.5px, min(calc(11px * var(--fs-scale)), 3.1cqi), 12px);
   }
 }

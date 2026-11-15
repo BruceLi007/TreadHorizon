@@ -260,7 +260,7 @@ export default function ShareConfirmDialog({
             <div className="share-modal-actions wrap">
               <button
                 type="button"
-                className="ghost"
+                className="ghost share-open-folder"
                 onClick={() => {
                   if (dir) void api.revealShareDir(dir);
                 }}

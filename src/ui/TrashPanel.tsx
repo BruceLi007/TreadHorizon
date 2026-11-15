@@ -665,7 +665,7 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
           {t('全选')}
         </label>
         <span className="muted">{t('已选 {n} 项', { n: selectedItems.length })}</span>
-        <span style={{ flex: 1 }} />
+        <span className="trash-spacer" />
         <button
           className="text-btn danger"
           onClick={() => startPurge(items, true)}

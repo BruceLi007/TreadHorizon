@@ -179,6 +179,7 @@ function MediaTile({
         </button>
         <button
           type="button"
+          className="media-reveal"
           title={t('打开本地文件夹')}
           aria-label={t('打开本地文件夹')}
           onClick={(e) => {
@@ -1055,7 +1056,7 @@ export default function Sidebar({
 
   return (
     <aside
-      className="panel"
+      className="panel detail-panel"
       onDragEnter={readOnly || visitSelectMode ? undefined : onPanelDragEnter}
       onDragOver={readOnly || visitSelectMode ? undefined : onPanelDragOver}
       onDragLeave={readOnly || visitSelectMode ? undefined : onPanelDragLeave}

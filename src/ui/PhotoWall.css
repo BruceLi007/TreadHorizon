@@ -394,7 +394,30 @@
   opacity: 1;
 }
 
-/* hover 元信息：日期 · 地点名 / 省市区 / 提示 */
+/* 2026-11-15 D-478（用户反馈）：手机格子小，「在地图中查看」文字会被截断 ——
+   改成 24px 圆形地图图标按钮（title / 无障碍文本仍保留原文）。 */
+@media (max-width: 820px) {
+  .pw-map-btn {
+    right: 4px;
+    bottom: 4px;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    font-size: 0;
+    border-radius: 999px;
+  }
+
+  .pw-map-btn::before {
+    content: '';
+    width: 13px;
+    height: 13px;
+    background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Z'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Z'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+}
 .pw-meta {
   position: absolute;
   inset: auto 0 0 0;
@@ -542,15 +565,10 @@
     padding: 10px 12px 20px;
   }
 
-  /* 窄屏：每行固定 3 张（!important 覆盖卡片上的内联列数），隐藏「照片每行」控件避免误导
-     2026-11-15 D-454：分享页要保留「照片每行」控件，所以这两条只作用于非分享页 */
+  /* 2026-11-15 D-472（用户要求）：手机也恢复「照片每行」选择，不再强制 3 列 / 不再隐藏控件；
+     列数仍由卡片上的内联 gridTemplateColumns 决定（4 / 6 / 8 / 10）。 */
   html:not([data-share]) .pw-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     gap: 4px;
-  }
-
-  html:not([data-share]) .pw-cols {
-    display: none;
   }
 
   .pw-filters-right {
@@ -714,4 +732,28 @@
 .pw-group-select:hover {
   color: var(--text-1);
   border-color: var(--text-3);
+}
+/* 2026-11-15 D-480（用户反馈）：大字号下照片墙底部「已选 / 全选 / 取消 / 删除所选」
+   被挤成竖排 —— 允许换行 + 按钮文字不折行；筛选行同样可换行。 */
+@media (max-width: 820px) {
+  html:not([data-share]) .pw-bulkbar {
+    flex-wrap: wrap;
+    row-gap: 8px;
+    padding: 10px 12px;
+  }
+  html:not([data-share]) .pw-bulk-count {
+    white-space: nowrap;
+  }
+  html:not([data-share]) .pw-bulkbar .text-btn,
+  html:not([data-share]) .pw-bulkbar .danger-btn {
+    white-space: nowrap;
+  }
+  html:not([data-share]) .pw-cols {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  html:not([data-share]) .pw-cols .seg-btn {
+    padding: 0 6px;
+    font-size: calc(10.5px * var(--fs-scale));
+  }
 }
