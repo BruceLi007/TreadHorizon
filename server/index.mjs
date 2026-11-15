@@ -2612,6 +2612,20 @@ app.patch('/api/media/:id', async (req, reply) => {
   return { ok: true };
 });
 
+/**
+ * 2026-11-15 D-436：给 explorer.exe 用的 Windows 参数引用。
+ *
+ * `explorer.exe /select,<path>` 的路径必须**单独**加引号（`/select,"C:\a b\c.jpg"`）。
+ * Node 的 spawn 在 Windows 上会把含空格的整个参数包成 `"/select,C:\a b\c.jpg"`，
+ * explorer 解析失败，退回去打开「文档」——照片文件名是 `2020-01-17 165800.jpg`
+ * 这类带空格的，所以「打开本地文件夹」几乎必然打开错目录（实测）。
+ * 路径里不会有双引号；只需整体加引号，并把结尾反斜杠加倍（避免 `\"` 被当成转义引号）。
+ */
+function winQuotePath(p) {
+  const s = String(p ?? '');
+  return `"${s.replace(/\\+$/, (m) => m + m)}"`;
+}
+
 // 打开本地文件夹（F-MED-09）：由服务端调系统文件管理器定位原片（D-36）。
 // 绝对路径不下发前端；只允许操作 mediaRoot 内的文件。
 app.post('/api/media/:id/reveal', async (req, reply) => {
@@ -2639,7 +2653,13 @@ app.post('/api/media/:id/reveal', async (req, reply) => {
       const opts = { detached: true, stdio: 'ignore' };
       let child;
       if (process.platform === 'win32') {
-        child = spawn('explorer.exe', [exists ? `/select,${abs}` : parent], opts);
+        // 2026-11-15 D-436：/select, 的路径必须单独加引号 + windowsVerbatimArguments（见 winQuotePath）
+        child = exists
+          ? spawn('explorer.exe', [`/select,${winQuotePath(abs)}`], {
+              ...opts,
+              windowsVerbatimArguments: true,
+            })
+          : spawn('explorer.exe', [parent], opts);
       } else if (process.platform === 'darwin') {
         child = spawn('open', exists ? ['-R', abs] : [parent], opts);
       } else {
