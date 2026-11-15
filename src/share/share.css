@@ -259,3 +259,130 @@ body {
 .share-gate-card .login-foot {
   text-align:center
 }
+
+/* ── 2026-11-15 D-450：分享页手机端适配 ──────────────────────────────
+   只作用于 html[data-share]（/s/<token>），且只在 ≤820px / ≤480px 生效；
+   安装版、云端登录后的正式界面和电脑端分享页都不受影响。 */
+@media (max-width: 820px) {
+  html[data-share] .topbar {
+    height: auto;
+    padding: calc(10px + env(safe-area-inset-top)) 10px 0;
+    align-items: flex-start;
+  }
+
+  /* 只读页面：Logo / 用户 / 分享 / 设置 / 添加 全部收起 */
+  html[data-share] .topbar-brand,
+  html[data-share] .hud-user,
+  html[data-share] .guest-locked,
+  html[data-share] .readonly-chip {
+    display: none !important;
+  }
+
+  html[data-share] .hud {
+    display: flex;
+    width: 100%;
+    margin: 0;
+    gap: 6px;
+    transform: none;
+    align-items: center;
+  }
+
+  html[data-share] .hud-tools {
+    gap: 4px;
+    flex: none;
+  }
+
+  html[data-share] .hud-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  html[data-share] .actions {
+    flex: 1;
+    min-width: 0;
+    height: 34px;
+    gap: 2px;
+    padding: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  html[data-share] .actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  html[data-share] .actions button {
+    flex: 1 0 auto;
+    height: 32px;
+    padding: 0 7px;
+    font-size: calc(12px * var(--fs-scale));
+    white-space: nowrap;
+  }
+
+  html[data-share] .actions-thumb {
+    display: none;
+  }
+
+  /* 右侧栏 / 抽屉：全宽底部面板 */
+  html[data-share] .panel {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-width: none;
+    max-height: 78vh;
+    border-radius: 16px 16px 0 0;
+    border-bottom: 0;
+  }
+
+  html[data-share] .panel-head {
+    padding: 10px 12px 6px;
+  }
+
+  html[data-share] .search {
+    padding: 6px 12px !important;
+  }
+
+  /* 欢迎页信息卡：贴底、占满宽度 */
+  html[data-share] .share-welcome-card {
+    left: 12px;
+    right: 12px;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    max-width: none;
+    transform: none;
+    text-align: center;
+    align-items: center;
+  }
+
+  /* 照片墙：全屏 */
+  html[data-share] .pw-panel {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+    border: 0;
+  }
+
+  html[data-share] .pw-head {
+    padding: 10px 12px;
+  }
+
+  html[data-share] .pw-filters {
+    padding: 0 12px 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  html[data-share] .actions button {
+    font-size: calc(11px * var(--fs-scale));
+    padding: 0 5px;
+  }
+
+  html[data-share] .panel {
+    max-height: 84vh;
+  }
+
+  html[data-share] .share-welcome-card {
+    padding: 10px 12px;
+  }
+}

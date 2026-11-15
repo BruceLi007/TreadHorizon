@@ -61,8 +61,14 @@ export default function ShareEntry() {
 
   // D-426：密码门 / 状态页在 App 挂载之前就要出图，先把正式版的主题 / 字体 / 字号档写到 <html>，
   // 否则会退化成系统字体，和正式版登录页 / Key 弹窗不是一套。
+  // 2026-11-15 D-450：给分享页打 html[data-share] 标记 —— 手机端适配全部只作用于这个标记，
+  // 安装版 / 云端登录后的正式界面完全不受影响。
   useLayoutEffect(() => {
     applyUiPrefs();
+    document.documentElement.dataset.share = '1';
+    return () => {
+      delete document.documentElement.dataset.share;
+    };
   }, []);
 
   const load = useCallback(async () => {
