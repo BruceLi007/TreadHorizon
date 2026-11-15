@@ -5469,7 +5469,7 @@ button:focus-visible {
     right: 27px;
     width: auto;
     transform: none;
-    bottom: 30px;
+    bottom: 10px;
     /* 2026-11-15 D-457（用户要求）：时间轴字体稍小一点（0.9 倍） */
     --fs-scale: 0.9;
   }
@@ -5480,13 +5480,101 @@ button:focus-visible {
     display: none;
   }
 
+  /* 2026-11-15 D-461（用户要求）：手机主页恢复左上 Logo + 标语、右上头像 + 用户名，
+     按钮组（总览/家/My旅迹/统计/照片墙）单独一行、整体下移。 */
+  html:not([data-share]) .topbar {
+    height: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: calc(8px + env(safe-area-inset-top)) 12px 0;
+  }
+  html:not([data-share]) .topbar-brand {
+    position: static;
+    transform: none;
+    top: auto;
+    left: auto;
+    order: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: calc(100% - 104px);
+    gap: 8px;
+  }
+  html:not([data-share]) .brand-logo {
+    display: flex;
+    --brand-scale: 0.55;
+  }
+  html:not([data-share]) .hud-slogan {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em;
+    font-size: 10px;
+    max-width: 46vw;
+  }
+  html:not([data-share]) .hud-user {
+    display: flex;
+    position: absolute;
+    top: calc(10px + env(safe-area-inset-top));
+    right: 12px;
+    bottom: auto;
+    gap: 6px;
+  }
+  html:not([data-share]) .hud-avatar,
+  html:not([data-share]) .hud-avatar-photo {
+    width: 28px;
+    height: 28px;
+  }
+  html:not([data-share]) .hud-avatar-marker {
+    height: 26px;
+  }
+  html:not([data-share]) .hud-username {
+    max-width: 84px;
+    font-size: 11px;
+  }
+  html:not([data-share]) .hud {
+    order: 1;
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    margin: 6px 0 0;
+    transform: none;
+  }
+  html:not([data-share]) .hud-tools {
+    gap: 6px;
+  }
+  html:not([data-share]) .hud-add {
+    height: 30px;
+    padding: 0 10px;
+    font-size: calc(12px * var(--fs-scale));
+  }
+  html:not([data-share]) .actions {
+    flex: 1 1 100%;
+    height: 34px;
+  }
+  html:not([data-share]) .actions .ghost {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 28px;
+    padding: 0 2px;
+    font-size: calc(10.5px * var(--fs-scale));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transform: none;
+  }
+
   html:not([data-share]) .app .panel,
   html:not([data-share]) .app .st-panel,
   html:not([data-share]) .pw-panel,
   html:not([data-share]) .set-modal {
     position: absolute;
-    top: calc(70px + env(safe-area-inset-top));
-    bottom: calc(50px + var(--tl-h, 146px));
+    top: calc(var(--actions-bottom, 120px) + 10px);
+    bottom: calc(20px + var(--tl-h, 146px));
     left: 27px;
     right: 27px;
     width: auto;

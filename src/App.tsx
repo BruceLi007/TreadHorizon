@@ -345,6 +345,8 @@ export default function App() {
 
   // 统计模式（F-STA / D-60）：主地图切省份点亮，右侧统计面板；默认全量、不跟随时间轴
   const [statsOpen, setStatsOpen] = useState(false);
+  /** 2026-11-15 D-460（用户要求）：统计「模式」与「窗口」解耦 —— 关掉统计窗口后地图仍保持热力图/省份点亮，只有切到总览 / 家 / My旅迹 才退出统计模式 */
+  const [statsMode, setStatsMode] = useState(false);
   const [provinceStats, setProvinceStats] = useState<ProvinceLight[] | null>(null);
   // 照片墙（F-BRW-04/05）
   const [photoWall, setPhotoWall] = useState<{
@@ -2055,6 +2057,7 @@ export default function App() {
     setMyTrailParked(false);
     setPhotoWall(null);
     setLightbox(null);
+    setStatsMode(true);
     setStatsOpen(true);
     try {
       const d = await api.statsProvinces();
@@ -2131,6 +2134,37 @@ export default function App() {
     adding || detail || mergeFrom || cluster || statsOpen || myTrailOpen
   );
 
+  /** 2026-11-15 D-461（用户要求）：手机主页按钮组下移后，把按钮组下沿写进 --actions-bottom，
+      四个大框的 top = 该值 + 10px（品牌行 / 标语换行 / 头像高度变化时自动跟随）。 */
+  useEffect(() => {
+    if (boot !== 'ready') return;
+    const el = document.querySelector<HTMLElement>('.topbar .actions');
+    const root = document.documentElement;
+    if (!el) return;
+    const apply = () => {
+      const r = el.getBoundingClientRect();
+      if (r.height > 0) root.style.setProperty('--actions-bottom', `${Math.round(r.bottom)}px`);
+    };
+    apply();
+    const raf = requestAnimationFrame(() => {
+      apply();
+      requestAnimationFrame(apply);
+    });
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    const topbar = document.querySelector<HTMLElement>('.topbar');
+    if (topbar) ro.observe(topbar);
+    const timer = window.setTimeout(apply, 600);
+    void document.fonts?.ready.then(apply).catch(() => {});
+    window.addEventListener('resize', apply);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      window.clearTimeout(timer);
+      window.removeEventListener('resize', apply);
+      root.style.removeProperty('--actions-bottom');
+    };
+  }, [boot]);
   /** 顶栏右上角用户信息（2026-11-07 D-224）：只有 multi 模式已登录才有；local 模式不显示 */
   const topbarUser = authMe?.mode === 'multi' ? authMe.user : null;
 
@@ -2236,7 +2270,7 @@ export default function App() {
           onBlank={() => setCluster(null)}
           pinMode={pinMode && !draft}
           onMapClick={startPinDraft}
-          statsMode={statsOpen}
+          statsMode={statsMode}
           provinceStats={provinceStats}
           homeColor={homeColor}
           markerColors={markerColors}
@@ -2537,6 +2571,7 @@ export default function App() {
               // 保证同一时间只有一个键是「选中的黑色」：先收起其它面板再选总览（D-128 修正）
               closePanels();
               setStatsOpen(false);
+              setStatsMode(false);
               exitAdd();
               setTopAction('overview');
               backToChina();
@@ -2557,6 +2592,7 @@ export default function App() {
             onClick={() => {
               closePanels();
               setStatsOpen(false);
+              setStatsMode(false);
               exitAdd();
               setTopAction(homePlace ? 'home' : null);
               goHome();
@@ -2579,6 +2615,7 @@ export default function App() {
             onClick={() => {
               setTopAction(null);
               setStatsOpen(false);
+              setStatsMode(false);
               setPhotoWall(null);
               closePanels();
               exitAdd();
