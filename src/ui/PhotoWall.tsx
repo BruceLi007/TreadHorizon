@@ -69,20 +69,40 @@ const savePhotoWallSize = (s: { w: number; h: number } | null) => {
   }
 };
 
-/** 照片墙每行照片张数（2026-11-15 用户要求）：2 / 4 / 6，默认 4；只存本机浏览器 */
+/** 照片墙每行照片张数（2026-11-06 用户要求；本机偏好，刷新 / 重开记住）。
+ *  2026-11-15 D-488（用户反馈「照片每行只让改手机版，电脑版不改」）：
+ *  **只有手机版（≤820px，与应用其它手机断点一致）改成 2 / 4 / 6、默认 4**；
+ *  电脑端 / 安装版保持原来的 4 / 6 / 8 / 10、默认 6，逐字不动。 */
 const PW_COLS_KEY = 'tm-photowall-cols';
-const PHOTOWALL_COLS = [2, 4, 6] as const;
-type PhotoWallCols = (typeof PHOTOWALL_COLS)[number];
-const DEFAULT_PW_COLS: PhotoWallCols = 4;
+/** 手机版档位（D-472 / D-484） */
+const PW_COLS_MOBILE = [2, 4, 6] as const;
+/** 电脑版档位（v2.0.7 原样） */
+const PW_COLS_DESKTOP = [4, 6, 8, 10] as const;
+const PW_COLS_MOBILE_DEFAULT = 4;
+const PW_COLS_DESKTOP_DEFAULT = 6;
 
-const readPhotoWallCols = (): PhotoWallCols => {
+/** 当前视口是不是手机版（与 CSS 的 820 断点同口径） */
+const isPhotoWallMobile = (): boolean =>
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(max-width: 820px)').matches;
+
+/** 当前视口可选的每行张数档位 */
+const photoWallColOptions = (): readonly number[] =>
+  isPhotoWallMobile() ? PW_COLS_MOBILE : PW_COLS_DESKTOP;
+
+/** 当前视口的默认每行张数（手机 4、电脑 6） */
+const photoWallColDefault = (): number =>
+  isPhotoWallMobile() ? PW_COLS_MOBILE_DEFAULT : PW_COLS_DESKTOP_DEFAULT;
+
+const readPhotoWallCols = (): number => {
   try {
     const n = Number(localStorage.getItem(PW_COLS_KEY));
-    if ((PHOTOWALL_COLS as readonly number[]).includes(n)) return n as PhotoWallCols;
+    if (photoWallColOptions().includes(n)) return n;
   } catch {
     /* 隐私模式 / 旧数据损坏：用默认 */
   }
-  return DEFAULT_PW_COLS;
+  return photoWallColDefault();
 };
 
 const fmtDuration = (s?: number | null): string => {
@@ -317,7 +337,7 @@ export default function PhotoWall({ onClose, onPick, focus, onChanged, readOnly 
   }, [size, resizing]);
 
   // ── 每行照片张数（2026-11-06 用户要求；本机偏好，刷新 / 重开记住）──
-  const [cols, setCols] = useState<PhotoWallCols>(readPhotoWallCols);
+  const [cols, setCols] = useState<number>(readPhotoWallCols);
   useEffect(() => {
     try {
       localStorage.setItem(PW_COLS_KEY, String(cols));
@@ -325,6 +345,17 @@ export default function PhotoWall({ onClose, onPick, focus, onChanged, readOnly 
       /* 写不进去就算了，只影响记忆 */
     }
   }, [cols]);
+
+  // 2026-11-15 D-488：跨断点时把每行张数换到该视口合法的档位 ——
+  // 例：手机选 2 张后把窗口拉宽成电脑版（2 不在 4/6/8/10 里）→ 回到电脑默认 6；反向同理回到手机默认 4。
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(max-width: 820px)');
+    const onChange = () =>
+      setCols((cur) => (photoWallColOptions().includes(cur) ? cur : photoWallColDefault()));
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   // ── 数据 ──
   const [items, setItems] = useState<PhotoWallItem[]>([]);
@@ -766,9 +797,9 @@ export default function PhotoWall({ onClose, onPick, focus, onChanged, readOnly 
               size="sm"
               variant="radio"
               ariaLabel={t('照片墙每行张数')}
-              options={PHOTOWALL_COLS.map((n) => ({ id: String(n), label: t('{n} 张', { n }) }))}
+              options={photoWallColOptions().map((n) => ({ id: String(n), label: t('{n} 张', { n }) }))}
               value={String(cols)}
-              onChange={(id) => setCols(Number(id) as PhotoWallCols)}
+              onChange={(id) => setCols(Number(id))}
             />
           </div>
 
