@@ -5,7 +5,7 @@ import sharp from 'sharp';
 import { randomUUID, createHash } from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, statSync, statfsSync, readdirSync, unlinkSync, rmSync, renameSync, copyFileSync } from 'node:fs';
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, statSync, statfsSync, readdirSync, unlinkSync, rmSync, renameSync, copyFileSync, rmdirSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { join, extname, basename, resolve, sep, dirname } from 'node:path';
 import { CONFIG, clearHome, getDefaultBackupDir, setBackupDir, setHome, setMediaRoot, setTdtKey } from './config.mjs';
@@ -379,7 +379,60 @@ function moveMediaFileToFolder(mediaBase, relPath, targetDirRel) {
       /* 复制成功但删源失败：不阻塞，目标文件已就位 */
     }
   }
+  // 2026-11-15 D-444：搬走最后一张后，空的旧到访目录顺手删掉（只删空目录）
+  removeDirIfEmpty(dirname(srcAbs), mediaBase);
   return absToRel(mediaBase, destAbs);
+}
+
+/**
+ * 2026-11-15 D-444（用户要求）：搬走文件后，把空掉的到访目录顺手删掉。
+ * 只删「空目录」且必须在素材库根内、不能是根本身；任何异常都忽略（宁可留空目录也不误删）。
+ */
+function removeDirIfEmpty(dirAbs, mediaBase) {
+  try {
+    if (!isInside(mediaBase, dirAbs)) return false;
+    if (readdirSync(dirAbs).length !== 0) return false;
+    rmdirSync(dirAbs);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 2026-11-15 D-444：启动时清理「到访级」的空目录（移动 / 改名 / 改日期后留下的空壳）。
+ * 目录层级：local = 省/市/区县/日期_地点名（4 级）；multi = <owner>/省/市/区县/日期_地点名（5 级）。
+ * 只动到访级、只动空目录；省/市/区县目录即使空了也不删。
+ */
+function pruneEmptyVisitDirs() {
+  const owners = db
+    .prepare('SELECT DISTINCT user_id FROM media')
+    .all()
+    .map((r) => r.user_id || null);
+  let removed = 0;
+  for (const owner of owners) {
+    const base = resolve(mediaBaseFor(owner));
+    if (!existsSync(base)) continue;
+    const targetDepth = owner ? 5 : 4;
+    const walk = (rel) => {
+      const abs = rel.length ? join(base, ...rel) : base;
+      if (rel.length === targetDepth) {
+        if (removeDirIfEmpty(abs, base)) removed += 1;
+        return;
+      }
+      let entries;
+      try {
+        entries = readdirSync(abs, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const e of entries) {
+        if (e.isDirectory()) walk([...rel, e.name]);
+      }
+    };
+    walk([]);
+  }
+  if (removed) console.log(`[media] 清理空到访目录：${removed} 个`);
 }
 
 /**
@@ -972,6 +1025,8 @@ bootstrapAdmin();
 pruneSessions();
 // 2026-11-15 D-443：把「移动过但文件没搬」的素材归位（只动仍然有效的素材，源文件不在就跳过）
 reconcileMediaPaths();
+// 2026-11-15 D-444：清掉归位后剩下的空到访目录（只删空目录）
+pruneEmptyVisitDirs();
 
 // ───────────── M6 P2-3：用量 / 管理后台 / 用户数据导出（仅 AUTH_MODE=multi）─────────────
 // 全部 multi-only：local 模式由 requireAuth / requireAdmin 直接 400「本地模式没有账号」。
