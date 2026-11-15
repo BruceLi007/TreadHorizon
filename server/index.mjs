@@ -2604,10 +2604,20 @@ app.patch('/api/media/:id', async (req, reply) => {
   if (b.visit_id !== undefined) {
     // multi：目标到访也必须是自己的，否则按无效参数处理（不泄露对方到访存在性）
     const v = db
-      .prepare(`SELECT id FROM visit WHERE id = ? AND deleted_at IS NULL${ownerSql(owner)}`)
+      .prepare(`SELECT id, place_id FROM visit WHERE id = ? AND deleted_at IS NULL${ownerSql(owner)}`)
       .get(...ownerArgs(owner, b.visit_id));
     if (!v) return reply.code(400).send({ error: '目标到访无效' });
+    // 2026-11-15 D-439：媒体可能被移动到别的地点，原地点若拿它当封面要及时清掉，
+    // 否则原地点会留下一个指向已移走媒体的 cover_media_id。
+    const oldPlace = db
+      .prepare('SELECT p.id AS place_id FROM visit v JOIN place p ON p.id = v.place_id WHERE v.id = ?')
+      .get(m.visit_id);
     db.prepare('UPDATE media SET visit_id = ? WHERE id = ?').run(v.id, m.id);
+    if (oldPlace?.place_id && oldPlace.place_id !== v.place_id) {
+      db.prepare(
+        'UPDATE place SET cover_media_id = NULL WHERE id = ? AND cover_media_id = ?'
+      ).run(oldPlace.place_id, m.id);
+    }
   }
   return { ok: true };
 });
@@ -3683,16 +3693,23 @@ app.post('/api/backup/dir/open', async (req, reply) => {
 
 /** 后台任务列表（导出 / 恢复 / 备份包检查 / 回收站 / 分享导出）：
  *  设置关掉再打开可恢复进度显示；刷新页面也能看到任务还在。
- *  2026-11-15 D-431：补上 trashJobs 与 shareExportJobs，供「设置 → 后台任务」分类汇总。 */
+ *  2026-11-15 D-431：补上 trashJobs 与 shareExportJobs，供「设置 → 后台任务」分类汇总。
+ *  2026-11-15 D-438：不再只限管理员 —— 普通用户也要能看自己的后台任务；
+ *  每个列表都按 owner 过滤（云端普通用户没有备份类任务，返回空数组即可）。
+ */
 app.get('/api/background-tasks', async (req, reply) => {
-  if (!requireAdminInMulti(req, reply)) return;
   const owner = ownerOf(req);
+  // 只读样板会话没有自己的任务，直接返回空（避免看到宿主数据）
+  if (req.authUser?.readOnly) {
+    return { exportJobs: [], restoreJobs: [], inspectJobs: [], trashJobs: [], shareExportJobs: [] };
+  }
   return {
     exportJobs: listExportJobs(owner),
     restoreJobs: listRestoreJobs(owner),
     inspectJobs: listInspectJobs(owner),
-    trashJobs: req.authUser?.readOnly ? [] : listTrashJobs(owner),
-    shareExportJobs: listShareExportJobs(),
+    trashJobs: listTrashJobs(owner),
+    // 本地分享包导出只在 local 模式存在（multi 下 /api/share/export/* 会被拒绝）
+    shareExportJobs: CONFIG.authMode === 'multi' ? [] : listShareExportJobs(),
   };
 });
 

@@ -77,7 +77,7 @@ import {
   tr,
   type Lang,
 } from './i18n';
-import type { Addr, BackupStatus, Place, PlaceDetail, Poi, ProvinceLight, UpdateCheckResult, UploadItem } from './lib/types';
+import type { Addr, BackupStatus, Place, PlaceDetail, Poi, ProvinceLight, ShareUploadTask, UpdateCheckResult, UploadItem } from './lib/types';
 
 export interface DraftState {
   lng: number;
@@ -323,6 +323,16 @@ export default function App() {
   const [shareConfirmOpen, setShareConfirmOpen] = useState(false);
   /** 云端「我的分享」上传对话框（P5） */
   const [shareUploadOpen, setShareUploadOpen] = useState(false);
+  /**
+   * 云端分享包上传任务（2026-11-15 D-438）：从弹窗里提到 App 层，
+   * 关掉弹窗 / 切到设置不中断；设置 → 后台任务 →「分享」里能看到进度 / 结果 / 取消 / 重试。
+   */
+  const [shareUploads, setShareUploads] = useState<ShareUploadTask[]>([]);
+  const shareUploadFiles = useRef(new Map<string, File>());
+  const shareUploadFields = useRef(
+    new Map<string, { expiresIn: string; expiresHours?: number; password?: string; title?: string }>()
+  );
+  const shareUploadAborts = useRef(new Map<string, AbortController>());
   const [trashCount, setTrashCount] = useState(0);
   /** 备份提醒（F-SYS-05）：启动时取一次；设置页关闭 / 恢复 / 导出后刷新 */
   const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null);
@@ -1024,6 +1034,83 @@ export default function App() {
     setShareConfirmOpen(false);
     setMyTrailParked(false);
   }, []);
+  const patchShareUpload = useCallback((id: string, patch: Partial<ShareUploadTask>) => {
+    setShareUploads((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  }, []);
+
+  /**
+   * 起一个云端分享包上传（2026-11-15 D-438）。
+   * 放在 App 层而不是弹窗里：关掉弹窗 / 切到设置都不中断，进度与结果在后台任务里可见。
+   */
+  const startShareUpload = useCallback(
+    (
+      file: File,
+      fields: { expiresIn: string; expiresHours?: number; password?: string; title?: string }
+    ) => {
+      const id = `su-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const ctrl = new AbortController();
+      shareUploadFiles.current.set(id, file);
+      shareUploadFields.current.set(id, fields);
+      shareUploadAborts.current.set(id, ctrl);
+      setShareUploads((prev) =>
+        [
+          {
+            id,
+            fileName: file.name,
+            bytes: file.size,
+            progress: 0,
+            state: 'uploading' as const,
+            startedAt: Date.now(),
+          },
+          ...prev,
+        ].slice(0, 20)
+      );
+      void api
+        .importShareWithProgress(file, fields, {
+          signal: ctrl.signal,
+          onProgress: (pct) => patchShareUpload(id, { progress: pct }),
+        })
+        .then((r) => {
+          patchShareUpload(id, { state: 'done', progress: 100, url: r.url, finishedAt: Date.now() });
+          shareUploadFiles.current.delete(id);
+          shareUploadFields.current.delete(id);
+          say(tr('分享包已上传，可在 设置 → 我的分享 查看'));
+        })
+        .catch((e: any) => {
+          if (e?.name === 'AbortError') {
+            patchShareUpload(id, { state: 'canceled', finishedAt: Date.now() });
+          } else {
+            patchShareUpload(id, {
+              state: 'error',
+              error: e?.message || String(e),
+              finishedAt: Date.now(),
+            });
+          }
+        })
+        .finally(() => {
+          shareUploadAborts.current.delete(id);
+        });
+      return id;
+    },
+    [patchShareUpload, say]
+  );
+
+  const cancelShareUpload = useCallback((id: string) => {
+    shareUploadAborts.current.get(id)?.abort();
+  }, []);
+
+  /** 失败重试：用原来那份 File + 表单参数再传一次（成功后 File 已释放） */
+  const retryShareUpload = useCallback(
+    (id: string) => {
+      const file = shareUploadFiles.current.get(id);
+      const fields = shareUploadFields.current.get(id);
+      if (!file || !fields) return;
+      shareUploadFiles.current.delete(id);
+      shareUploadFields.current.delete(id);
+      startShareUpload(file, fields);
+    },
+    [startShareUpload]
+  );
 
   /** 勾选 / 取消一个地点的全部照片（三态） */
   const toggleSharePlace = useCallback(
@@ -2759,7 +2846,14 @@ export default function App() {
       )}
 
       {shareUploadOpen && (
-        <ShareUploadDialog open={shareUploadOpen} onClose={() => setShareUploadOpen(false)} />
+        <ShareUploadDialog
+          open={shareUploadOpen}
+          onClose={() => setShareUploadOpen(false)}
+          upload={shareUploads[0] ?? null}
+          onStart={startShareUpload}
+          onCancel={cancelShareUpload}
+          onRetry={retryShareUpload}
+        />
       )}
 
       {settingsOpen && (
@@ -2835,6 +2929,9 @@ export default function App() {
           updateCheck={updateCheck}
           updateChecking={updateChecking}
           onCheckUpdate={refreshUpdateCheck}
+          shareUploads={shareUploads}
+          onCancelShareUpload={cancelShareUpload}
+          onRetryShareUpload={retryShareUpload}
           ignoredUpdateVersion={ignoredUpdateVersion}
           onIgnoreUpdate={ignoreUpdateVersion}
           onRestoreUpdateReminder={restoreUpdateReminder}

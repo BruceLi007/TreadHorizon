@@ -30,7 +30,7 @@ import { db, now } from './db.mjs';
 import { getUserById } from './auth.mjs';
 import { mediaBaseFor } from './media-root.mjs';
 import { safeResolve } from './paths.mjs';
-import { decodeHeicToJpeg, isHeicExt } from './heic.mjs';
+import { decodeHeicToJpeg, isHeicFile } from './heic.mjs';
 import { haversineKm } from './stats.mjs';
 import { writeZip, ZipError } from './zip.mjs';
 
@@ -86,7 +86,10 @@ function uniqueZipPath(dir, count) {
 }
 
 async function sourceImage(absPath) {
-  if (isHeicExt(absPath)) {
+  // 2026-11-15 D-437：这里原来写的是 isHeicExt(absPath) —— 那是「扩展名」判断（只认 '.heic'），
+  // 传完整路径永远 false，于是 HEIC 全部直接交给 sharp，报「HEVC 插件没编进来」被 catch 成
+  // 「无法读取」跳过（用户导出 173 张跳过 65 张，全是 HEIC）。改用 isHeicFile（内部取扩展名）。
+  if (isHeicFile(absPath)) {
     const jpeg = await decodeHeicToJpeg(absPath);
     return sharp(jpeg, { failOn: 'none' });
   }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import type { BackupStatus, UpdateCheckResult, UploadItem } from '../../lib/types';
+import type { BackupStatus, ShareUploadTask, UpdateCheckResult, UploadItem } from '../../lib/types';
 import type { AppFont, FontSize, FontWeight, Slogan, Theme, ThemeLevel } from './types';
 import type { HomeColor } from '../../lib/homeIcon';
 import type { MarkerColorPrefs } from '../../lib/markerColors';
@@ -104,6 +104,10 @@ interface Props {
   onRetryUpload?: (key: string) => void;
   onClearFinishedUploads?: () => void;
   onCloseUploadQueue?: () => void;
+  /** 云端分享包上传任务（2026-11-15 D-438）：App 层持有，关弹窗 / 切页面不中断 */
+  shareUploads?: ShareUploadTask[];
+  onCancelShareUpload?: (id: string) => void;
+  onRetryShareUpload?: (id: string) => void;
 }
 
 export type TabId =
@@ -337,6 +341,9 @@ export default function SettingsModal({
   onRetryUpload = () => {},
   onClearFinishedUploads = () => {},
   onCloseUploadQueue = () => {},
+  shareUploads = [],
+  onCancelShareUpload = () => {},
+  onRetryShareUpload = () => {},
 }: Props) {
   const t = useT();
   const [tab, setTab] = useState<TabId>(initialTab ?? 'general');
@@ -566,6 +573,9 @@ export default function SettingsModal({
                 onRetryUpload={onRetryUpload}
                 onClearFinishedUploads={onClearFinishedUploads}
                 onCloseUploadQueue={onCloseUploadQueue}
+                shareUploads={shareUploads}
+                onCancelShareUpload={onCancelShareUpload}
+                onRetryShareUpload={onRetryShareUpload}
                 readOnly={readOnly}
               />
             )}

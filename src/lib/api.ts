@@ -858,21 +858,62 @@ export const api = {
 
   // ── 2026-11-14 D-416：云端「我的分享」（P5）──
 
-  /** 上传分享包（multipart：file / expiresIn / password / title） */
-  importShare: (file: File, fields: { expiresIn: string; expiresHours?: number; password?: string; title?: string }) => {
-    const fd = new FormData();
-    fd.append('file', file, file.name);
-    fd.append('expiresIn', fields.expiresIn);
-    if (fields.expiresIn === 'custom' && fields.expiresHours) {
-      fd.append('expiresHours', String(fields.expiresHours));
-    }
-    if (fields.password) fd.append('password', fields.password);
-    // 标题总是带上（可能为空）：服务端看到这个字段就以它为准，否则回退到包内 manifest.title
-    fd.append('title', fields.title ?? '');
-    return fetch('/api/shares/import', { method: 'POST', body: fd }).then((r) =>
-      json<{ id: string; token: string; url: string; expiresAt: number | null; counts: ShareCounts }>(r)
-    );
-  },
+  /**
+   * 上传分享包（multipart：file / expiresIn / password / title）。
+   *
+   * 2026-11-15 D-438：改用 XHR —— ① 能拿到上传进度（fetch 没有 upload progress）；
+   * ② 由 App 层调用、不依赖弹窗生命周期，所以关掉分享弹窗 / 切到设置都不会中断。
+   */
+  importShareWithProgress: (
+    file: File,
+    fields: { expiresIn: string; expiresHours?: number; password?: string; title?: string },
+    opts: { onProgress?: (pct: number) => void; signal?: AbortSignal } = {}
+  ) =>
+    new Promise<{ id: string; token: string; url: string; expiresAt: number | null; counts: ShareCounts }>(
+      (resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/shares/import');
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable && e.total > 0) {
+            // 传到 100% 之后服务端还要校验/落库，先在 99 停一下，等响应回来再置 100
+            opts.onProgress?.(Math.min(99, Math.max(1, Math.round((e.loaded / e.total) * 100))));
+          }
+        };
+        xhr.onload = () => {
+          let body: any = null;
+          try {
+            body = JSON.parse(xhr.responseText);
+          } catch {
+            body = null;
+          }
+          if (xhr.status >= 200 && xhr.status < 300 && body) {
+            opts.onProgress?.(100);
+            resolve(body);
+          } else {
+            reject(new Error(body?.error || `上传失败（HTTP ${xhr.status}）`));
+          }
+        };
+        xhr.onerror = () => reject(new Error('网络错误，分享包上传中断'));
+        xhr.onabort = () => reject(Object.assign(new Error('已取消上传'), { name: 'AbortError' }));
+        if (opts.signal) {
+          if (opts.signal.aborted) {
+            xhr.abort();
+            return;
+          }
+          opts.signal.addEventListener('abort', () => xhr.abort(), { once: true });
+        }
+        const fd = new FormData();
+        fd.append('file', file, file.name);
+        fd.append('expiresIn', fields.expiresIn);
+        if (fields.expiresIn === 'custom' && fields.expiresHours) {
+          fd.append('expiresHours', String(fields.expiresHours));
+        }
+        if (fields.password) fd.append('password', fields.password);
+        // 标题总是带上（可能为空）：服务端看到这个字段就以它为准，否则回退到包内 manifest.title
+        fd.append('title', fields.title ?? '');
+        xhr.send(fd);
+      }
+    ),
 
   /** 我的分享列表 */
   myShares: () => fetch('/api/shares').then((r) => json<{ items: MyShareRow[] }>(r)),

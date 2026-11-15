@@ -910,6 +910,27 @@ export interface ShareExportJob {
   finishedAt: number | null;
 }
 
+/**
+ * 云端「分享包上传」任务（2026-11-15 D-438）。
+ *
+ * 以前这个上传只是分享弹窗里的一个前台 fetch：没有进度、关掉弹窗就看不到结果，
+ * 后台任务里也查不到。现在提到 App 层用 XHR 传（能拿上传进度），关弹窗 / 切页面
+ * 不中断，并作为一条客户端任务显示在 设置 → 后台任务 →「分享」里。
+ */
+export interface ShareUploadTask {
+  id: string;
+  fileName: string;
+  bytes: number;
+  /** 0~100 */
+  progress: number;
+  state: 'uploading' | 'done' | 'error' | 'canceled';
+  /** 成功后的分享链接 */
+  url?: string;
+  error?: string;
+  startedAt: number;
+  finishedAt?: number | null;
+}
+
 /** GET /api/background-tasks：当前 + 最近的后台任务（设置重开 / 刷新页面后恢复进度用） */
 export interface BackgroundTasks {
   exportJobs: BackupExportJobStatus[];

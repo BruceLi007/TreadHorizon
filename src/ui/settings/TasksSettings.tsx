@@ -23,6 +23,7 @@ import type {
   BackupInspectJobStatus,
   BackupRestoreJobStatus,
   ShareExportJob,
+  ShareUploadTask,
   TrashJob,
   UploadItem,
 } from '../../lib/types';
@@ -35,6 +36,10 @@ interface Props {
   onRetryUpload: (key: string) => void;
   onClearFinishedUploads: () => void;
   onCloseUploadQueue: () => void;
+  /** 云端分享包上传（2026-11-15 D-438）：App 层持有，进度 / 结果 / 取消 / 重试 */
+  shareUploads?: ShareUploadTask[];
+  onCancelShareUpload?: (id: string) => void;
+  onRetryShareUpload?: (id: string) => void;
   readOnly?: boolean;
 }
 
@@ -46,9 +51,15 @@ interface Row {
   tone: Tone;
   done?: number;
   total?: number;
+  /** 覆盖「done / total」进度文案（云端上传用百分比） */
+  percentLabel?: string;
   detail?: string;
   error?: string | null;
   createdAt?: number;
+  /** 完成后的可复制链接（2026-11-15 D-438：云端分享上传） */
+  link?: string;
+  /** 行内操作（取消上传 / 失败重试） */
+  action?: { label: string; onClick: () => void };
 }
 
 const EMPTY: BackgroundTasks = {
@@ -96,6 +107,9 @@ export default function TasksSettings({
   onRetryUpload,
   onClearFinishedUploads,
   onCloseUploadQueue,
+  shareUploads = [],
+  onCancelShareUpload,
+  onRetryShareUpload,
   readOnly = false,
 }: Props) {
   const t = useT();
@@ -209,25 +223,48 @@ export default function TasksSettings({
     return rows.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   }, [tasks, t]);
 
-  const shareRows: Row[] = useMemo(
-    () =>
-      (tasks.shareExportJobs as ShareExportJob[])
-        .map((j) => ({
-          id: `share-${j.jobId}`,
-          kind: t('分享包导出'),
-          tone: (j.state === 'running' ? 'running' : j.canceled ? 'idle' : j.state === 'error' ? 'error' : 'done') as Tone,
-          done: j.done,
-          total: j.total,
-          detail:
-            j.state === 'done'
-              ? `${j.savedName || ''} · ${fmtBytes(j.bytes)}`
-              : t('{n} 张照片', { n: j.total }),
-          error: j.error,
-          createdAt: j.createdAt,
-        }))
-        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)),
-    [tasks, t]
-  );
+  const shareRows: Row[] = useMemo(() => {
+    // 2026-11-15 D-438：云端「分享包上传」也放进这一分类 ——
+    // 它以前只是分享弹窗里的前台请求，关掉弹窗就看不到结果、后台任务里也没有。
+    const cloud: Row[] = (shareUploads as ShareUploadTask[]).map((u) => ({
+      id: `shareup-${u.id}`,
+      kind: t('云端分享上传'),
+      tone: (u.state === 'uploading'
+        ? 'running'
+        : u.state === 'error'
+          ? 'error'
+          : u.state === 'canceled'
+            ? 'idle'
+            : 'done') as Tone,
+      done: u.state === 'uploading' ? u.progress : undefined,
+      total: u.state === 'uploading' ? 100 : undefined,
+      percentLabel: u.state === 'uploading' ? `${u.progress}%` : undefined,
+      detail: `${u.fileName} · ${fmtBytes(u.bytes)}${u.state === 'done' ? ' · ' + t('已上传') : ''}`,
+      error: u.error,
+      createdAt: u.startedAt,
+      link: u.state === 'done' ? u.url : undefined,
+      action:
+        u.state === 'uploading'
+          ? { label: t('取消上传'), onClick: () => onCancelShareUpload?.(u.id) }
+          : u.state === 'error'
+            ? { label: t('重试'), onClick: () => onRetryShareUpload?.(u.id) }
+            : undefined,
+    }));
+    const local: Row[] = (tasks.shareExportJobs as ShareExportJob[]).map((j) => ({
+      id: `share-${j.jobId}`,
+      kind: t('分享包导出'),
+      tone: (j.state === 'running' ? 'running' : j.canceled ? 'idle' : j.state === 'error' ? 'error' : 'done') as Tone,
+      done: j.done,
+      total: j.total,
+      detail:
+        j.state === 'done'
+          ? `${j.savedName || ''} · ${fmtBytes(j.bytes)}`
+          : t('{n} 张照片', { n: j.total }),
+      error: j.error,
+      createdAt: j.createdAt,
+    }));
+    return [...cloud, ...local].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  }, [tasks, t, shareUploads, onCancelShareUpload, onRetryShareUpload]);
 
   const trashRows: Row[] = useMemo(
     () =>
@@ -313,7 +350,7 @@ export default function TasksSettings({
                         <span className="tasks-kind">{r.kind}</span>
                         {typeof p === 'number' && (
                           <span className="tasks-progress-text">
-                            {r.done} / {r.total}
+                            {r.percentLabel ?? `${r.done} / ${r.total}`}
                           </span>
                         )}
                         <span className="tasks-time">{fmtTime(r.createdAt)}</span>
@@ -325,6 +362,32 @@ export default function TasksSettings({
                       )}
                       {r.detail && <p className="tasks-detail">{r.detail}</p>}
                       {r.error && <p className="tasks-detail err">{r.error}</p>}
+                      {(r.link || r.action) && (
+                        <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                          {r.link && (
+                            <button
+                              type="button"
+                              className="ghost"
+                              style={{ height: 26, padding: '0 10px', borderRadius: 999, fontSize: 'calc(11.5px * var(--fs-scale))' }}
+                              onClick={() => {
+                                void navigator.clipboard?.writeText(r.link || '').catch(() => {});
+                              }}
+                            >
+                              {t('复制链接')}
+                            </button>
+                          )}
+                          {r.action && (
+                            <button
+                              type="button"
+                              className="ghost"
+                              style={{ height: 26, padding: '0 10px', borderRadius: 999, fontSize: 'calc(11.5px * var(--fs-scale))' }}
+                              onClick={r.action.onClick}
+                            >
+                              {r.action.label}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </li>
                   );
                 })}
@@ -396,7 +459,7 @@ export default function TasksSettings({
         backupRows
       )}
 
-      {section('share', t('分享'), t('本地分享包导出'), shareRows)}
+      {section('share', t('分享'), t('本地分享包导出 / 云端上传'), shareRows)}
 
       {section('trash', t('回收站'), t('批量恢复 / 彻底删除'), trashRows)}
     </div>

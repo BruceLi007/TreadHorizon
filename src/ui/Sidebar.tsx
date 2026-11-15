@@ -22,6 +22,7 @@ import Segmented from './Segmented';
 import CloseIcon from './CloseIcon';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
+import MoveMediaDialog from './MoveMediaDialog';
 // 秘密基地共用样式（styles.css 由 Lead 维护，本任务不改）
 import './SecretPrompt.css';
 
@@ -97,18 +98,23 @@ function MediaTile({
   m,
   cover,
   readOnly = false,
+  selectMode = false,
+  selected = false,
   onClick,
+  onToggleSelect,
   onCover,
-  onMove,
   onReveal,
   onDelete,
 }: {
   m: MediaItem;
   cover: boolean;
   readOnly?: boolean;
+  /** 2026-11-15 D-439：照片多选模式（点整格切换选中，不打开灯箱） */
+  selectMode?: boolean;
+  selected?: boolean;
   onClick: () => void;
+  onToggleSelect?: () => void;
   onCover: () => void;
-  onMove: () => void;
   onReveal: () => void;
   onDelete: () => void;
 }) {
@@ -117,17 +123,42 @@ function MediaTile({
   const dur = fmtDuration(m.duration);
   return (
     <div className="tile-wrap">
-      <button className={cover ? 'tile cover' : 'tile'} onClick={onClick}>
+      <button
+        className={
+          (cover ? 'tile cover' : 'tile') +
+          (selectMode ? ' selecting' : '') +
+          (selectMode && selected ? ' picked' : '')
+        }
+        onClick={selectMode ? onToggleSelect : onClick}
+        aria-pressed={selectMode ? selected : undefined}
+      >
         {!broken ? (
           <img src={api.thumbUrl(m.id)} alt="" loading="lazy" onError={() => setBroken(true)} />
         ) : (
           <span className="play">{m.kind === 'video' ? '▶' : '▨'}</span>
         )}
+        {/* 2026-11-15 D-439：多选模式左上角勾选框（复用 D-295 的 .pick 样式） */}
+        {selectMode && (
+          <span className={selected ? 'pick on media-pick' : 'pick media-pick'} aria-hidden="true">
+            {selected && (
+              <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true" focusable="false">
+                <path
+                  d="M2 6.4 4.6 9 10 3.2"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.9"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
+          </span>
+        )}
         {m.kind === 'video' && !broken && <span className="play-badge">▶</span>}
         {m.kind === 'video' && dur && <span className="dur">{dur}</span>}
         {cover && <span className="cover-flag">{t('封面')}</span>}
       </button>
-      {!readOnly && (
+      {!readOnly && !selectMode && (
         <div className="tile-actions">
         <button
           type="button"
@@ -144,30 +175,6 @@ function MediaTile({
               d="M8 1.9l1.86 3.77 4.16.6-3.01 2.94.71 4.14L8 11.4l-3.72 1.95.71-4.14L1.98 6.27l4.16-.6z"
               fill="currentColor"
             />
-          </svg>
-        </button>
-        <button
-          type="button"
-          title={t('移动到别的到访')}
-          aria-label={t('移动到别的到访')}
-          onClick={(e) => {
-            e.stopPropagation();
-            onMove();
-          }}
-        >
-          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">
-            <g
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M2.2 5.2h9.6" />
-              <path d="M9.4 2.8 11.8 5.2 9.4 7.6" />
-              <path d="M13.8 10.8H4.2" />
-              <path d="M6.6 8.4 4.2 10.8l2.4 2.4" />
-            </g>
           </svg>
         </button>
         <button
@@ -383,13 +390,17 @@ export default function Sidebar({
   const [bulkVisitBusy, setBulkVisitBusy] = useState(false);
   const [bulkVisitErr, setBulkVisitErr] = useState<string | null>(null);
   const [confirmBulkVisits, setConfirmBulkVisits] = useState(false);
+  // 2026-11-15 D-439（用户要求）：单个到访里的照片/视频多选，批量移到回收站。
+  const [mediaSelectVisit, setMediaSelectVisit] = useState<string | null>(null);
+  const [selectedMedia, setSelectedMedia] = useState<Set<string>>(new Set());
+  const [bulkMediaBusy, setBulkMediaBusy] = useState(false);
   // D-246：拖文件夹到侧栏 → 按文件夹名新建一次到访并批量上传
   const [folderDropActive, setFolderDropActive] = useState(false);
   const [folderDropBusy, setFolderDropBusy] = useState(false);
   const folderDragDepth = useRef(0);
 
-  // 媒体操作（F-MED-05 / F-MED-06）
-  const [moving, setMoving] = useState<string | null>(null);
+  // 2026-11-15 D-439：照片多选 →「移动到…」弹窗（目标可跨省 / 市 / 地点 / 到访）
+  const [moveMediaOpen, setMoveMediaOpen] = useState(false);
 
   // 2026-11-10 D-350（用户要求）：上传队列拆到「设置 → 上传」后，侧栏不再保留队列卡片的
   // 展开 / 关闭 / 失败确认等本地状态，只读 App 传进来的 uploads 显示一行摘要。
@@ -407,8 +418,10 @@ export default function Sidebar({
     setBulkVisitBusy(false);
     setBulkVisitErr(null);
     setConfirmBulkVisits(false);
+    setMediaSelectVisit(null);
+    setSelectedMedia(new Set());
+    setBulkMediaBusy(false);
     setAskDeletePlace(false);
-    setMoving(null);
     setSaving(false);
     setErr(null);
     setName(detail.name);
@@ -469,7 +482,8 @@ export default function Sidebar({
     setAddingVisit(false);
     setEditingVisit(null);
     setConfirmingVisit(null);
-    setMoving(null);
+    setMediaSelectVisit(null);
+    setSelectedMedia(new Set());
     setExpandedMediaVisits(new Set()); // 多选时统一收起照片，列表更紧凑
     setVisitSelectMode(true);
   };
@@ -904,20 +918,6 @@ export default function Sidebar({
     }
   };
 
-  const moveMedia = async (mediaId: string, visitId: string) => {
-    setSaving(true);
-    setErr(null);
-    try {
-      await api.updateMedia(mediaId, { visit_id: visitId });
-      setMoving(null);
-      onChanged();
-    } catch (e: any) {
-      setErr(e?.message || String(e));
-    } finally {
-      setSaving(false);
-    }
-  };
-
   /** F-MED-05 / D-56：删除媒体 = 直接移到回收站（可恢复，不弹确认） */
   const trashMedia = async (mediaId: string) => {
     setSaving(true);
@@ -930,6 +930,93 @@ export default function Sidebar({
       setErr(e?.message || String(e));
     } finally {
       setSaving(false);
+    }
+  };
+
+  /* ── 2026-11-15 D-439（用户要求）：到访内照片/视频多选，批量移到回收站 ── */
+  const enterMediaSelect = (visitId: string) => {
+    setMediaSelectVisit(visitId);
+    setSelectedMedia(new Set());
+    setVisitSelectMode(false);
+    setSelectedVisits(new Set());
+    setErr(null);
+    // 多选时把这次到访的照片展开，保证「全选」和屏幕上的格子一致
+    setExpandedMediaVisits((prev) => new Set(prev).add(visitId));
+  };
+  const exitMediaSelect = () => {
+    setMediaSelectVisit(null);
+    setSelectedMedia(new Set());
+    setBulkMediaBusy(false);
+  };
+  const toggleMediaSelection = (mediaId: string) => {
+    setSelectedMedia((prev) => {
+      const next = new Set(prev);
+      if (next.has(mediaId)) next.delete(mediaId);
+      else next.add(mediaId);
+      return next;
+    });
+  };
+  const toggleAllMedia = (list: MediaItem[]) => {
+    setSelectedMedia((prev) => {
+      const all = list.length > 0 && list.every((m) => prev.has(m.id));
+      return all ? new Set() : new Set(list.map((m) => m.id));
+    });
+  };
+  /**
+   * 2026-11-15 D-439：把选中的照片/视频移动到别的到访（可跨省 / 市 / 地点）。
+   * 返回 true 表示全部成功；失败项留在选中集里。
+   */
+  const runMoveMedia = async (visitId: string): Promise<boolean> => {
+    const ids = [...selectedMedia];
+    if (!ids.length) return false;
+    setBulkMediaBusy(true);
+    setErr(null);
+    const failedIds: string[] = [];
+    const messages: string[] = [];
+    for (const id of ids) {
+      try {
+        await api.updateMedia(id, { visit_id: visitId });
+      } catch (e: any) {
+        failedIds.push(id);
+        messages.push(e?.message || String(e));
+      }
+    }
+    setBulkMediaBusy(false);
+    onChanged();
+    if (failedIds.length) {
+      setSelectedMedia(new Set(failedIds));
+      setErr(t('有 {n} 个文件移动失败：{msg}', { n: failedIds.length, msg: messages[0] }));
+      return false;
+    }
+    exitMediaSelect();
+    onToast?.(t('已移动 {n} 个文件', { n: ids.length }));
+    return true;
+  };
+
+  /** 批量删除：逐个走单点 DELETE（软删进回收站，可恢复）；失败项留在选中集里方便重试 */
+  const runBulkMediaTrash = async () => {
+    const ids = [...selectedMedia];
+    if (!ids.length) return;
+    setBulkMediaBusy(true);
+    setErr(null);
+    const failedIds: string[] = [];
+    const messages: string[] = [];
+    for (const id of ids) {
+      try {
+        await api.deleteMedia(id);
+      } catch (e: any) {
+        failedIds.push(id);
+        messages.push(e?.message || String(e));
+      }
+    }
+    setBulkMediaBusy(false);
+    onChanged();
+    if (failedIds.length) {
+      setSelectedMedia(new Set(failedIds));
+      setErr(t('有 {n} 个文件删除失败：{msg}', { n: failedIds.length, msg: messages[0] }));
+    } else {
+      exitMediaSelect();
+      onTrashed?.();
     }
   };
 
@@ -1384,9 +1471,15 @@ export default function Sidebar({
                 role={visitSelectMode ? 'button' : undefined}
                 tabIndex={visitSelectMode ? 0 : undefined}
                 aria-pressed={visitSelectMode ? selectedVisits.has(v.id) : undefined}
-                onClick={() =>
-                  visitSelectMode ? toggleVisitSelection(v.id) : setTarget(v.id)
-                }
+                onClick={() => {
+                  if (visitSelectMode) {
+                    toggleVisitSelection(v.id);
+                    return;
+                  }
+                  // 2026-11-15 D-439：正在给别的到访选照片时，点到另一个到访先退出选照片
+                  if (mediaSelectVisit && mediaSelectVisit !== v.id) exitMediaSelect();
+                  setTarget(v.id);
+                }}
                 onKeyDown={
                   visitSelectMode
                     ? (e) => {
@@ -1438,8 +1531,21 @@ export default function Sidebar({
                       {v.title && <span className="vtitle">{v.title}</span>}
                       {v.rating ? <span className="rate">{'★'.repeat(v.rating)}</span> : null}
                       <span className="n">{v.media.length}</span>
-                      {editingVisit !== v.id && !readOnly && !visitSelectMode && (
+                      {editingVisit !== v.id && !readOnly && !visitSelectMode && mediaSelectVisit !== v.id && (
                       <div className="visit-actions">
+                        {/* 2026-11-15 D-439（用户要求）：到访内照片多选 —— 批量移到回收站 */}
+                        {v.media.length > 0 && (
+                          <button
+                            className="text-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              enterMediaSelect(v.id);
+                            }}
+                            title={t('多选这次到访里的照片，批量移到回收站')}
+                          >
+                            {t('选照片')}
+                          </button>
+                        )}
                         <button
                           className="text-btn"
                           onClick={(e) => {
@@ -1512,10 +1618,51 @@ export default function Sidebar({
                       </div>
                     )}
 
+                    {/* 2026-11-15 D-439（用户要求）：到访内照片多选条 —— 已选 N / 全选 / 移到回收站 / 取消 */}
+                    {mediaSelectVisit === v.id && (
+                      <div className="media-select-bar" onClick={(e) => e.stopPropagation()}>
+                        <span className="hint">{t('已选 {n} 个', { n: selectedMedia.size })}</span>
+                        <button
+                          type="button"
+                          className="text-btn sm"
+                          onClick={() => toggleAllMedia(v.media)}
+                          disabled={bulkMediaBusy || v.media.length === 0}
+                        >
+                          {v.media.length > 0 && v.media.every((m) => selectedMedia.has(m.id))
+                            ? t('取消全选')
+                            : t('全选')}
+                        </button>
+                        <button
+                          type="button"
+                          className="text-btn sm"
+                          onClick={() => setMoveMediaOpen(true)}
+                          disabled={bulkMediaBusy || selectedMedia.size === 0}
+                        >
+                          {t('移动到…')}
+                        </button>
+                        <button
+                          type="button"
+                          className="text-btn sm danger"
+                          onClick={() => void runBulkMediaTrash()}
+                          disabled={bulkMediaBusy || selectedMedia.size === 0}
+                        >
+                          {bulkMediaBusy ? t('删除中…') : t('移到回收站')}
+                        </button>
+                        <button
+                          type="button"
+                          className="text-btn sm"
+                          onClick={exitMediaSelect}
+                          disabled={bulkMediaBusy}
+                        >
+                          {t('取消')}
+                        </button>
+                      </div>
+                    )}
+
                     <div className="grid" id={`visit-media-${v.id}`}>
                       {/* 「+ 添加素材」格始终放在第一格（2026-11-07 D-245，用户要求），照片依次排在后面
                           2026-11-09 D-335：只读样板访客不显示上传格；D-348：多选模式不显示添加格 */}
-                      {!readOnly && !visitSelectMode && (
+                      {!readOnly && !visitSelectMode && mediaSelectVisit !== v.id && (
                         <div className="tile-wrap">
                           <button
                             type="button"
@@ -1539,9 +1686,11 @@ export default function Sidebar({
                           m={m}
                           readOnly={readOnly}
                           cover={detail.cover_id === m.id}
+                          selectMode={mediaSelectVisit === v.id}
+                          selected={selectedMedia.has(m.id)}
                           onClick={() => onOpenLightbox(v.id, i)}
+                          onToggleSelect={() => toggleMediaSelection(m.id)}
                           onCover={() => setCover(m)}
-                          onMove={() => setMoving(m.id)}
                           onReveal={() => revealMedia(m)}
                           onDelete={() => trashMedia(m.id)}
                         />
@@ -1584,30 +1733,6 @@ export default function Sidebar({
                             : t('展开全部 {n} 个照片/视频', { n: v.media.length })}
                         </span>
                       </button>
-                    )}
-
-                    {moving && v.media.some((m) => m.id === moving) && (
-                      <div className="chooser" onClick={(e) => e.stopPropagation()}>
-                        <span>{t('移动到：')}</span>
-                        {detail.visits
-                          .filter((x) => x.id !== v.id)
-                          .map((x) => (
-                            <button
-                              key={x.id}
-                              className="chip"
-                              onClick={() => moveMedia(moving, x.id)}
-                              disabled={saving}
-                            >
-                              {x.date}
-                            </button>
-                          ))}
-                        {detail.visits.length === 1 && (
-                          <span>{t('只有一个到访，先加一次再到别处')}</span>
-                        )}
-                        <button className="text-btn" onClick={() => setMoving(null)}>
-                          {t('取消')}
-                        </button>
-                      </div>
                     )}
 
                     {v.note && <div className="note">{v.note}</div>}
@@ -1783,6 +1908,13 @@ export default function Sidebar({
           </div>
           )}
       </>
+      <MoveMediaDialog
+        open={moveMediaOpen}
+        count={selectedMedia.size}
+        fromPlaceId={detail.id}
+        onClose={() => setMoveMediaOpen(false)}
+        onConfirm={runMoveMedia}
+      />
     </aside>
   );
 }

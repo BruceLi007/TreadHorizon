@@ -1,28 +1,42 @@
 import { useEffect, useRef, useState } from 'react';
-import { api } from '../lib/api';
 import { useT } from '../i18n';
+import type { ShareUploadTask } from '../lib/types';
 import CloseIcon from './CloseIcon';
 import './ShareSelection.css';
 
 interface Props {
   open: boolean;
   onClose: () => void;
+  /**
+   * App 层最近一条上传任务（2026-11-15 D-438）。
+   * 弹窗只负责发起 / 展示，上传本身在 App 里跑 —— 关掉弹窗不会中断，
+   * 进度和结果也能在 设置 → 后台任务 →「分享」里看到。
+   */
+  upload?: ShareUploadTask | null;
+  /** 起上传并返回任务 id */
+  onStart: (
+    file: File,
+    fields: { expiresIn: string; expiresHours?: number; password?: string; title?: string }
+  ) => string;
+  onCancel?: (id: string) => void;
+  onRetry?: (id: string) => void;
 }
 
-const fmtBytes = (n: number) => {  const v = Number(n) || 0;
+const fmtBytes = (n: number) => {
+  const v = Number(n) || 0;
   if (v >= 1024 ** 2) return `${(v / 1024 ** 2).toFixed(1)} MB`;
   if (v >= 1024) return `${(v / 1024).toFixed(0)} KB`;
   return `${v} B`;
 };
 
-const fmtTime = (ms: number | null) => {
-  if (ms == null) return '';
-  const d = new Date(ms);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-};
-
-export default function ShareUploadDialog({ open, onClose }: Props) {
+export default function ShareUploadDialog({
+  open,
+  onClose,
+  upload = null,
+  onStart,
+  onCancel,
+  onRetry,
+}: Props) {
   const t = useT();
   const [file, setFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -31,13 +45,12 @@ export default function ShareUploadDialog({ open, onClose }: Props) {
   const [password, setPassword] = useState('');
   const [title, setTitle] = useState('');
   const [foreverOk, setForeverOk] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [result, setResult] = useState<{ url: string; expiresAt: number | null } | null>(null);
+  /** 本弹窗发起的那条任务（App 层 uploads[0] 里按 id 找） */
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    setResult(null);
     setError('');
     setFile(null);
     setPassword('');
@@ -45,16 +58,19 @@ export default function ShareUploadDialog({ open, onClose }: Props) {
     setExpiresIn('24h');
     setCustomHours('24');
     setForeverOk(false);
+    setActiveId(null);
   }, [open]);
 
   if (!open) return null;
+
+  const active = activeId && upload && upload.id === activeId ? upload : null;
 
   const generate = () => {
     setPassword(`tread-${Math.floor(1000 + Math.random() * 9000)}`);
   };
 
-  const upload = async () => {
-    if (!file || busy) return;
+  const start = () => {
+    if (!file) return;
     if (expiresIn === 'forever' && !foreverOk) {
       setError(t('选「不限时」前请确认：链接会一直有效，直到你手动撤销。'));
       return;
@@ -66,23 +82,15 @@ export default function ShareUploadDialog({ open, onClose }: Props) {
         return;
       }
     }
-    setBusy(true);
     setError('');
-    try {
-      const r = await api.importShare(file, {
-        expiresIn,
-        expiresHours: expiresIn === 'custom' ? Number(customHours) : undefined,
-        password: password.trim(),
-        title: title.trim(),
-      });
-      setResult({ url: r.url, expiresAt: r.expiresAt });
-      setFile(null);
-      setPassword('');
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally {
-      setBusy(false);
-    }
+    const id = onStart(file, {
+      expiresIn,
+      expiresHours: expiresIn === 'custom' ? Number(customHours) : undefined,
+      password: password.trim(),
+      title: title.trim(),
+    });
+    setActiveId(id);
+    setFile(null);
   };
 
   const copy = async (text: string) => {
@@ -93,6 +101,8 @@ export default function ShareUploadDialog({ open, onClose }: Props) {
     }
   };
 
+  const progress = active ? Math.max(0, Math.min(100, active.progress || 0)) : 0;
+
   return (
     <div className="share-modal-mask" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="share-modal share-upload-modal" onClick={(e) => e.stopPropagation()}>
@@ -100,33 +110,90 @@ export default function ShareUploadDialog({ open, onClose }: Props) {
           <CloseIcon size={22} />
         </button>
         <h2>{t('分享')}</h2>
-        <p className="share-note">
-          {t('在本地版导出分享包后，在这里上传；上传成功会得到免登录查看的链接。')}
-        </p>
 
-        {result ? (
+        {active && active.state === 'done' ? (
           <div className="share-upload-result">
             <h3>{t('上传成功')}</h3>
-            <p className="share-path">{result.url}</p>
+            <p className="share-path">{active.url}</p>
             <p className="share-note">
-              {result.expiresAt == null
-                ? t('长期有效 · 直到你手动撤销')
-                : t('链接 {time} 失效', { time: fmtTime(result.expiresAt) })}
+              {t('分享包已上传，可在 设置 → 我的分享 查看')}
             </p>
             <div className="share-modal-actions wrap">
-              <button type="button" className="ghost" onClick={() => void copy(result.url)}>
+              <button type="button" className="ghost" onClick={() => void copy(active.url || '')}>
                 {t('复制链接')}
               </button>
-              <a className="share-site-btn" href={result.url} target="_blank" rel="noreferrer">
+              <a className="share-site-btn" href={active.url} target="_blank" rel="noreferrer">
                 {t('打开预览')}
               </a>
-              <button type="button" className="ghost" onClick={() => setResult(null)}>
+              <button type="button" className="ghost" onClick={() => setActiveId(null)}>
                 {t('再传一份')}
               </button>
             </div>
           </div>
+        ) : active ? (
+          <div className="share-upload-result">
+            {active.state === 'uploading' ? (
+              <>
+                <h3>{t('上传中…')}</h3>
+                <p className="share-note">
+                  {t('可以关掉这个窗口，上传会在后台继续；可在 设置 → 后台任务 查看进度或取消。')}
+                </p>
+                <div
+                  style={{
+                    height: 6,
+                    borderRadius: 999,
+                    background: 'var(--accent-soft)',
+                    overflow: 'hidden',
+                    margin: '10px 0 6px',
+                  }}
+                >
+                  <span
+                    style={{
+                      display: 'block',
+                      height: '100%',
+                      width: `${progress}%`,
+                      background: 'var(--accent)',
+                      transition: 'width 200ms ease',
+                    }}
+                  />
+                </div>
+                <p className="share-note">
+                  {active.fileName} · {fmtBytes(active.bytes)} · {progress}%
+                </p>
+                <div className="share-modal-actions wrap">
+                  <button type="button" className="ghost" onClick={() => onCancel?.(active.id)}>
+                    {t('取消上传')}
+                  </button>
+                  <button type="button" className="primary" onClick={onClose}>
+                    {t('关闭')}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3>{active.state === 'canceled' ? t('已取消上传') : t('上传失败')}</h3>
+                <p className="share-note">
+                  {active.fileName} · {fmtBytes(active.bytes)}
+                </p>
+                {active.error && <p className="share-error-text">{active.error}</p>}
+                <div className="share-modal-actions wrap">
+                  {active.state === 'error' && (
+                    <button type="button" className="ghost" onClick={() => onRetry?.(active.id)}>
+                      {t('重试')}
+                    </button>
+                  )}
+                  <button type="button" className="primary" onClick={onClose}>
+                    {t('关闭')}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         ) : (
           <>
+            <p className="share-note">
+              {t('在本地版导出分享包后，在这里上传；上传成功会得到免登录查看的链接。')}
+            </p>
             <label className="share-field">
               <span>{t('分享包（.zip）')}</span>
               <div className="share-file-pick">
@@ -220,13 +287,12 @@ export default function ShareUploadDialog({ open, onClose }: Props) {
               <button type="button" className="ghost" onClick={onClose}>
                 {t('关闭')}
               </button>
-              <button type="button" className="primary" disabled={!file || busy} onClick={() => void upload()}>
-                {busy ? t('上传中…') : t('上传并生成链接')}
+              <button type="button" className="primary" disabled={!file} onClick={start}>
+                {t('上传并生成链接')}
               </button>
             </div>
           </>
         )}
-
       </div>
     </div>
   );

@@ -353,6 +353,42 @@ const dict: Dict = {
   '本地分享包导出': 'Local share package export',
   '批量恢复 / 彻底删除': 'Batch restore / permanent delete',
   '展开全部 {n} 个': 'Show all {n}',
+
+  // ── 2026-11-15 D-438：云端分享包上传变成后台任务 ──
+  '云端分享上传': 'Cloud share upload',
+  '已上传': 'Uploaded',
+  '本地分享包导出 / 云端上传': 'Local share export / cloud upload',
+  '取消上传': 'Cancel upload',
+  '已取消上传': 'Upload canceled',
+  '分享包已上传，可在 设置 → 我的分享 查看': 'Share package uploaded — see Settings → My shares',
+  '可以关掉这个窗口，上传会在后台继续；可在 设置 → 后台任务 查看进度或取消。':
+    'You can close this window — the upload keeps running in the background. See Settings → Background tasks for progress or to cancel.',
+
+  // ── 2026-11-15 D-439：到访内照片多选（批量移到回收站）──
+  '选照片': 'Select photos',
+  '已选 {n} 个': '{n} selected',
+  '多选这次到访里的照片，批量移到回收站': 'Select photos in this visit to move them to Trash',
+  '有 {n} 个文件删除失败：{msg}': '{n} file(s) could not be deleted: {msg}',
+
+  // ── 2026-11-15 D-439：把照片移动到别的省 / 市 / 地点 / 到访 ──
+  '移动到…': 'Move to…',
+  '移动 {n} 个文件到…': 'Move {n} files to…',
+  '全部省份': 'All provinces',
+  '搜索地点 / 省 / 市': 'Search place / province / city',
+  '没有匹配的地点': 'No matching places',
+  '还没有可移动到的地点': 'No other places to move to yet',
+  '这个省还没有其它地点': 'No other places in this province',
+  '这个市还没有其它地点': 'No other places in this city',
+  '这个地点还没有到访记录，换一个地点吧': 'This place has no visits yet — choose another place',
+  '先选一次到访': 'Pick a visit first',
+  '移动到这次到访': 'Move to this visit',
+  '移动中…': 'Moving…',
+  '移动失败，请重试': 'Move failed — please try again',
+  '已移动 {n} 个文件': 'Moved {n} files',
+  '有 {n} 个文件移动失败：{msg}': '{n} file(s) could not be moved: {msg}',
+  '读取到访失败：{msg}': 'Could not load visits: {msg}',
+  '正在读取…': 'Loading…',
+  '{n} 个文件': '{n} files',
 };
 
 export default dict;

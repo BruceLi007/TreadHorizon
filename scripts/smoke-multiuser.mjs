@@ -233,6 +233,23 @@ const run = async () => {
     });
     eq('alice 注册成功 role=user', reg.user.role, 'user');
 
+    // 2026-11-15 D-438：后台任务不再只限管理员 —— 普通用户也要能看到自己的任务
+    const aliceBg = await alice.get('/api/background-tasks');
+    eq('普通用户 GET /api/background-tasks = 200（不再 403）', await alice.statusOf('GET', '/api/background-tasks'), 200);
+    eq(
+      '普通用户后台任务五类都是数组',
+      [
+        Array.isArray(aliceBg?.exportJobs),
+        Array.isArray(aliceBg?.restoreJobs),
+        Array.isArray(aliceBg?.inspectJobs),
+        Array.isArray(aliceBg?.trashJobs),
+        Array.isArray(aliceBg?.shareExportJobs),
+      ],
+      [true, true, true, true, true]
+    );
+    eq('multi 下普通用户看不到本地分享导出任务', aliceBg?.shareExportJobs?.length, 0);
+    eq('multi 下管理员也不返回本地分享导出任务', (await admin.get('/api/background-tasks'))?.shareExportJobs?.length, 0);
+
     // ══ 2) 两人各自数据互不可见 ══
     section('2) 两人各自建地点 / 到访 / 上传照片，数据互不可见');
     const adminPlace = await admin.post('/api/places', {
