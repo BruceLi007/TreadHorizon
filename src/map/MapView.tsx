@@ -1063,6 +1063,8 @@ export default function MapView({
         // D-164：三种单点图标都跟随「图标配色」设置（默认 = 各自原色）
         const markerKind = markerKindOf(p);
         img.src = markerSrc(markerKind, markerColors);
+        // 2026-11-15 D-441：选中时脚下常驻的小圆圈跟随该标记的图标配色
+        el.style.setProperty('--pin-ring', markerHex(markerKind, markerColors));
         if (markerKind === 'secret') {
           // 秘密基地原来的紫罗兰发光也跟着所选颜色走（CSS 用 --pin-glow 变量，见 styles.css）
           const secretHex = markerHex(markerKind, markerColors);
@@ -1219,6 +1221,8 @@ export default function MapView({
       pinMedia.className = 'pin-media';
       const img = document.createElement('img');
       img.src = homeMarkerSrc(homeColor);
+      // 2026-11-15 D-441：选中时脚下常驻的小圆圈跟随「家」的图标配色
+      el.style.setProperty('--pin-ring', homeMarkerHex(homeColor));
       img.alt = '';
       img.draggable = false;
       pinMedia.appendChild(img);

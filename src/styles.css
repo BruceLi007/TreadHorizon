@@ -4894,6 +4894,36 @@ html[lang='en'] .topbar .actions .ghost.on:hover {
   animation-name: pin-breathe-strong;
 }
 
+/* 2026-11-15 D-441（用户要求）：选中的标记脚下常驻一个小圆圈。
+   和点击涟漪同款椭圆环，但**常驻、不扩散**——比单纯 30→38 放大更容易一眼看出来。
+   颜色由 JS 写到 --pin-ring（跟随该标记的图标配色：去过 / 想去 / 秘密基地 / 家）。 */
+.pin.selected:not(.draft)::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 34px;
+  height: 13px;
+  border: 2px solid var(--pin-ring, var(--accent-map));
+  border-radius: 50%;
+  transform: translate(-50%, 45%);
+  opacity: 0.9;
+  pointer-events: none;
+  animation: pin-selected-ring 2.6s ease-in-out infinite;
+}
+
+@keyframes pin-selected-ring {
+  0%,
+  100% {
+    transform: translate(-50%, 45%) scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translate(-50%, 45%) scale(1.12);
+    opacity: 1;
+  }
+}
+
 /* 悬停：内层飞镖 img 轻跳一下（与呼吸分层，互不覆盖）。
    2026-11-12 T12：收窄到 .pin-media img / .cluster-pin —— 上方封面不跳，只做 scale 放大。 */
 .pin:not(.draft):hover .pin-media img,
@@ -4968,7 +4998,8 @@ html[lang='en'] .topbar .actions .ghost.on:hover {
 .pin-layer.interacting .pin-body,
 .pin-layer.interacting .pin-media,
 .pin-layer.interacting .pin-media img,
-.pin-layer.interacting .cluster-body {
+.pin-layer.interacting .cluster-body,
+.pin-layer.interacting .pin.selected:not(.draft)::before {
   animation-play-state: paused;
 }
 
@@ -5078,6 +5109,11 @@ html[lang='en'] .topbar .actions .ghost.on:hover {
   }
   .pin-ripple {
     display: none;
+  }
+  /* D-441：减少动态效果时小圆圈常驻但不呼吸 */
+  .pin.selected:not(.draft)::before {
+    animation: none;
+    opacity: 0.9;
   }
 }
 
