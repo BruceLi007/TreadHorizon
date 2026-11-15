@@ -633,7 +633,10 @@ app.get('/api/update/check', async (req, reply) => {
   if (CONFIG.authMode === 'multi' && req.authUser?.role !== 'admin') {
     return reply.code(403).send({ error: '仅管理员可检查更新' });
   }
-  return checkForUpdate();
+  // 2026-11-15 D-435：「再检查一次」带 force=1 时必须跳过 6 小时缓存，
+  // 否则刚推上去的新 tag 在下一小时内怎么点都看不到（用户实测 v1.2.1 刷不出来）。
+  const force = req.query?.force === '1' || req.query?.force === 'true' || req.query?.force === true;
+  return checkForUpdate({ force });
 });
 
 // ───────────── 账号 / 会话 / 邀请码（2026-11-06 M6 P2-1，D-200）─────────────

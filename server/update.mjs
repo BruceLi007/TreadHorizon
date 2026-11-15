@@ -10,6 +10,8 @@
  * - Release 与 tag 列表**并行**请求，超时默认 8s；失败静默返回 ok:false；
  * - 成功结果缓存 6 小时（GitHub 未登录 API 限额 60 次/小时/IP，缓存后远低于限额）；
  * - 失败结果缓存 10 分钟，避免反复等待超时；
+ * - **force 调用跳过缓存**（2026-11-15 D-435）：设置 → 关于的「再检查一次」必须能立刻
+ *   看到刚推上去的新 tag；手动点击才 force，挂载 / 打开设置等自动检查仍走缓存；
  * - 可用 `.env.local` 的 `UPDATE_REPO` 换仓库（默认 BruceLi007/TreadHorizon）、
  *   `UPDATE_CHECK=0` 关闭检查（返回 disabled）、`UPDATE_TIMEOUT_MS` 调超时。
  */
@@ -129,8 +131,11 @@ async function fetchLatest() {
 /**
  * 检查更新（带缓存）。返回：
  * { ok, disabled?, currentVersion, latestVersion?, hasUpdate?, releaseUrl?, publishedAt?, checkedAt?, error? }
+ *
+ * `force: true`（2026-11-15 D-435）：跳过缓存、立刻重新请求 GitHub；请求成功后照常写回缓存，
+ * 这样紧随其后的自动检查也能拿到新结果。同一时刻已有请求在飞时仍然复用那个请求（数据本就是新的）。
  */
-export async function checkForUpdate() {
+export async function checkForUpdate({ force = false } = {}) {
   const currentVersion = appVersion();
   if (process.env.UPDATE_CHECK === '0') {
     return { ok: false, disabled: true, currentVersion };
@@ -155,16 +160,27 @@ export async function checkForUpdate() {
   }
 
   const now = Date.now();
-  if (cache && now - cache.at < (cache.data.ok ? CACHE_TTL_OK : CACHE_TTL_FAIL)) {
-    return { ...cache.data, currentVersion };
+  /**
+   * 统一补齐 currentVersion / hasUpdate。
+   * 2026-11-15 D-435：缓存里只存了上游原始字段（没有 hasUpdate），以前缓存命中直接
+   * `{ ...cache.data, currentVersion }` 返回，`hasUpdate` 就是 undefined —— 关于页会
+   * 把「发现新版本」误显示成「已是最新版本」。现在两条路径都走这个函数。
+   */
+  const withCurrent = (data) => ({
+    ...data,
+    currentVersion,
+    hasUpdate: data.ok ? isNewer(data.latestVersion, currentVersion) : false,
+  });
+
+  if (!force && cache && now - cache.at < (cache.data.ok ? CACHE_TTL_OK : CACHE_TTL_FAIL)) {
+    return withCurrent(cache.data);
   }
   if (inflight) return inflight;
 
   inflight = fetchLatest()
     .then((data) => {
       cache = { at: Date.now(), data };
-      const hasUpdate = data.ok ? isNewer(data.latestVersion, currentVersion) : false;
-      return { ...data, currentVersion, hasUpdate };
+      return withCurrent(data);
     })
     .finally(() => {
       inflight = null;

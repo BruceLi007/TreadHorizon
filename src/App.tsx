@@ -554,10 +554,11 @@ export default function App() {
   }, [backupAvailable]);
 
   /** 应用更新检查（2026-11-09 D-327）：失败静默；关于页 / 顶栏 / 设置导航共用这一份状态 */
-  const refreshUpdateCheck = useCallback(async () => {
+  const refreshUpdateCheck = useCallback(async (force = false) => {
     setUpdateChecking(true);
     try {
-      setUpdateCheck(await api.checkUpdate());
+      // 2026-11-15 D-435：force 只给「再检查一次」用 —— 绕过服务端 6 小时缓存
+      setUpdateCheck(await api.checkUpdate(force));
     } catch {
       setUpdateCheck(null);
     } finally {

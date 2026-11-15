@@ -82,8 +82,8 @@ interface Props {
   updateCheck?: UpdateCheckResult | null;
   /** 正在检查更新 */
   updateChecking?: boolean;
-  /** 「再检查一次」按钮 / 打开关于页时刷新 */
-  onCheckUpdate?: () => void;
+  /** 「再检查一次」按钮 / 打开关于页时刷新（2026-11-15 D-435：true = 跳过服务端缓存） */
+  onCheckUpdate?: (force?: boolean) => void;
   /** 用户已忽略的版本号（本机 localStorage） */
   ignoredUpdateVersion?: string;
   onIgnoreUpdate?: (version: string) => void;

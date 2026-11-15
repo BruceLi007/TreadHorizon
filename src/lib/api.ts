@@ -817,7 +817,8 @@ export const api = {
     }).then((r) => json<BackupStatus>(r)),
 
   /** 本地模式：检查 GitHub 上是否有新版本（2026-11-08 D-319；云端不需要，服务器更新后刷新即新版） */
-  checkUpdate: () => fetch('/api/update/check').then((r) => json<UpdateCheckResult>(r)),
+  checkUpdate: (force = false) =>
+    fetch(`/api/update/check${force ? '?force=1' : ''}`).then((r) => json<UpdateCheckResult>(r)),
 
   // ── 2026-11-14 D-416：本地分享包导出（P4）──
 

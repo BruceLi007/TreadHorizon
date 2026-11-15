@@ -27,8 +27,8 @@ interface Props {
   updateCheck?: UpdateCheckResult | null;
   /** 正在检查更新（打开设置时 App 会刷新一次） */
   updateChecking?: boolean;
-  /** 「再检查一次」 */
-  onCheckUpdate?: () => void;
+  /** 「再检查一次」（2026-11-15 D-435：true = 跳过服务端 6 小时缓存，立刻问 GitHub） */
+  onCheckUpdate?: (force?: boolean) => void;
   /** 用户已忽略的版本号（本机 localStorage；只影响红点，不隐藏关于页的版本信息） */
   ignoredUpdateVersion?: string;
   onIgnoreUpdate?: (version: string) => void;
@@ -203,7 +203,7 @@ export default function AboutSettings({
                           type="button"
                           className="ghost"
                           style={{ marginLeft: 10 }}
-                          onClick={() => onCheckUpdate?.()}
+                          onClick={() => onCheckUpdate?.(true)}
                         >
                           {t('再检查一次')}
                         </button>
