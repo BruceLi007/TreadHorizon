@@ -1,10 +1,18 @@
-import type { ProvinceBoundaryData, ProvinceBoundaryFeature, ProvinceLight } from '../lib/types';
+import type {
+  CityLight,
+  ProvinceBoundaryData,
+  ProvinceBoundaryFeature,
+  ProvinceLight,
+} from '../lib/types';
 
 /**
  * 省份点亮（F-STA-01）的纯函数工具：名称归一、等级、命中测试、路径生成。
  *
  * 归属判断永远用 place.province_code / place.province（D-60），省界多边形只用于画图；
  * 这里做的只是把库里的省名/省代码和 GeoJSON feature 对上。
+ *
+ * 2026-11-16 D-490：热力图改成按**市**点亮后，本文件的归一/等级工具同时服务城市，
+ * 城市侧的名字/代码归一规则单独一组（normCityName / normCityCode）。
  */
 
 const SUFFIXES = [
@@ -143,3 +151,57 @@ export function ringToPath(points: [number, number][]): string {
   }
   return d + 'Z';
 }
+
+// ── 城市点亮（2026-11-16 D-490）─────────────────────────────────────────────
+
+/** 城市名后缀：从长到短依次尝试，只剥一个 */
+const CITY_SUFFIXES = ['特别行政区', '土家族苗族自治州', '藏族自治州', '彝族自治州', '蒙古族藏族自治州', '自治州', '地区', '林区', '盟', '市', '州'];
+
+/**
+ * 「杭州市」「恩施土家族苗族自治州」「锡林郭勒盟」「阿里地区」→ 去掉行政级别后缀。
+ * 库里 place.city 与 GeoJSON feature.name 都走同一条规则，所以两端能对上；
+ * 直辖市「北京市」和整块省级多边形的名字也都归一成「北京」。
+ */
+export function normCityName(name?: string | null): string {
+  let s = String(name ?? '').trim();
+  for (const suf of CITY_SUFFIXES) {
+    if (s.endsWith(suf) && s.length > suf.length) {
+      s = s.slice(0, -suf.length);
+      break;
+    }
+  }
+  return s;
+}
+
+/**
+ * 城市代码归一：
+ *  - 去掉 156 前缀（TDT 逆地理返回 9 位）、只留后 6 位；
+ *  - **直辖市 / 港澳台**：库里点位的 city_code 常是「市辖区」110100 / 120100 / 310100 / 500100，
+ *    而边界数据用的是整块省级多边形（110000 …），这里统一折到省级代码上。
+ */
+export function normCityCode(code?: string | null): string {
+  const digits = normProvinceCode(code);
+  if (!digits) return '';
+  if (/^(11|12|31|50)0100$/.test(digits)) return digits.slice(0, 2) + '0000';
+  return digits;
+}
+
+/** 城市点亮索引：名字、代码都能查到（结构复用省份那套，只换成城市的归一规则） */
+export function buildCityIndex(cities: CityLight[]): {
+  byName: Map<string, CityLight>;
+  byCode: Map<string, CityLight>;
+  maxPlaces: number;
+} {
+  const byName = new Map<string, CityLight>();
+  const byCode = new Map<string, CityLight>();
+  let maxPlaces = 0;
+  for (const c of cities) {
+    const n = normCityName(c.name);
+    if (n) byName.set(n, c);
+    const code = normCityCode(c.code);
+    if (code) byCode.set(code, c);
+    if (c.places > maxPlaces) maxPlaces = c.places;
+  }
+  return { byName, byCode, maxPlaces };
+}
+

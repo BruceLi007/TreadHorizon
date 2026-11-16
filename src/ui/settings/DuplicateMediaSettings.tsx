@@ -23,6 +23,9 @@ interface Props {
   onChanged: () => void;
 }
 
+/** 收起状态下列出几组（2026-11-16 D-504，用户：列表太长） */
+const DUP_COLLAPSED_GROUPS = 3;
+
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const fmtDate = (s?: string | null) => (s ? s.replace(/-/g, '.') : '—');
 const fmtTime = (ms?: number) => {
@@ -47,7 +50,12 @@ export default function DuplicateMediaSettings({ onChanged }: Props) {
    * 组默认**折叠**（只显示一行组头），点组头展开明细；一次最多渲染 20 组，底部「加载更多」。
    */
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
-  const [visibleCount, setVisibleCount] = useState(20);
+  /**
+   * 2026-11-16 D-504（用户：列表太长，要收起展开）：
+   * 默认只列前 3 组，底部「展开全部 / 收起」。展开后一次列全，
+   * 不再用「加载更多」分页（组数多时 DOM 也不大）。
+   */
+  const [expanded, setExpanded] = useState(false);
 
   const scan = useCallback(async () => {
     setScanning(true);
@@ -60,7 +68,7 @@ export default function DuplicateMediaSettings({ onChanged }: Props) {
       for (const g of r.groups) for (const it of g.items.slice(1)) next.add(it.id);
       setSelected(next);
       setOpenGroups(new Set());
-      setVisibleCount(20);
+      setExpanded(false);
     } catch (e: any) {
       setErr(t('扫描失败：{msg}', { msg: e?.message || String(e) }));
     } finally {
@@ -194,15 +202,10 @@ export default function DuplicateMediaSettings({ onChanged }: Props) {
                     })}
                   </>
                 )}
-                {' · '}
-                {t('已显示 {shown}/{total} 组', {
-                  shown: Math.min(visibleCount, result.totalGroups),
-                  total: result.totalGroups,
-                })}
               </p>
 
               <div className="set-dup-groups">
-                {result.groups.slice(0, visibleCount).map((g) => {
+                {(expanded ? result.groups : result.groups.slice(0, DUP_COLLAPSED_GROUPS)).map((g) => {
                   const open = openGroups.has(g.hash);
                   const gAll = groupExtrasAllSelected(g);
                   return (
@@ -308,13 +311,16 @@ export default function DuplicateMediaSettings({ onChanged }: Props) {
                 })}
               </div>
 
-              {result.groups.length > visibleCount && (
+              {result.groups.length > DUP_COLLAPSED_GROUPS && (
                 <button
                   type="button"
-                  className="ghost full"
-                  onClick={() => setVisibleCount((n) => n + 20)}
+                  className="ghost full set-dup-expand"
+                  onClick={() => setExpanded((v) => !v)}
+                  aria-expanded={expanded}
                 >
-                  {t('加载更多（还有 {n} 组）', { n: result.groups.length - visibleCount })}
+                  {expanded
+                    ? t('收起列表')
+                    : t('展开全部（共 {n} 组）', { n: result.groups.length })}
                 </button>
               )}
 

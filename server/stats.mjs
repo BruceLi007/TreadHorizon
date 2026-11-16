@@ -636,3 +636,65 @@ export function provinceLight(ownerId = null) {
     maxVisits: provinces.reduce((n, p) => Math.max(n, p.visits), 0),
   };
 }
+
+// ── 城市点亮（2026-11-16 D-490，全量口径）─────────────────────────────
+
+/**
+ * 按**地级市 / 州 / 盟**汇总（统计模式热力图用）。
+ *
+ * 归属优先级：place.city_code（6 位行政区划码）→ place.city 名字。
+ * 同名不同省的城市（少见）用 `省|市名` 兜底分组，避免把两个城市合成一个。
+ * 直辖市 / 港澳台在边界数据里是一整块，城市名就是「北京市 / 上海市 / 天津市 /
+ * 重庆市 / 香港特别行政区…」，与 place.city 原值一致，前端归一后能对上。
+ */
+export function cityLight(ownerId = null) {
+  const vOwner = ownerId ? ' AND v.user_id = ?' : '';
+  const pOwner = ownerId ? ' AND p.user_id = ?' : '';
+  const params = ownerId ? [ownerId, ownerId, ownerId, ownerId] : [];
+  const rows = db
+    .prepare(`
+      SELECT p.id, p.province, p.province_code, p.city, p.city_code,
+        (SELECT COUNT(*) FROM visit v
+          WHERE v.place_id = p.id AND v.deleted_at IS NULL${vOwner}) AS visits,
+        (SELECT MIN(v.date) FROM visit v
+          WHERE v.place_id = p.id AND v.deleted_at IS NULL${vOwner}) AS first_date,
+        (SELECT MAX(v.date) FROM visit v
+          WHERE v.place_id = p.id AND v.deleted_at IS NULL${vOwner}) AS last_date
+      FROM place p
+      WHERE p.deleted_at IS NULL AND p.kind = 'visited'${pOwner}
+    `)
+    .all(...params);
+
+  const agg = new Map();
+  for (const r of rows) {
+    const name = r.city || r.city_code || r.province || UNKNOWN;
+    const key = (r.city_code || '') + '|' + name;
+    let a = agg.get(key);
+    if (!a) {
+      a = {
+        name,
+        code: null,
+        province: r.province || null,
+        places: 0,
+        visits: 0,
+        first_date: null,
+        last_date: null,
+      };
+      agg.set(key, a);
+    }
+    if (!a.code && r.city_code) a.code = r.city_code;
+    if (!a.province && r.province) a.province = r.province;
+    a.places += 1;
+    a.visits += Number(r.visits) || 0;
+    if (r.first_date && (!a.first_date || r.first_date < a.first_date)) a.first_date = r.first_date;
+    if (r.last_date && (!a.last_date || r.last_date > a.last_date)) a.last_date = r.last_date;
+  }
+
+  const cities = [...agg.values()].sort(byCountThenName);
+  return {
+    cities,
+    maxPlaces: cities.reduce((n, c) => Math.max(n, c.places), 0),
+    maxVisits: cities.reduce((n, c) => Math.max(n, c.visits), 0),
+  };
+}
+

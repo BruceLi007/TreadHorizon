@@ -62,7 +62,7 @@ import {
   pendingQuotaRequest,
   resolvePendingQuotaRequests,
 } from './db.mjs';
-import { parseStatsQuery, buildStats, provinceLight } from './stats.mjs';
+import { parseStatsQuery, buildStats, cityLight, provinceLight } from './stats.mjs';
 import { parsePhotosQuery, buildPhotos } from './photos.mjs';
 import { secretStatus, setSecretPassword, verifySecret } from './secret.mjs';
 import { searchPlace, reverseGeocode } from './tdt.mjs';
@@ -1420,6 +1420,9 @@ app.get('/api/stats', async (req, reply) => {
 
 /** 省份点亮（F-STA-01）：全量口径，独立于统计面板筛选 */
 app.get('/api/stats/provinces', async (req) => provinceLight(ownerOf(req)));
+
+/** 城市点亮（2026-11-16 D-490）：统计模式热力图按地级市聚合，全量口径 */
+app.get('/api/stats/cities', async (req) => cityLight(ownerOf(req)));
 
 /** 照片墙（F-BRW-04） */
 app.get('/api/photos', async (req, reply) => {

@@ -61,7 +61,7 @@
   border-radius: 999px;
   background: transparent;
   color: var(--text-2);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   white-space: nowrap;
   transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
 }
@@ -121,7 +121,7 @@
   border-radius: 8px;
   background: var(--bg-raised);
   color: var(--text-1);
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   outline: none;
   transition: border-color 140ms ease, box-shadow 140ms ease;
 }
@@ -132,7 +132,7 @@
 }
 
 .mytrail-hint {
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
 }
 
@@ -171,7 +171,7 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   font-weight: 500;
   color: var(--text-1);
   transition: background 140ms ease;
@@ -204,7 +204,7 @@
   margin: 1px 0;
   padding: 7px 9px;
   border-radius: 8px;
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-2);
   transition: background 140ms ease, color 140ms ease;
 }
@@ -266,7 +266,7 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   font-weight: 400;
   color: var(--text-3);
 }
@@ -345,7 +345,7 @@
   gap: 6px;
   flex: 0 1 auto;
   min-width: 0;
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 .place-row-title {
@@ -364,7 +364,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-3);
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   transition: opacity 120ms ease;
 }
 
@@ -396,7 +396,7 @@
 .place-row-actions .text-btn {
   height: 24px;
   padding: 0 7px;
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
 }
 
 /* hover 后出现的「+ 到访」小按键（原 D-109 的 + 卡入口） */
@@ -407,7 +407,7 @@
   border-radius: 8px;
   background: var(--bg-panel);
   color: var(--text-2);
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   white-space: nowrap;
   transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
 }

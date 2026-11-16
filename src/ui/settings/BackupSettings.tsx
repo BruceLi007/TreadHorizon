@@ -98,39 +98,14 @@ export default function BackupSettings({ onRestored, onBackupStatus }: Props) {
     }
   };
 
-  // 说明文案用显式 t() 调用（i18n-check 静态扫描需要字面量字符串）
-  const localDesc = t(
-    '备份只含应用数据（可选缩略图 / 照片视频素材）。恢复前会自动备份当前数据，中途失败会回滚；含素材的恢复只写入 / 覆盖备份里的文件，不删除素材库里的其它文件。'
-  );
-
   return (
     <div className="set-pane">
-      {/* 2026-11-06 用户要求：在「设置 → 备份」里说明数据流转 / 素材会变成两份 */}
-      <section className="set-section">
-        <div className="set-section-head">
-          <h3 className="set-section-title">{t('素材与数据流转')}</h3>
-        </div>
-        <p className="set-section-desc">
-          {t('从电脑本地选择照片 / 视频上传时，应用会把原件复制一份到素材库 B，并按「省 / 市 / 区县 / 日期_地点名」的文件夹结构存放（例如 浙江省/杭州市/西湖区/2024-03-10_西湖/），方便在文件管理器里按地区和日期翻看。')}
-        </p>
-        <p className="set-section-desc">
-          {t('上传时你电脑上的原始文件不会被移动或修改，素材库会另存一份副本，上传前请确认磁盘空间足够。备份 / 恢复只涉及应用数据和素材库里的副本。')}
-        </p>
-      </section>
-
       {/* ── 备份目录（2026-11-11 D-364；本地模式）── */}
       {backupDir && (
         <section className="set-section">
           <div className="set-section-head">
             <h3 className="set-section-title">{t('备份目录')}</h3>
           </div>
-          <p className="set-section-desc">
-            {t('恢复前自动备份（pre-restore 包）与手动导出的备份包都会存到这个目录；想换到空间更大的磁盘（比如移动硬盘）就在这里选择。只影响以后生成的备份，不移动已有文件。')}
-          </p>
-          {/* 2026-11-11 用户拍板：本地手动导出只落备份目录（不再走浏览器下载） */}
-          <p className="set-section-desc">
-            {t('手动导出的备份包直接保存在这里（不经过浏览器下载）。')}
-          </p>
           <div className="bk-dir-row">
             <span className="bk-dir-path mono" title={backupDir}>
               {backupDir}
@@ -215,7 +190,6 @@ export default function BackupSettings({ onRestored, onBackupStatus }: Props) {
         <div className="set-section-head">
           <h3 className="set-section-title">{t('备份与恢复')}</h3>
         </div>
-        <p className="set-section-desc">{localDesc}</p>
       </section>
       <BackupSection
         onRestored={onRestored}

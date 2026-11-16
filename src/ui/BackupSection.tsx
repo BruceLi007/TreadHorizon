@@ -621,15 +621,13 @@ export default function BackupSection({ onRestored, onStatus, backupDir = '' }: 
               </span>
             </div>
 
-            {status.due && (
+            {status.due && status.reason !== 'never' && (
               <div className="bk-due-row">
                 <span>
-                  {status.reason === 'never'
-                    ? t('还没有备份过：照片视频只有一份，数据丢了就找不回来，建议现在导出一份。')
-                    : t('已经 {days}没备份（阈值 {days2} 天），建议现在导出一份。', {
-                        days: daysText(status.daysSinceBackup),
-                        days2: status.thresholdDays,
-                      })}
+                  {t('已经 {days}没备份（阈值 {days2} 天），建议现在导出一份。', {
+                    days: daysText(status.daysSinceBackup),
+                    days2: status.thresholdDays,
+                  })}
                 </span>
                 <button
                   className="ghost bk-snooze"
@@ -731,10 +729,6 @@ export default function BackupSection({ onRestored, onStatus, backupDir = '' }: 
                 : t('导出到备份目录')}
         </button>
 
-        {/* 2026-11-11 用户拍板：本地导出直接写本机「备份目录」，不走浏览器下载 / 不弹另存为 */}
-        <p className="hint bk-export-note">
-          {t('备份在本机「备份目录」中完成，不经过浏览器下载；大文件可能要等一会儿。')}
-        </p>
         {shownBackupDir && (
           <div className="bk-dir-line">
             <span className="bk-muted">{t('备份文件保存目录：')}</span>
@@ -845,22 +839,12 @@ export default function BackupSection({ onRestored, onStatus, backupDir = '' }: 
           <span className="bk-muted">{t('选择备份文件')}</span>
         </div>
 
-        {/* 2026-11-11：导出只落「备份目录」，恢复区提示去哪里找 zip；选文件逻辑口径不变 */}
+        {/* 2026-11-11：导出只落「备份目录」，恢复区提示去哪里找 zip；选文件逻辑口径不变
+            2026-11-16 D-505：恢复区那个「打开备份目录」按钮 + 「导出的备份包默认保存在这里。」按用户要求删除
+            （导出区仍有一个同样的按钮，够用），提示文案同步去掉指向它的话。 */}
         <p className="hint">
-          {t('恢复步骤：选择备份文件（默认保存在「备份目录」里，可先点「打开备份目录」查找）→ 开始检查备份包 → 确认恢复。')}
+          {t('恢复步骤：选择备份文件（默认保存在「备份目录」里）→ 开始检查备份包 → 确认恢复。')}
         </p>
-        <div className="row bk-restore-dir">
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => void openBackupDir('restore')}
-            disabled={openDirBusy}
-          >
-            {openDirBusy ? t('正在打开…') : t('打开备份目录')}
-          </button>
-          <span className="bk-muted">{t('导出的备份包默认保存在这里。')}</span>
-        </div>
-        {openDirErr?.where === 'restore' && <p className="hint err">{openDirErr.text}</p>}
 
         <input
           ref={fileRef}

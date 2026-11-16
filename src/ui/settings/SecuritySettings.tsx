@@ -210,7 +210,7 @@ export default function SecuritySettings({ onChanged, onPasswordChanged, multi =
               <div className="value">
                 {secret.configured
                   ? t('已设置密码 · {n} 个秘密基地', { n: secret.places })
-                  : t('未设置密码（秘密基地不会上锁）') +
+                  : t('未设置密码') +
                     (secret.places > 0
                       ? t(' · 已有 {n} 个地点标为秘密基地', { n: secret.places })
                       : '')}
@@ -317,10 +317,6 @@ export default function SecuritySettings({ onChanged, onPasswordChanged, multi =
               </>
             ) : (
               <>
-                <p className="hint" style={{ marginTop: -6 }}>
-                  {t('设置后，点开秘密基地的详情需要输入密码；地图上它们和普通地点只有飞镖颜色不同。')}
-                </p>
-
                 <label className="field">
                   <span>{t('新密码（1–128 位）')}</span>
                   <input
@@ -366,10 +362,6 @@ export default function SecuritySettings({ onChanged, onPasswordChanged, multi =
                 {pwdMsg.text}
               </p>
             )}
-
-            <p className="hint">
-              {t('密码只保存在这台电脑上，不会上传，也不会显示在任何地方。【本地版应用的秘密基地密码其实是个摆设，忘记了就直接重置就行~~】')}
-            </p>
           </>
         )}
       </section>

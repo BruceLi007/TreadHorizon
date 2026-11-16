@@ -21,7 +21,7 @@
   border-radius: 9px;
   background: var(--bg-field, rgba(127, 127, 127, 0.08));
   border: 1px solid var(--line, rgba(127, 127, 127, 0.22));
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-2);
 }
 .bk-dir-row .bk-file {
@@ -34,5 +34,5 @@
 }
 .bk-dir-actions .ghost.tiny {
   padding: 2px 6px;
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
 }

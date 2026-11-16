@@ -167,6 +167,10 @@ const dict: Dict = {
   'My旅迹（去过 / 想去）': 'My Trail (visited / want to go)',
   'My旅迹': 'My Trail',
   '统计模式（省份点亮 / 年份 / 排行）': 'Stats mode (province lighting / years / ranking)',
+  '统计模式（城市点亮 / 年份 / 排行）': 'Stats mode (city lighting / years / ranking)',
+  // 2026-11-16 D-490：市界图层（MapView）
+  '市界数据为空': 'City boundary data is empty',
+  '市界数据加载失败：{msg}': 'Failed to load city boundaries: {msg}',
   '统计': 'Stats',
   '照片墙（全部照片按时间铺开）': 'Photo wall (all photos arranged by date)',
   '照片墙': 'Photo wall',

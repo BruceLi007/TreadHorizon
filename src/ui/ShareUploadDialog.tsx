@@ -192,7 +192,7 @@ export default function ShareUploadDialog({
         ) : (
           <>
             <p className="share-note">
-              {t('在本地版导出分享包后，在这里上传；上传成功会得到免登录查看的链接。')}
+              {t('导出分享包后，在这里上传；上传成功会得到免登录查看的链接。')}
             </p>
             <label className="share-field">
               <span>{t('分享包（.zip）')}</span>

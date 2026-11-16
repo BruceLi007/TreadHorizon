@@ -143,23 +143,6 @@ function CloudLibraryInfo({ onChanged, isAdmin }: { onChanged: () => void; isAdm
       <UploadFormats />
 
       <DuplicateMediaSettings onChanged={onChanged} />
-
-      <section className="set-section">
-        <div className="set-section-head">
-          <h3 className="set-section-title">{t('说明')}</h3>
-        </div>
-        <p className="set-section-desc">
-          {t('云端素材库按账号隔离保存在服务器上，路径、迁移与重新关联由服务器管理员维护；网页端不提供路径设置，也不会显示服务器文件夹位置。')}
-        </p>
-        {isAdmin && (
-          <p className="hint">
-            {t('你是管理员：服务器数据目录 / 素材库路径可在「关于 → 服务器信息（仅管理员可见）」查看；调整素材库位置请按云部署流程在服务器上操作。')}
-          </p>
-        )}
-        <p className="set-section-desc">
-          {t('视频封面、预览和缩略图会自动生成；上传只是把文件复制一份到素材库，你电脑上的原文件不会被移动、修改或删除。')}
-        </p>
-      </section>
     </div>
   );
 }
@@ -335,27 +318,6 @@ export default function LibrarySettings({ onChanged, multi = false, isAdmin = fa
       </section>
 
       <DuplicateMediaSettings onChanged={onChanged} />
-
-      <section className="set-section">
-        <div className="set-section-head">
-          <h3 className="set-section-title">{t('视频 · 封面帧')}</h3>
-        </div>
-        <div className="field-static">
-          <span>{t('视频封面组件')}</span>
-          <div className="value">
-            {ffmpeg === null
-              ? t('检测中…')
-              : ffmpeg
-                ? t('已就绪：视频会生成封面帧和时长')
-                : t('未检测到：视频仍能播放，但没有封面帧')}
-          </div>
-        </div>
-        {ffmpeg === false && (
-          <p className="hint">
-            {t('安装视频封面组件后重启应用即可；不装也不影响视频播放。')}
-          </p>
-        )}
-      </section>
     </div>
   );
 }

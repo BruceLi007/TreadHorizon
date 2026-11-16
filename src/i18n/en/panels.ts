@@ -180,6 +180,11 @@ const dict: Dict = {
   '{places} 地点 · {visits} 次': '{places} places · {visits} visits',
   '省份点亮在主地图上查看 · hover 地图省份看详情。':
     'Province lighting is shown on the main map · hover a province for details.',
+  // 2026-11-16 D-490 / D-503（按市点亮）补充
+  '热力图按城市点亮：hover 地图上的城市看详情；下面的排行仍按省份汇总。':
+    'Heatmap lights up per city: hover a city on the map for details; the ranking below still aggregates by province.',
+  '还没有点亮任何城市，新增一条到访记录后就会亮起。':
+    'No cities lit up yet. Add a visit and they will light up.',
   '本视图按全量数据统计，不受上方筛选影响。':
     'This view uses all data and is not affected by the filters above.',
   '只统计「去过」的地点；照片、视频按到访归户。':
@@ -301,6 +306,7 @@ const dict: Dict = {
   '收起分组': 'Collapse group',
   '回收站是空的。删除的地点 / 到访 / 照片视频会先来到这里，确认不要了再彻底删除释放空间。':
     'Trash is empty. Deleted places, visits, photos and videos land here first; delete them permanently to free up space.',
+  '回收站是空的。': 'Trash is empty.',
   '没有单独删除的地点。': 'No separately deleted places.',
   '没有单独删除的到访。': 'No separately deleted visits.',
   '没有单独删除的照片/视频。': 'No separately deleted photos or videos.',

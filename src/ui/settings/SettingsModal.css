@@ -80,7 +80,7 @@
 
 .set-nav-title {
   padding: 4px 10px 12px;
-  font-size: calc(14px * var(--fs-scale));
+  font-size: var(--fs-h2);
   font-weight: 600;
   color: var(--text-1);
 }
@@ -101,7 +101,7 @@
   border-radius: 8px;
   background: transparent;
   color: var(--text-2);
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   text-align: left;
   cursor: pointer;
   white-space: nowrap;
@@ -145,7 +145,7 @@
   place-items: center;
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: calc(10.5px * var(--fs-scale));
+  font-size: var(--fs-caption);
   font-variant-numeric: tabular-nums;
 }
 
@@ -175,7 +175,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: calc(10.5px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-3);
 }
 
@@ -198,14 +198,14 @@
 }
 
 .set-title {
-  font-size: calc(16px * var(--fs-scale));
+  font-size: var(--fs-h1);
   font-weight: 600;
   color: var(--text-1);
 }
 
 .set-sub {
   margin-top: 3px;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-3);
 }
 
@@ -247,13 +247,13 @@
 }
 
 .set-section-title {
-  font-size: calc(13.5px * var(--fs-scale));
+  font-size: var(--fs-h2);
   font-weight: 600;
   color: var(--text-1);
 }
 
 .set-section-tag {
-  font-size: calc(10.5px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-3);
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -262,7 +262,7 @@
 
 .set-section-desc {
   margin: 2px 0 12px;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-caption);
   line-height: 1.55;
   color: var(--text-3);
 }
@@ -273,7 +273,7 @@
   padding: 0 7px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  font-size: calc(10.5px * var(--fs-scale));
+  font-size: var(--fs-caption);
   line-height: 18px;
   color: var(--text-3);
 }
@@ -301,7 +301,7 @@
   background: var(--bg-raised);
   color: var(--text-1);
   font-family: ui-monospace, 'SF Mono', Consolas, monospace;
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   letter-spacing: 0.02em;
   outline: none;
 }
@@ -341,7 +341,7 @@
 
 .set-key-msg {
   margin: 10px 0 0;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   line-height: 1.6;
 }
 
@@ -355,7 +355,7 @@
 
 .set-key-retry {
   margin-left: 8px;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--accent);
 }
 
@@ -377,7 +377,7 @@
   border-radius: 999px;
   background: transparent;
   color: var(--text-1);
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 .set-key-reload:hover {
@@ -387,7 +387,7 @@
 
 .set-key-note {
   margin: 12px 0 0;
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   line-height: 1.7;
   color: var(--text-3);
 }
@@ -409,7 +409,7 @@
   border-radius: 10px;
   background: var(--bg-raised);
   color: var(--text-2);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-caption);
   line-height: 1.65;
 }
 
@@ -452,7 +452,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-key-badge.ok {
   border: 1px solid var(--line);
   border-radius: 999px;
   color: var(--text-2);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   white-space: nowrap;
   transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
 }
@@ -559,7 +559,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
 .set-axis-tick {
   padding: 2px 7px;
   border-radius: 8px;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-3);
   transition: background 140ms ease, color 140ms ease;
 }
@@ -580,7 +580,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
 
 .set-theme-note {
   margin-top: 8px;
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
 }
 
@@ -602,13 +602,13 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
 }
 
 .set-markercolor-title {
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--text-1);
 }
 
 .set-markercolor-hint {
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
 }
 
@@ -671,7 +671,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
 }
 
 .set-markercolor-name {
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--text-1);
   white-space: nowrap;
@@ -682,7 +682,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: calc(10.5px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-3);
 }
 
@@ -751,7 +751,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
 .set-markercolor-hue-thumb::after {
   content: '✓';
   color: #fff;
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   font-weight: 700;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
 }
@@ -777,7 +777,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
   justify-content: space-between;
   gap: 8px;
   margin-top: 8px;
-  font-size: calc(10.5px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-3);
 }
 
@@ -798,7 +798,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
   border-radius: 999px;
   background: transparent;
   color: var(--text-2);
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   line-height: 1;
 }
 
@@ -849,13 +849,13 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
 }
 
 .set-font-label {
-  font-size: calc(15px * var(--fs-scale));
+  font-size: var(--fs-h2);
   font-weight: 600;
   line-height: 1.3;
 }
 
 .set-font-sample {
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-2);
   line-height: 1.3;
 }
@@ -866,7 +866,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
 
 .set-font-note {
   margin-top: 10px;
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
 }
 
@@ -883,7 +883,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
 }
 
 .set-fontsize-title {
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--text-1);
 }
@@ -905,7 +905,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
   display: flex;
   align-items: baseline;
   gap: 2em;
-  font-size: calc(16px * var(--fs-scale));
+  font-size: var(--fs-h1);
   font-weight: 700;
   letter-spacing: 1px;
   color: var(--text-1);
@@ -915,7 +915,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
 }
 
 .set-slogan-empty {
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-caption);
   font-weight: 400;
   letter-spacing: 0;
   color: var(--text-3);
@@ -936,7 +936,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
   border-radius: 999px;
   background: var(--bg-raised);
   color: var(--text-1);
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   transition: border-color 140ms ease;
 }
 
@@ -955,20 +955,20 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
 }
 
 .set-slogan-hint {
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
 }
 
 /* 标语长度上限提示（D-226：限定 30 字以内） */
 .set-slogan-limit {
   margin-left: auto;
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
 
 .set-fontsize-hint {
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
 }
 
@@ -989,14 +989,14 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
 
 .set-about-stat b {
   display: block;
-  font-size: calc(18px * var(--fs-scale));
+  font-size: var(--fs-h1);
   font-weight: 600;
   color: var(--text-1);
   font-variant-numeric: tabular-nums;
 }
 
 .set-about-stat span {
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
 }
 
@@ -1025,8 +1025,11 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
   }
 }
 
-/* ── 回收站嵌在设置窗口里：去掉原面板的定位/背景，随设置内容一起滚动 ── */
-.set-body .trash-panel-embedded {
+/* ── 回收站嵌在设置窗口里：去掉原面板的定位/背景，随设置内容一起滚动 ──
+   2026-11-16 D-504：选择器加 html:root 提高特异度 —— 否则
+   `html:is([data-theme='light'],[data-theme='white']) .panel { background:#fff }`（0,2,1）
+   会压过本规则（0,2,0），嵌入态仍会画出那块多余的白色卡片。 */
+html:root .set-body .trash-panel-embedded {
   position: static;
   top: auto;
   right: auto;
@@ -1088,7 +1091,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
   .set-nav-item {
     width: auto;
     padding: 7px 10px;
-    font-size: calc(12.5px * var(--fs-scale));
+    font-size: var(--fs-body);
   }
 
   /* 窄屏导航变顶部横条：左下角「账号」入口放最右端，不再「左下角」 */
@@ -1143,7 +1146,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
   min-width: 3.2em;
   padding-top: 2px;
   color: var(--text-3);
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 .set-format-chips {
@@ -1159,7 +1162,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
   background: var(--bg-raised);
   color: var(--text-2);
   font-family: ui-monospace, SFMono-Regular, Consolas, 'Courier New', monospace;
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   line-height: 1.7;
 }
 
@@ -1199,7 +1202,8 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
   align-items: baseline;
   gap: 4px 6px;
   margin-bottom: 2px;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
+  font-weight: 600;
   color: var(--text-2);
 }
 
@@ -1230,7 +1234,8 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
 
 .set-upload-empty-title {
   margin-bottom: 6px;
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
+  font-weight: 600;
   color: var(--text-2);
 }
 
@@ -1246,7 +1251,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-sys-track {
 
 .set-dup-summary {
   margin: 2px 0 10px;
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-2);
 }
 
@@ -1318,7 +1323,8 @@ html:is([data-theme='light'], [data-theme='white']) .set-dup-group {
 
 .set-dup-title {
   flex: none;
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
+  font-weight: 600;
   color: var(--text-2);
   white-space: nowrap;
 }
@@ -1328,8 +1334,49 @@ html:is([data-theme='light'], [data-theme='white']) .set-dup-group {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
+}
+
+/* 2026-11-16 D-506（用户手机截图）：展开 / 收起 与下面的「把所选 N 份移到回收站」两个整宽按钮
+   原本紧贴在一起（间距 0.6px），这里给上面那个留出间距。 */
+.set-dup-expand {
+  margin-bottom: 8px;
+}
+
+/* 2026-11-16 D-504（用户在 390 宽截图里发现）：窄屏组头改两行 ——
+   第一行 勾选框 + 标题（可省略），第二行右对齐「保留最早一份」。
+   原来单行时标题 `nowrap` + 按钮 `nowrap`，390 宽会直接叠在一起。 */
+@media (max-width: 760px) {
+  html:root .set-dup-head {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 6px;
+  }
+
+  html:root .set-dup-head .set-dup-group-check {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  html:root .set-dup-head .set-dup-head-toggle {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  html:root .set-dup-head .text-btn {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+  }
+
+  /* 按钮已移到第二行，标题不必再让位：保持不收缩，被截断的只是地点串。
+     （若让标题也省略，会连「每份约 xx KB」一起吃掉） */
+  html:root .set-dup-head .set-dup-title {
+    flex: none;
+  }
 }
 
 .set-dup-rows {
@@ -1381,7 +1428,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-dup-row:hover {
 .set-dup-thumb-video {
   display: grid;
   place-items: center;
-  font-size: calc(10px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-3);
 }
 
@@ -1394,7 +1441,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-dup-row:hover {
 }
 
 .set-dup-name {
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-1);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1402,7 +1449,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-dup-row:hover {
 }
 
 .set-dup-meta {
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1414,7 +1461,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-dup-row:hover {
   padding: 1px 7px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  font-size: calc(10.5px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-3);
   white-space: nowrap;
 }
@@ -1439,7 +1486,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-dup-row:hover {
   height: 28px;
   padding: 0 12px;
   border-radius: 999px;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 .tasks-section {
   border: 1px solid var(--line);
@@ -1454,17 +1501,33 @@ html:is([data-theme='light'], [data-theme='white']) .set-dup-row:hover {
   gap: 10px;
 }
 .tasks-section-head b {
-  font-size: calc(13.5px * var(--fs-scale));
+  font-size: var(--fs-h2);
+}
+/* 2026-11-16 D-492（用户手机截图）：分区标题（上传 / 备份 / 分享 / 回收站）被右边的描述和
+   「空闲」挤到宽度 0 → 逐字竖排。桌面：标题行 = 「粗体标题 + 描述（可省略）」，
+   标题不收缩；窄屏的换行两段布局在 styles.css 手机断点里用 grid 实现。 */
+.tasks-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.tasks-section-title > b {
+  flex: none;
+  white-space: nowrap;
 }
 .tasks-section-desc {
-  margin-left: 8px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--text-3);
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
 }
 .tasks-section-count {
   flex: none;
   color: var(--text-3);
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   white-space: nowrap;
 }
 .tasks-list {
@@ -1493,17 +1556,17 @@ html:is([data-theme='light'], [data-theme='white']) .set-dup-row:hover {
   gap: 10px;
 }
 .tasks-kind {
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   font-weight: 600;
 }
 .tasks-progress-text {
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
 }
 .tasks-time {
   margin-left: auto;
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
@@ -1522,7 +1585,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-dup-row:hover {
 }
 .tasks-detail {
   margin: 6px 0 0;
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-2);
   line-height: 1.6;
   overflow-wrap: anywhere;
@@ -1532,7 +1595,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-dup-row:hover {
 }
 .tasks-empty {
   margin: 8px 0 0;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-3);
 }
 /* D-432：分类可折叠（头部整行可点）+ 列表「展开全部」 */
@@ -1579,7 +1642,7 @@ html:is([data-theme='light'], [data-theme='white']) .set-dup-row:hover {
   background: transparent;
   color: var(--text-2);
   font: inherit;
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   padding: 2px 10px;
   cursor: pointer;
 }

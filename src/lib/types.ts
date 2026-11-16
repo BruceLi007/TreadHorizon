@@ -494,6 +494,27 @@ export interface ProvinceLightData {
   maxVisits: number;
 }
 
+/**
+ * 城市点亮（2026-11-16 D-490）：统计模式热力图按**地级市 / 州 / 盟**上色。
+ * 全量口径，与 ProvinceLight 同构；直辖市 / 港澳台整块算一个「市」。
+ * code = place.city_code（6 位行政区划码），对不上时前端按 name 归一匹配。
+ */
+export interface CityLight {
+  name: string;
+  code?: string | null;
+  province?: string | null;
+  places: number;
+  visits: number;
+  first_date?: string | null;
+  last_date?: string | null;
+}
+
+export interface CityLightData {
+  cities: CityLight[];
+  maxPlaces: number;
+  maxVisits: number;
+}
+
 /** /province-boundaries.json 里的一条省界（自绘 SVG 用；归属仍看 place.province_code） */
 export interface ProvinceBoundaryFeature {
   name: string;

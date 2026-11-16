@@ -171,9 +171,6 @@ export default function GeneralSettings({
           <h3 className="set-section-title">{t('语言')}</h3>
           <span className="set-section-tag">{lang === 'en' ? 'English' : '简体中文'}</span>
         </div>
-        <p className="set-section-desc">
-          {t('界面语言，点一下立即生效。语言偏好只保存在这台电脑的浏览器里。')}
-        </p>
         <Segmented
           size="sm"
           variant="radio"
@@ -190,9 +187,6 @@ export default function GeneralSettings({
           <h3 className="set-section-title">{t('主题')}</h3>
           <span className="set-section-tag">{t('顶栏标语')}</span>
         </div>
-        <p className="set-section-desc">
-          {t('显示在顶栏大按钮组上方，作为这个应用的主题标语（一句话）。留空则不显示标语。自定义内容不随界面语言翻译；窄屏时不显示标语。')}
-        </p>
         <label className="field">
           <span>{t('标语')}</span>
           <input
@@ -246,10 +240,6 @@ export default function GeneralSettings({
             {t('跟随系统')}
           </button>
         </div>
-        <p className="set-section-desc">
-          {t('左右拖动选择界面明暗：最左「纯白」、最右「纯黑」，中间是「浅色 / 深色」，共 4 档。 偏好只存在本机浏览器里，下一次打开自动沿用。')}
-        </p>
-
         <div className="set-axis">
           <input
             type="range"
@@ -288,9 +278,6 @@ export default function GeneralSettings({
         <div className="set-markercolor">
           <div className="set-markercolor-head">
             <span className="set-markercolor-title">{t('图标配色')}</span>
-            <span className="set-markercolor-hint">
-              {t('先点一种图标，再点下面色条里的颜色；「恢复默认颜色」回到每种图标的默认色；只改地图、聚合点和列表里的图标颜色。')}
-            </span>
           </div>
 
           {/* 类型选择 = 项目统一的分段控件（轨道 + 滑动选中块，D-98 / D-158 同款动效） */}
@@ -365,10 +352,6 @@ export default function GeneralSettings({
           <h3 className="set-section-title">{t('字体')}</h3>
           <span className="set-section-tag">{fontLabel}</span>
         </div>
-        <p className="set-section-desc">
-          {t('选择界面文字使用的常规字体，点一下立即生效。代码和等宽数字仍保持等宽字体。')}
-        </p>
-
         <div className="set-font-grid" role="radiogroup" aria-label={t('界面字体')}>
           {APP_FONTS.map((f) => (
             <button
@@ -386,9 +369,6 @@ export default function GeneralSettings({
             </button>
           ))}
         </div>
-        <p className="set-font-note">
-          {t('当前：{font} · 预览：山河远阔，人间烟火。 2026.11.04', { font: fontLabel })}
-        </p>
 
         {/* 2026-11-05 D-142：界面字号三档（小 / 中 / 大），只缩放文字；
             2026-11-06 用户要求：字号旁边加「字重（常规 / 加粗）」 */}
@@ -411,9 +391,6 @@ export default function GeneralSettings({
             value={fontWeight}
             onChange={(id) => onFontWeight(id as FontWeight)}
           />
-          <span className="set-fontsize-hint">
-            {t('只改界面文字大小与粗细，不动图片 / 图标 / 布局比例')}
-          </span>
         </div>
       </section>
     </div>

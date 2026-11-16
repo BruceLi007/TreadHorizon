@@ -71,6 +71,7 @@ export function patchGuestApi(source: ShareSource): void {
     timeline: async () => source.timeline,
     stats: async (q: any) => source.stats(q || {}),
     statsProvinces: async () => source.provinceLight(),
+    statsCities: async () => source.cityLight(),
     photos: async (q: any) => source.photos(q || {}),
     companions: async () => source.companions,
     secretStatus: async () => ({ configured: false, places: 0 }),

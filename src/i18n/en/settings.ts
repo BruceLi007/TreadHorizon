@@ -106,8 +106,9 @@ const dict: Dict = {
   '从备份恢复': 'Restore from backup',
   '选择备份文件': 'Choose a backup file',
   // 2026-11-11 用户拍板：导出只落「备份目录」，恢复仍是选文件 → 检查 → 恢复（不改成列表 / 原生对话框）
-  '恢复步骤：选择备份文件（默认保存在「备份目录」里，可先点「打开备份目录」查找）→ 开始检查备份包 → 确认恢复。':
-    'Restore steps: choose a backup file (by default it is in the "Backup folder" — click "Open backup folder" to find it) → inspect the backup package → confirm restore.',
+  // 2026-11-16 D-505：恢复区的「打开备份目录」按钮删了，文案同步去掉「可先点…查找」
+  '恢复步骤：选择备份文件（默认保存在「备份目录」里）→ 开始检查备份包 → 确认恢复。':
+    'Restore steps: choose a backup file (by default it is in the "Backup folder") → inspect the backup package → confirm restore.',
   '导出的备份包默认保存在这里。': 'Exported backup packages are saved here by default.',
   '正在检查…': 'Checking…',
   '开始检查备份包': 'Inspect backup package',
@@ -243,6 +244,7 @@ const dict: Dict = {
   '（初始密码为{v}）': '(initial password: {v})',
   '已设置密码 · {n} 个秘密基地': 'Password set · {n} secret spots',
   '未设置密码（秘密基地不会上锁）': 'No password set (secret spots are not locked)',
+  '未设置密码': 'No password set',
   ' · 已有 {n} 个地点标为秘密基地': ' · {n} places are already marked as secret spots',
   '修改密码需要旧密码。': 'Changing the password requires the old password.',
   '旧密码': 'Old password',
@@ -331,10 +333,10 @@ const dict: Dict = {
 
   // ── AboutSettings ──
   '读取运行状态失败：': 'Failed to read runtime status: ',
-  'Tread Horizon 本地旅行足迹': 'Tread Horizon · Local travel map',
-  '本地运行 · 无账号 · 无云': 'Runs locally · No account · No cloud',
-  '一个纯本地的个人旅行足迹地图：数据保存在本机，照片 / 视频放在本地素材库，地图使用天地图。':
-    'A purely local personal travel-footprint map: data stays on this computer, photos/videos live in the local media library, and the map uses Tianditu.',
+  // 2026-11-16 D-509：去掉「纯本地 / 无账号 / 无云」定位描述
+  'Tread Horizon 旅行足迹': 'Tread Horizon · Travel map',
+  '一个个人旅行足迹地图：数据保存在本机，照片 / 视频存放在素材库，地图使用天地图。':
+    'A personal travel-footprint map: data stays on this computer, photos/videos are kept in the media library, and the map uses Tianditu.',
   '地点': 'Places',
   '到访': 'Visits',
   '照片': 'Photos',
@@ -604,6 +606,9 @@ const dict: Dict = {
   // D-355 追加：重复组太多时默认折叠 + 分页加载
   '已显示 {shown}/{total} 组': 'Showing {shown}/{total} groups',
   '加载更多（还有 {n} 组）': 'Load more ({n} groups left)',
+  // 2026-11-16 D-504：改成收起 / 展开
+  '展开全部（共 {n} 组）': 'Show all ({n} groups)',
+  '收起列表': 'Collapse list',
   '选中本组多余副本（保留最早一份）':
     'Select this group’s extra copies (keep the earliest one)',
   '取消本组多余副本的选择': 'Deselect this group’s extra copies',

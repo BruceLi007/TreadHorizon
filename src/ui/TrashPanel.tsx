@@ -458,7 +458,7 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
   ];
 
   const emptyText: Record<Tab, string> = {
-    all: t('回收站是空的。删除的地点 / 到访 / 照片视频会先来到这里，确认不要了再彻底删除释放空间。'),
+    all: t('回收站是空的。'),
     place: t('没有单独删除的地点。'),
     visit: t('没有单独删除的到访。'),
     media: t('没有单独删除的照片/视频。'),
@@ -623,12 +623,6 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
           })}
         </div>
       </div>
-
-      <p className="hint trash-hint">
-        {t('删除的内容先放这里，')}
-        <b>{t('不会立刻释放空间')}</b>
-        {t('；点「彻底删除」才会真正释放空间。父级删除只带走当时还在的内容，之前单独删的会留在原层级。')}
-      </p>
 
       {jobId && (
         <p className="hint trash-job-note" role="status">

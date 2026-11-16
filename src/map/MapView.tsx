@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { loadTdt } from '../lib/tdt';
 import { homeMarkerHex, homeMarkerSrc, type HomeColor } from '../lib/homeIcon';
 import {
@@ -28,12 +28,14 @@ import {
   clusterCoverId,
   makeCover,
 } from './cover';
-import type { Place, ProvinceBoundaryData, ProvinceBoundaryFeature, ProvinceLight } from '../lib/types';
+import type { CityLight, Place, ProvinceBoundaryData, ProvinceBoundaryFeature } from '../lib/types';
 import {
   PROVINCE_FILLS,
   PROVINCE_STROKES,
-  buildLightIndex,
+  buildCityIndex,
   featureBBox,
+  normCityCode,
+  normCityName,
   pointInFeature,
   provinceLevel,
 } from './provinces';
@@ -346,10 +348,10 @@ interface Props {
   /** F-PLC-09（2026-11-04 并入「+ 添加足迹」）：地图点选模式；开启后单击地图落一个草稿点，光标为飞镖 */
   pinMode?: boolean;
   onMapClick?: (lng: number, lat: number) => void;
-  /** F-STA-01：统计模式。隐藏普通飞镖/聚合，主地图切省份点亮 */
+  /** F-STA-01：统计模式。隐藏普通飞镖/聚合，主地图切城市点亮（2026-11-16 D-490） */
   statsMode?: boolean;
-  /** 省份点亮数据（全量口径，来自 GET /api/stats/provinces）；null 时只画灰色省界 */
-  provinceStats?: ProvinceLight[] | null;
+  /** 城市点亮数据（全量口径，来自 GET /api/stats/cities）；null 时只画灰色市界 */
+  cityStats?: CityLight[] | null;
   /** 家图标配色（2026-11-05 D-161）：7 色可选，只影响 <img src> */
   homeColor?: HomeColor;
   /** 去过 / 想去 / 秘密基地的图标配色（2026-11-05 D-164）：7 色可选；null = 原色 */
@@ -397,7 +399,7 @@ export default function MapView({
   pinMode,
   onMapClick,
   statsMode,
-  provinceStats,
+  cityStats,
   homeColor = 'teal',
   markerColors = DEFAULT_MARKER_COLORS,
   onZoomChange,
@@ -425,19 +427,26 @@ export default function MapView({
   const homePin = useRef<PinNode | null>(null);
   const homePinKey = useRef<string | null>(null);
 
-  // 省份点亮（F-STA-01）：自绘 SVG 层。
+  // 城市点亮（F-STA-01 / 2026-11-16 D-490：热力图按地级市上色）：自绘 SVG 层。
   // 性能关键：所有顶点只在「进入统计模式 / 每次 zoomend」投影一次，
-  // 拖动时只改一个 CSS transform（合成层平移，不再每帧重算 1.2 万顶点）。
+  // 拖动时只改一个 CSS transform（合成层平移，不再每帧重算 5.5 万顶点）。
   const statsModeRef = useRef(false);
   const provinceLayerRef = useRef<HTMLDivElement | null>(null);
-  /** 承载所有省界 path 的 <g>：拖动/缩放只改它的 transform，不重算 path */
+  /** 承载所有市界 path 的 <g>：拖动/缩放只改它的 transform，不重算 path */
   const provinceGRef = useRef<SVGGElement | null>(null);
   const provinceSvgRef = useRef<SVGSVGElement | null>(null);
   const provinceDataRef = useRef<ProvinceBoundaryData | null>(null);
-  /** 低缩放（z<7）用概化版省界：天地图低缩放底图的省界更平滑，直接用高精度数据会显得不齐 */
+  /** 低缩放（z<7）用概化版市界：天地图低缩放底图的界线更平滑，直接用高精度数据会显得不齐 */
   const provinceLowDataRef = useRef<ProvinceBoundaryData | null>(null);
   const provincePathsRef = useRef<Map<string, SVGPathElement>>(new Map());
-  const provinceStatsRef = useRef<ProvinceLight[]>([]);
+  const cityStatsRef = useRef<CityLight[]>([]);
+  /**
+   * 2026-11-16 D-501：市界命中索引只在 cityStats 变化时重建。
+   * 原来 `hit()` 里每帧 `buildCityIndex()` 一次（两张 Map / 394 项），鼠标移动时白白重建 60 次/秒。
+   */
+  const cityIndex = useMemo(() => buildCityIndex(cityStats ?? []), [cityStats]);
+  const cityIndexRef = useRef(cityIndex);
+  cityIndexRef.current = cityIndex;
   /** 参考投影标定：path 坐标 = aR*lng+bR / cR*mercY(lat)+dR（参考视野下的容器坐标） */
   const provinceCalRef = useRef<{
     aR: number;
@@ -462,7 +471,7 @@ export default function MapView({
   placesRef.current = places;
   selectedRef.current = selectedId;
   statsModeRef.current = Boolean(statsMode);
-  provinceStatsRef.current = provinceStats ?? [];
+  cityStatsRef.current = cityStats ?? [];
 
   // ── 把当前所有标记摆到正确位置 ──
   const positionAll = useCallback(() => {
@@ -499,12 +508,21 @@ export default function MapView({
   // ── 悬停气泡 ──
   /** 悬停 pin 后延迟出气泡的 timer（2026-11-12 T12：先放大封面，再出气泡，避免打架） */
   const tipTimer = useRef<number | null>(null);
+  /**
+   * 2026-11-16 D-501：气泡的「内容 → 尺寸」缓存。
+   * 原来每帧先写 innerHTML 再读 offsetWidth/offsetHeight，等于每帧强制一次同步重排；
+   * 现在同一段文字只在第一次显示时量一次，后续每帧只改 transform（合成层属性）。
+   */
+  const tipHtmlRef = useRef('');
+  const tipSizeRef = useRef({ w: 180, h: 28 });
   const hideTip = useCallback(() => {
     if (tipTimer.current != null) {
       window.clearTimeout(tipTimer.current);
       tipTimer.current = null;
     }
-    if (tipRef.current) tipRef.current.style.opacity = '0';
+    if (tipRef.current && tipRef.current.style.opacity !== '0') tipRef.current.style.opacity = '0';
+    // 下次显示重新量一次：字号 / 换行可能随视口或语言变
+    tipHtmlRef.current = '';
   }, []);
 
   const showTip = useCallback(
@@ -535,15 +553,20 @@ export default function MapView({
         s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
       // 2026-11-06 D-185：离家距离放在第一行、名称右侧（用户指定），第二行仍是地区 / 去过次数 / 最近
       const distHtml = dist ? `<span class="tip-dist">${esc(dist)}</span>` : '';
-      tip.innerHTML =
+      const html =
         `<div class="tip-t"><span class="tip-name">${esc(title)}</span>${distHtml}</div>` +
         (sub ? `<div class="tip-s">${esc(sub)}</div>` : '');
+      // 内容变了才写 DOM 并量尺寸（读 offsetWidth 会强制重排，不能每帧做）
+      if (html !== tipHtmlRef.current) {
+        tip.innerHTML = html;
+        tipHtmlRef.current = html;
+        tipSizeRef.current = { w: tip.offsetWidth || 180, h: tip.offsetHeight || 28 };
+      }
 
-      tip.style.opacity = '1';
+      if (tip.style.opacity !== '1') tip.style.opacity = '1';
       try {
         const pt = map.lngLatToContainerPoint(new T.LngLat(lng, lat));
-        const w = tip.offsetWidth || 180;
-        const h = tip.offsetHeight || 28;
+        const { w, h } = tipSizeRef.current;
         tip.style.transform =
           `translate(${Math.round(pt.x - w / 2)}px, ` +
           `${Math.round(pt.y - anchorTop - h - gap)}px)`;
@@ -577,16 +600,17 @@ export default function MapView({
     []
   );
 
-  // ── 省份点亮层（F-STA-01 / D-60）──
-  // 省界多边形用自绘 SVG 层跟随地图投影；绝不用 addOverLay / T.Marker（三条铁律）。
+  // ── 城市点亮层（F-STA-01 / D-60；2026-11-16 D-490 改成按地级市）──
+  // 市界多边形用自绘 SVG 层跟随地图投影；绝不用 addOverLay / T.Marker（三条铁律）。
   const applyProvinceColors = useCallback(() => {
     const data = provinceDataRef.current;
     if (!data) return;
-    const { byName, byCode } = buildLightIndex(provinceStatsRef.current);
+    const { byName, byCode } = cityIndexRef.current;
     for (const f of data.features) {
       const path = provincePathsRef.current.get(f.name);
       if (!path) continue;
-      const light = byName.get(f.name.replace(/(壮族自治区|回族自治区|维吾尔自治区|特别行政区|自治区|省|市)$/g, '')) || byCode.get(f.adcode);
+      // 先按行政区划码匹配（最准），对不上再按归一后的城市名
+      const light = byCode.get(normCityCode(f.adcode)) || byName.get(normCityName(f.name));
       const level = provinceLevel(light?.places ?? 0);
       path.style.fill = PROVINCE_FILLS[level];
       path.style.stroke = PROVINCE_STROKES[level];
@@ -665,12 +689,14 @@ export default function MapView({
     const full = provinceDataRef.current;
     const low = provinceLowDataRef.current;
     if (!map || !T || !full || !layer) return;
-    // 低缩放用概化版省界（更接近天地图低缩放底图的平滑省界）；z>=7 用高精度版
+    // 低缩放用概化版市界（天地图低缩放底图界线更平滑）；z>=7 用高精度版
     const useLow = Boolean(low && Number(map.getZoom()) < 7);
     const data = useLow && low ? low : full;
     layer.classList.toggle('lod-low', useLow);
-    // 低缩放：填充边缘羽化（filter 在 SVG defs 里），放大后再恢复硬边 + 精确描边
-    provinceGRef.current?.classList.toggle('soft', useLow);
+    // 2026-11-16 D-490：省界时代低缩放靠「羽化填充」避免和底图省界线并排；
+    // 现在画的是市界（低缩放底图根本不画市界，不存在对不齐），羽化反而把小块糊成一团，
+    // 所以不再加 soft，低缩放的描边 / 填充交给 CSS 的 .city 规则。
+    provinceGRef.current?.classList.remove('soft');
     const center = map.getCenter();
     const lngC = center.getLng();
     const latC = center.getLat();
@@ -712,7 +738,7 @@ export default function MapView({
   const provinceReprojectRef = useRef(reprojectProvinces);
   provinceReprojectRef.current = reprojectProvinces;
 
-  // 进入统计模式时按需加载省界（静态资源，缓存进内存；失败只降级不阻塞）
+  // 进入统计模式时按需加载市界（静态资源，缓存进内存；失败只降级不阻塞）
   useEffect(() => {
     let dead = false;
     if (!statsMode) {
@@ -724,13 +750,13 @@ export default function MapView({
       if (!provinceDataRef.current) {
         try {
           const [rFull, rLow] = await Promise.all([
-            fetch('/province-boundaries.json'),
-            fetch('/province-boundaries-low.json').catch(() => null),
+            fetch('/city-boundaries.json'),
+            fetch('/city-boundaries-low.json').catch(() => null),
           ]);
           if (!rFull.ok) throw new Error(`HTTP ${rFull.status}`);
           const data = (await rFull.json()) as ProvinceBoundaryData;
           if (!data || !Array.isArray(data.features) || !data.features.length) {
-            throw new Error(tr('省界数据为空'));
+            throw new Error(tr('市界数据为空'));
           }
           provinceDataRef.current = data;
           // 概化版是可选优化：拿不到就只用高精度版（只是低缩放观感差一点）
@@ -760,13 +786,13 @@ export default function MapView({
     };
   }, [statsMode, buildProvinceLayer, reprojectProvinces, hideTip]);
 
-  // 省份点亮数据到达 / 变化时只改颜色，不重建节点
+  // 城市点亮数据到达 / 变化时只改颜色，不重建节点
   useEffect(() => {
     if (!statsMode) return;
-    provinceStatsRef.current = provinceStats ?? [];
+    cityStatsRef.current = cityStats ?? [];
     applyProvinceColors();
     applyProvinceTransform();
-  }, [provinceStats, statsMode, applyProvinceColors, applyProvinceTransform]);
+  }, [cityStats, statsMode, applyProvinceColors, applyProvinceTransform]);
 
   // 统计模式下用多边形命中测试做 hover；层本身 pointer-events:none，不挡地图拖动
   useEffect(() => {
@@ -811,14 +837,21 @@ export default function MapView({
         hoverProvinceRef.current = hitFeature.name;
         provincePathsRef.current.forEach((p, name) => p.classList.toggle('hover', name === hitFeature!.name));
       }
-      const { byName, byCode } = buildLightIndex(provinceStatsRef.current);
+      const { byName, byCode } = cityIndexRef.current;
       const light =
-        byName.get(hitFeature.name.replace(/(壮族自治区|回族自治区|维吾尔自治区|特别行政区|自治区|省|市)$/g, '')) ||
-        byCode.get(hitFeature.adcode);
-      const title = tp(light?.name || hitFeature.name);
-      const sub = light
-        ? t('{places} 个地点 · {visits} 次到访', { places: light.places, visits: light.visits })
-        : t('还没去过');
+        byCode.get(normCityCode(hitFeature.adcode)) || byName.get(normCityName(hitFeature.name));
+      // 2026-11-16 D-501：没点亮的市不再弹提示 —— 热力图改成按市之后，
+      // 绝大多数市都没去过，鼠标扫过时「还没去过」会一直贴着光标跑，很吵。
+      // 描边高亮保留，仍能看出鼠标落在哪个市。
+      if (!light) {
+        hideTip();
+        return;
+      }
+      const title = tp(light.name);
+      const sub = t('{places} 个地点 · {visits} 次到访', {
+        places: light.places,
+        visits: light.visits,
+      });
       showTip(title, sub, lng, lat, 0);
     };
     const onMove = (ev: MouseEvent) => {
@@ -1864,7 +1897,7 @@ export default function MapView({
     >
       <div id="map" className="map" />
       {statsMode && (
-        <div className="province-layer" ref={provinceLayerRef}>
+        <div className="province-layer city" ref={provinceLayerRef}>
           <svg className="province-svg" ref={provinceSvgRef}>
             <defs>
               {/* 低缩放时给填充边缘做羽化：天地图低缩放底图省界是概化的，硬边缘会显得“对不齐” */}
@@ -1879,7 +1912,7 @@ export default function MapView({
       <div className="pin-layer" ref={layerRef} />
       {statsMode && provinceError && (
         <div className="province-warn">
-          {t('省界数据加载失败：{msg}', { msg: provinceError })}
+          {t('市界数据加载失败：{msg}', { msg: provinceError })}
           <br />
           {t('统计面板里的省份排行仍然可用。')}
         </div>

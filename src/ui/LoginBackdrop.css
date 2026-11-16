@@ -333,7 +333,7 @@
 
 .lb-pin-card-attr {
   fill: #17202a;
-  font-size: 10.5px;
+  font-size: var(--fs-caption);
   font-weight: 700;
   letter-spacing: 0.3px;
 }

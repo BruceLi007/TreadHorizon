@@ -29,6 +29,7 @@ import type {
   PlaceDetail,
   Poi,
   ProvinceLightData,
+  CityLightData,
   PurgeTrashResult,
   QuotaOverview,
   QuotaRequestInfo,
@@ -432,6 +433,10 @@ export const api = {
   /** 省份点亮：全量口径（地图着色用，独立于统计面板筛选） */
   statsProvinces: () =>
     fetch('/api/stats/provinces').then((r) => json<ProvinceLightData>(r)),
+
+  /** 城市点亮（2026-11-16 D-490）：统计模式热力图按地级市着色 */
+  statsCities: () =>
+    fetch('/api/stats/cities').then((r) => json<CityLightData>(r)),
 
   // ── M3：照片墙（F-BRW-04） ──
 

@@ -30,7 +30,7 @@
   padding: 0 12px;
   border-left: 1px solid transparent;
   border-right: 1px solid transparent;
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
 }
 
@@ -59,13 +59,13 @@
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-1);
   font-weight: 600;
 }
 
 .um-handle {
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   font-weight: 400;
   color: var(--text-3);
 }
@@ -75,7 +75,7 @@
   padding: 0 6px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  font-size: calc(10px * var(--fs-scale));
+  font-size: var(--fs-caption);
   font-weight: 400;
   color: var(--text-3);
 }
@@ -87,7 +87,7 @@
 
 .um-sub {
   margin-top: 3px;
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
@@ -100,7 +100,7 @@
   padding: 1px 8px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  font-size: calc(10.5px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-3);
 }
 
@@ -120,7 +120,7 @@
 
 .um-usage-text {
   display: block;
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-1);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -129,7 +129,7 @@
 .um-usage-sub {
   display: block;
   margin-top: 2px;
-  font-size: calc(10.5px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
@@ -161,7 +161,7 @@
   background: var(--bg-panel);
   color: var(--text-1);
   font: inherit;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 .um-pwd-row .hint {
@@ -190,7 +190,7 @@
   border-radius: 999px;
   border: 1px solid var(--line);
   color: var(--text-3);
-  font-size: calc(10.5px * var(--fs-scale));
+  font-size: var(--fs-caption);
   white-space: nowrap;
 }
 
@@ -252,14 +252,14 @@
 }
 
 .acc-newcode-text b {
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-2);
   font-weight: 600;
 }
 
 .acc-newcode-text code {
   font-family: ui-monospace, Consolas, monospace;
-  font-size: calc(16px * var(--fs-scale));
+  font-size: var(--fs-h1);
   letter-spacing: 0.08em;
   color: var(--text-1);
   user-select: all;
@@ -309,7 +309,7 @@
   flex: none;
   padding: 1px 7px;
   border-radius: 999px;
-  font-size: calc(10px * var(--fs-scale));
+  font-size: var(--fs-caption);
   border: 1px solid var(--line);
   color: var(--text-3);
 }
@@ -330,7 +330,7 @@
 }
 
 .acc-invite-note-text {
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-2);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -338,7 +338,7 @@
 }
 
 .acc-invite-meta {
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
@@ -401,24 +401,25 @@
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
+  font-weight: 600;
   color: var(--text-1);
 }
 
 .um-req-move {
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
 }
 
 .um-req-reason {
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-2);
   overflow-wrap: anywhere;
 }
 
 .um-req-meta {
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }

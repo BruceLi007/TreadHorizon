@@ -97,15 +97,16 @@ export default function AboutSettings({
   return (
     <div className="set-pane">
       {!multi ? (
-        // ── 本地模式：与以前完全一致 ──
+        // ── 单机模式 ──
+        // 2026-11-16 D-509（用户：现在有账号和云了，这里表述不对）：
+        // 去掉「纯本地 / 无账号 / 无云」这类定位描述，也不反过来强调云端与账号，只留事实。
         <>
           <section className="set-section">
             <div className="set-section-head">
-              <h3 className="set-section-title">{t('Tread Horizon 本地旅行足迹')}</h3>
-              <span className="set-section-tag">{t('本地运行 · 无账号 · 无云')}</span>
+              <h3 className="set-section-title">{t('Tread Horizon 旅行足迹')}</h3>
             </div>
             <p className="set-section-desc">
-              {t('一个纯本地的个人旅行足迹地图：数据保存在本机，照片 / 视频放在本地素材库，地图使用天地图。')}
+              {t('一个个人旅行足迹地图：数据保存在本机，照片 / 视频存放在素材库，地图使用天地图。')}
             </p>
 
             {err && <p className="hint err">{err}</p>}
@@ -377,18 +378,6 @@ export default function AboutSettings({
               </div>
             </section>
           )}
-
-          <section className="set-section">
-            <div className="set-section-head">
-              <h3 className="set-section-title">{t('数据与备份说明（云端）')}</h3>
-            </div>
-            <p className="set-section-desc">
-              {t('云端数据按账号隔离保存在服务器上，请不要直接在服务器上修改。服务器备份由管理员负责；普通用户可在「账号」里把自己的数据下载到本地。')}
-            </p>
-            <p className="hint">
-              {t('换电脑 / 换浏览器不需要迁移数据：用同一个账号登录即可；界面偏好（主题 / 字体等）只存本机浏览器。')}
-            </p>
-          </section>
         </>
       )}
 

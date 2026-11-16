@@ -40,7 +40,7 @@
   border-radius: 6px;
   background: var(--accent-soft);
   color: var(--text-3);
-  font-size: calc(10px * var(--fs-scale));
+  font-size: var(--fs-caption);
   letter-spacing: 0.06em;
   vertical-align: 1px;
 }
@@ -54,11 +54,11 @@
   gap: 10px;
   margin: 2px 0 6px;
   color: var(--text-2);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 .acc-quota-head b {
-  font-size: calc(14px * var(--fs-scale));
+  font-size: var(--fs-h2);
   font-weight: 600;
   color: var(--text-1);
   font-variant-numeric: tabular-nums;
@@ -113,7 +113,7 @@
 
 .acc-quota-pending-title {
   margin: 0;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--text-1);
 }
@@ -156,7 +156,7 @@
 
 .acc-quota-history-title {
   margin: 0;
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
 }
 
@@ -165,7 +165,7 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-2);
 }
 
@@ -174,7 +174,7 @@
   padding: 1px 7px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  font-size: calc(10px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-3);
 }
 
@@ -253,7 +253,7 @@
 
 .acc-avatar-hint {
   margin: 0;
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   line-height: 1.6;
   color: var(--text-3);
 }
@@ -286,7 +286,7 @@
   background: transparent;
   color: var(--text-2);
   font-family: inherit;
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   cursor: pointer;
   transition: color 140ms ease, border-color 140ms ease;
 }
@@ -320,7 +320,7 @@
   background: var(--bg-raised);
   color: var(--text-1);
   font-family: inherit;
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   outline: none;
 }
 
@@ -350,7 +350,7 @@
   align-items: flex-start;
   gap: 9px;
   margin: 8px 0;
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-2);
   cursor: pointer;
 }
@@ -369,7 +369,7 @@
   display: block;
   margin-top: 1px;
   color: var(--text-3);
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
 }
 
 .acc-dl-btn {

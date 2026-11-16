@@ -51,13 +51,13 @@
 }
 
 .st-title {
-  font-size: calc(18px * var(--fs-scale));
+  font-size: var(--fs-h1);
   font-weight: 600;
   line-height: 1.3;
 }
 
 .st-syncing {
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
   white-space: nowrap;
 }
@@ -99,7 +99,7 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 2px 8px;
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-2);
   line-height: 1.6;
 }
@@ -134,7 +134,7 @@
 }
 
 .st-scope {
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
   min-width: 0;
   overflow: hidden;
@@ -150,7 +150,7 @@
   border-radius: 999px;
   border: 1px solid var(--line);
   color: var(--text-2);
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   white-space: nowrap;
 }
 
@@ -174,7 +174,7 @@
 }
 
 .st-total-n {
-  font-size: calc(18px * var(--fs-scale));
+  font-size: var(--fs-h1);
   font-weight: 600;
   line-height: 1.25;
   color: var(--text-1);
@@ -186,7 +186,7 @@
 
 .st-total-l {
   margin-top: 1px;
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
 }
 
@@ -207,7 +207,7 @@
   border-radius: 8px;
   border: 1px solid rgba(224, 108, 117, 0.35);
   background: rgba(224, 108, 117, 0.1);
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
 }
 
 .st-banner-msg {
@@ -226,7 +226,7 @@
   border-radius: 999px;
   border: 1px solid rgba(224, 108, 117, 0.45);
   color: var(--bad);
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
 }
 
 /* ── 筛选区 ── */
@@ -256,7 +256,7 @@
      标签被逐字换行成竖排。改成按标签自身字号换算（2em ≈ 两个汉字）+ 留 4px 余量；
      英文标签（Year / Granularity…）另给足够宽度，保证不换行且各行列对齐。 */
   width: calc(2em + 4px);
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
   line-height: 30px;
   white-space: nowrap;
@@ -288,7 +288,7 @@ html[lang='en'] .st-field-label {
   border: 1px solid var(--line);
   background: var(--bg-raised);
   color: var(--text-1);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   outline: none;
 }
 
@@ -304,7 +304,7 @@ html[lang='en'] .st-field-label {
 .st-dash {
   flex: none;
   color: var(--text-3);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 /* 指标复选：真 checkbox + 主/次标记 */
@@ -323,7 +323,7 @@ html[lang='en'] .st-field-label {
   border-radius: 8px;
   background: transparent;
   color: var(--text-2);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   cursor: pointer;
   user-select: none;
   transition: 150ms ease;
@@ -368,7 +368,7 @@ html[lang='en'] .st-field-label {
   border-radius: 6px;
   border: 1px solid var(--accent);
   color: var(--accent);
-  font-size: calc(10px * var(--fs-scale));
+  font-size: var(--fs-caption);
   line-height: 13px;
 }
 
@@ -398,13 +398,13 @@ html[lang='en'] .st-field-label {
 }
 
 .st-chart-title {
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--text-1);
 }
 
 .st-chart-note {
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -430,7 +430,7 @@ html[lang='en'] .st-field-label {
   align-items: center;
   gap: 4px 12px;
   margin-bottom: 8px;
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
 }
 
@@ -465,7 +465,7 @@ html[lang='en'] .st-field-label {
 
 .st-note {
   margin: 0 0 8px;
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
   line-height: 1.55;
 }
@@ -475,7 +475,7 @@ html[lang='en'] .st-field-label {
   flex-wrap: wrap;
   gap: 4px 10px;
   margin-bottom: 8px;
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-2);
 }
 
@@ -516,7 +516,7 @@ html[lang='en'] .st-field-label {
 .st-row-label {
   flex: none;
   width: 68px;
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -572,7 +572,7 @@ html[lang='en'] .st-field-label {
   flex: none;
   width: 46px;
   text-align: right;
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
 }
@@ -583,7 +583,7 @@ html[lang='en'] .st-field-label {
   padding: 6px 8px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.03);
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-2);
   line-height: 1.6;
 }
@@ -630,7 +630,7 @@ html[lang='en'] .st-field-label {
 
 .st-bar-name {
   min-width: 0;
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-1);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -639,14 +639,14 @@ html[lang='en'] .st-field-label {
 
 .st-bar-sub {
   margin-left: 6px;
-  font-size: calc(10.5px * var(--fs-scale));
+  font-size: var(--fs-caption);
   font-style: normal;
   color: var(--text-3);
 }
 
 .st-bar-val {
   flex: none;
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -654,7 +654,7 @@ html[lang='en'] .st-field-label {
 
 .st-bar-val small {
   margin-left: 1px;
-  font-size: calc(10px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-3);
 }
 
@@ -695,7 +695,7 @@ html[lang='en'] .st-field-label {
 
 .st-hint-line {
   margin: 8px 0 0;
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
   line-height: 1.5;
 }
@@ -723,7 +723,7 @@ html[lang='en'] .st-field-label {
   width: 16px;
   padding-top: 1px;
   text-align: right;
-  font-size: calc(10.5px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
@@ -742,7 +742,7 @@ html[lang='en'] .st-field-label {
 
 .st-place-name {
   min-width: 0;
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-1);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -754,7 +754,7 @@ html[lang='en'] .st-field-label {
   padding: 0 5px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  font-size: calc(10px * var(--fs-scale));
+  font-size: var(--fs-caption);
   line-height: 15px;
   color: var(--text-2);
 }
@@ -766,7 +766,7 @@ html[lang='en'] .st-field-label {
   gap: 1px;
   flex: none;
   margin-left: auto;
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   line-height: 1.2;
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
@@ -780,12 +780,12 @@ html[lang='en'] .st-field-label {
 
 .st-place-val small {
   margin-left: 1px;
-  font-size: calc(10px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-3);
 }
 
 .st-place-sub {
-  font-size: calc(10px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-3);
 }
 
@@ -805,7 +805,7 @@ html[lang='en'] .st-field-label {
 }
 
 .st-place-meta {
-  font-size: calc(10.5px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-3);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -831,7 +831,7 @@ html[lang='en'] .st-field-label {
 }
 
 .st-lit-main b {
-  font-size: calc(26px * var(--fs-scale));
+  font-size: var(--fs-display);
   font-weight: 600;
   line-height: 1.1;
   color: var(--province);
@@ -839,7 +839,7 @@ html[lang='en'] .st-field-label {
 }
 
 .st-lit-main span {
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
@@ -847,7 +847,7 @@ html[lang='en'] .st-field-label {
 .st-lit-main em {
   margin-left: auto;
   font-style: normal;
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-2);
 }
 
@@ -871,7 +871,7 @@ html[lang='en'] .st-field-label {
 }
 
 .st-tier-title {
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
 }
 
@@ -886,7 +886,7 @@ html[lang='en'] .st-field-label {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: calc(10.5px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-2);
   white-space: nowrap;
 }
@@ -934,7 +934,7 @@ html[lang='en'] .st-field-label {
 .st-prov-name {
   flex: none;
   width: 76px;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-1);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -958,7 +958,7 @@ html[lang='en'] .st-field-label {
 
 .st-prov-val {
   flex: none;
-  font-size: calc(10.5px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -967,14 +967,14 @@ html[lang='en'] .st-field-label {
 .st-prov-hint {
   margin: 10px 0 0;
   padding: 0 16px;
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
   line-height: 1.6;
 }
 
 .st-foot-note {
   margin: 14px 16px 16px;
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
   line-height: 1.6;
 }
@@ -983,7 +983,7 @@ html[lang='en'] .st-field-label {
 .st-state {
   padding: 28px 16px;
   text-align: center;
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-2);
   line-height: 1.8;
 }
@@ -1017,7 +1017,7 @@ html[lang='en'] .st-field-label {
 
 .st-err-msg {
   color: var(--bad);
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   line-height: 1.7;
   word-break: break-word;
 }
@@ -1030,7 +1030,7 @@ html[lang='en'] .st-field-label {
   border: 1px solid var(--line);
   background: var(--bg-raised);
   color: var(--text-1);
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 .st-retry:hover {
@@ -1163,7 +1163,7 @@ html:is([data-theme='light'], [data-theme='white']) .st-panel .st-row-bar {
   flex: none;
   padding: 9px 16px;
   border-bottom: 1px solid var(--line);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   line-height: 1.5;
   color: var(--text-2);
 }
@@ -1202,7 +1202,7 @@ html:is([data-theme='light'], [data-theme='white']) .st-panel .st-row-bar {
   border: 1px solid var(--line);
   background: transparent;
   color: var(--text-2);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 .st-backup-btn:hover {

@@ -12,7 +12,7 @@
   background: var(--text-1);
   color: var(--bg-panel);
   font-family: inherit;
-  font-size: calc(14px * var(--fs-scale));
+  font-size: var(--fs-h2);
   font-weight: 600;
   letter-spacing: 0.5px;
   white-space: nowrap;
@@ -59,7 +59,7 @@
   gap: 10px;
   padding: 8px 14px 0;
   color: var(--text-3);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-caption);
   line-height: 1.5;
 }
 
@@ -70,7 +70,7 @@
   background: transparent;
   color: var(--text-2);
   font-family: inherit;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   cursor: pointer;
 }
 
@@ -94,7 +94,7 @@
   flex: 1;
   min-width: 0;
   color: var(--text-1);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -113,7 +113,7 @@
   height: 26px;
   padding: 0 12px;
   border-radius: 999px;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   cursor: pointer;
 }
 
@@ -138,7 +138,8 @@
 .share-prov-head {
   padding: 12px 16px 6px;
   color: var(--text-3);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
+  font-weight: 600;
   letter-spacing: 0.04em;
 }
 
@@ -181,25 +182,25 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: calc(14px * var(--fs-scale));
+  font-size: var(--fs-h2);
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 
 .share-lock {
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
 }
 
 .share-place-meta {
   margin-top: 3px;
   color: var(--text-3);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-meta);
 }
 
 .share-place-note {
   margin-top: 5px;
   color: #f4ae62;
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
 }
 
 .share-unlock-btn {
@@ -210,14 +211,14 @@
   color: #f4ae62;
   border-radius: 8px;
   padding: 5px 9px;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   cursor: pointer;
 }
 
 .share-empty-hint {
   padding: 24px 16px;
   color: var(--text-3);
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-caption);
   text-align: center;
 }
 
@@ -238,20 +239,20 @@
 
 .share-sidebar-head h2 {
   margin: 0;
-  font-size: calc(20px * var(--fs-scale));
+  font-size: var(--fs-display);
   overflow-wrap: anywhere;
 }
 
 .share-sidebar-region {
   margin: 4px 0 0;
   color: var(--text-2);
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 .share-sidebar-meta {
   margin: 6px 0 0;
   color: #f4ae62;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-meta);
 }
 
 .share-sidebar-body {
@@ -278,17 +279,18 @@
 
 .share-visit-date {
   font-weight: 600;
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 .share-visit-title {
   color: var(--text-2);
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
+  font-weight: 600;
 }
 
 .share-visit-count {
   color: var(--text-3);
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
 }
 
 .share-mini-btn {
@@ -298,7 +300,7 @@
   color: var(--text-2);
   border-radius: 7px;
   padding: 2px 7px;
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   cursor: pointer;
 }
 
@@ -424,7 +426,7 @@
   position: absolute;
   right: 5px;
   bottom: 4px;
-  font-size: calc(10.5px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-2);
 }
 
@@ -454,7 +456,7 @@
 
 .share-modal h2 {
   margin: 0 0 16px;
-  font-size: calc(22px * var(--fs-scale));
+  font-size: var(--fs-display);
 }
 
 .share-modal-x {
@@ -487,12 +489,12 @@
 
 .share-confirm-stats dt {
   color: var(--text-3);
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
 }
 
 .share-confirm-stats dd {
   margin: 0;
-  font-size: calc(14px * var(--fs-scale));
+  font-size: var(--fs-h2);
 }
 
 .share-field {
@@ -500,7 +502,7 @@
   flex-direction: column;
   gap: 6px;
   margin-bottom: 12px;
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-2);
 }
 
@@ -510,7 +512,7 @@
   background: var(--bg-raised);
   color: var(--text-1);
   padding: 9px 11px;
-  font-size: calc(14px * var(--fs-scale));
+  font-size: var(--fs-h2);
 }
 
 .share-checks {
@@ -518,7 +520,7 @@
   gap: 18px;
   margin-bottom: 12px;
   color: var(--text-2);
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 .share-checks label {
@@ -536,14 +538,14 @@
 .share-warn {
   margin: 8px 0;
   color: var(--bad);
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   line-height: 1.6;
 }
 
 .share-note {
   margin: 10px 0;
   color: var(--text-3);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-caption);
   line-height: 1.7;
 }
 
@@ -565,7 +567,7 @@
   height: 38px;
   padding: 0 16px;
   border-radius: 999px;
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   cursor: pointer;
 }
 
@@ -607,7 +609,7 @@
   justify-content: space-between;
   gap: 12px;
   margin: 0 0 8px;
-  font-size: calc(14px * var(--fs-scale));
+  font-size: var(--fs-h2);
 }
 
 .share-file-line span {
@@ -622,7 +624,7 @@
   border-radius: 9px;
   background: var(--bg-raised);
   color: var(--text-2);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   overflow-wrap: anywhere;
 }
 
@@ -635,7 +637,7 @@
 .share-next p {
   margin: 0 0 10px;
   color: var(--text-2);
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   line-height: 1.7;
 }
 
@@ -649,13 +651,13 @@
   background: var(--accent);
   color: var(--accent-ink);
   font-weight: 600;
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   text-decoration: none;
 }
 
 .share-error-text {
   color: var(--bad);
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   line-height: 1.7;
 }
 
@@ -667,7 +669,7 @@
 .share-usage-line {
   margin: 0 0 14px;
   color: var(--text-3);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 .share-upload-row {
@@ -682,7 +684,7 @@
   background: var(--bg-raised);
   color: var(--text-1);
   padding: 9px 11px;
-  font-size: calc(14px * var(--fs-scale));
+  font-size: var(--fs-h2);
 }
 
 .share-password-row {
@@ -702,7 +704,7 @@
   background: transparent;
   color: var(--text-2);
   padding: 0 12px;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   cursor: pointer;
 }
 
@@ -712,7 +714,7 @@
   gap: 8px;
   margin: 4px 0 12px;
   color: var(--text-1);
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   line-height: 1.6;
 }
 
@@ -722,7 +724,7 @@
 
 .share-upload-result h3 {
   margin: 0 0 10px;
-  font-size: calc(16px * var(--fs-scale));
+  font-size: var(--fs-h1);
 }
 
 .myshares {
@@ -733,7 +735,7 @@
 
 .myshares h3 {
   margin: 0 0 10px;
-  font-size: calc(15px * var(--fs-scale));
+  font-size: var(--fs-h2);
 }
 
 .myshare-row {
@@ -753,13 +755,13 @@
 }
 
 .myshare-main b {
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   overflow-wrap: anywhere;
 }
 
 .myshare-main span {
   color: var(--text-3);
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
 }
 
 .myshare-actions {
@@ -772,7 +774,7 @@
 }
 
 .myshare-status {
-  font-size: calc(11px * var(--fs-scale));
+  font-size: var(--fs-meta);
   padding: 2px 7px;
   border-radius: 999px;
   border: 1px solid var(--line);
@@ -790,7 +792,7 @@
   border: 1px solid var(--line);
   background: rgba(20, 22, 26, 0.94);
   color: var(--text-1);
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
   pointer-events: none;
 }
@@ -821,7 +823,7 @@
   background: transparent;
   border-radius: 7px;
   padding: 3px 8px;
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-2);
   text-decoration: none;
   cursor: pointer;
@@ -873,25 +875,26 @@
 
 .share-inline-date {
   font-weight: 600;
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 .share-inline-title {
   color: var(--text-2);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
+  font-weight: 600;
 }
 
 .share-inline-count {
   margin-left: auto;
   color: var(--text-3);
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   white-space: nowrap;
 }
 
 /* D-424：分享包文件选择器改用主题胶囊按钮，和输入框 / 下拉框同一套字体与配色 */
 .share-field input[type='file'] {
   padding: 6px 8px;
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-2);
   cursor: pointer;
 }
@@ -905,7 +908,7 @@
   background: var(--bg-panel);
   color: var(--text-1);
   font: inherit;
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   cursor: pointer;
 }
 
@@ -927,7 +930,7 @@
   height: 28px;
   padding: 0 10px;
   border-radius: 999px;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   line-height: 1;
   text-decoration: none;
   white-space: nowrap;
@@ -959,7 +962,7 @@
   flex: none;
   height: 34px;
   padding: 0 14px;
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 .share-file-name {
@@ -968,7 +971,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-2);
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 /* D-424：我的分享默认只显示标题 + 操作按钮，有效期 / 访问统计收进「详情」 */
@@ -1009,7 +1012,7 @@
 .myshare-meta {
   margin: 0;
   color: var(--text-3);
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   line-height: 1.6;
 }
 
@@ -1029,7 +1032,7 @@
 .share-field select,
 .share-upload-row select {
   font: inherit;
-  font-size: calc(14px * var(--fs-scale));
+  font-size: var(--fs-h2);
   line-height: 1.4;
   color: var(--text-1);
   background: var(--bg-raised);
@@ -1056,12 +1059,12 @@
 .share-custom-expiry input {
   width: 96px;
   padding: 7px 10px;
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 .share-custom-expiry span {
   color: var(--text-2);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 /* D-424：分享弹窗里输入框 / 下拉框 / 自动生成按钮统一高度（之前 select 比 input 高几像素） */
@@ -1071,7 +1074,7 @@
   height: 38px;
   box-sizing: border-box;
   padding: 0 11px;
-  font-size: calc(14px * var(--fs-scale));
+  font-size: var(--fs-h2);
   line-height: 1.35;
 }
 
@@ -1092,6 +1095,85 @@
   .hud-share-btn {
     height: 34px;
     padding: 0 16px;
-    font-size: calc(13px * var(--fs-scale));
+    font-size: var(--fs-body);
+  }
+}
+
+/* 2026-11-16 D-496（用户反馈「分享的弹窗还是能左右滑动」）：
+   分享上传弹窗里 `.share-upload-row` 是 `150px + 1fr` 两列网格（有效期 / 访问密码并排），
+   窄屏装不下 → 内容宽 524px、弹窗 `.share-modal { overflow:auto }` 就变成左右可滑。
+   窄屏：弹窗外边距收到 12px（与顶栏内边距一致，弹窗正好和大按钮组同宽 366）、
+   两列改单列、输入控件 100% 宽、并且禁掉横向滚动。 */
+@media (max-width: 820px) {
+  .share-modal-mask {
+    padding: 12px;
+    align-items: flex-start;
+    padding-top: calc(20px + env(safe-area-inset-top));
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+  .share-modal,
+  .share-upload-modal {
+    width: 100%;
+    max-height: calc(100dvh - 48px);
+    padding: 20px 16px 18px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .share-modal h2 {
+    font-size: var(--fs-display);
+  }
+  .share-upload-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .share-field input,
+  .share-field select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .share-password-row {
+    flex-wrap: wrap;
+  }
+  .share-password-row input {
+    flex: 1 1 140px;
+  }
+  .share-modal-actions {
+    flex-wrap: wrap;
+  }
+  .share-modal-actions .ghost,
+  .share-modal-actions .primary {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
+/* 2026-11-16 D-491（用户手机截图「我的分享」）：`.myshare-row` 本身已经是竖排（D-424），
+   但里面那层 `.myshare-head` 还是横排 + 右边一排不换行的按钮（有效 / 复制链接 / 预览 / 详情 / 撤销），
+   窄屏上按钮组把左边的标题挤成一条竖排文字（「分享于 2026-11-15 14:13」逐字换行）。
+   窄屏把 `.myshare-head` 也改成上下两段：标题 + 时间占满一行，按钮组另起一行、可换行。 */
+@media (max-width: 820px) {
+  .myshare-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .myshare-row .myshare-main {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .myshare-main b {
+    font-size: var(--fs-h2);
+  }
+  .myshare-main span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .myshare-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    row-gap: 6px;
   }
 }

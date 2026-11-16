@@ -33,7 +33,7 @@
 .cd-title {
   flex: 1;
   margin: 0;
-  font-size: calc(15px * var(--fs-scale));
+  font-size: var(--fs-h2);
   font-weight: 600;
   line-height: 1.5;
 }
@@ -45,7 +45,7 @@
 .cd-body {
   margin-top: 10px;
   color: var(--text-2);
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   line-height: 1.65;
 }
 
@@ -79,7 +79,7 @@
   display: block;
   margin-top: 2px;
   color: var(--text-3);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 .cd-actions {

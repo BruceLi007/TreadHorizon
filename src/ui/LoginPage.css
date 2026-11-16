@@ -103,10 +103,10 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
 }
 
 .login-brand-name {
-  font-size: calc(26px * var(--fs-scale));
+  font-size: var(--fs-display);
   /* 自适应：不超过容器宽度的 9.4%（400px 卡片内容宽 338px → 约 31.8px），
      保证所有内置 UI 字体（含最宽的荆南波波黑）都能单行放下；旧浏览器忽略本行用上面的兜底 */
-  font-size: min(calc(26px * var(--fs-scale)), 9.4cqw);
+  font-size: min(var(--fs-display), 9.4cqw);
   width: 100%;
   text-align: center;
   white-space: nowrap;
@@ -117,7 +117,7 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
 }
 
 .login-brand-sub {
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-caption);
   font-weight: 500;
   letter-spacing: 0.32em;
   margin-right: -0.32em;
@@ -127,7 +127,7 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
 .login-lead {
   margin: 0 0 18px;
   text-align: center;
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-3);
   line-height: 1.6;
 }
@@ -149,7 +149,7 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
 }
 
 .login-field > span {
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-2);
 }
 
@@ -161,7 +161,7 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
   background: var(--bg-raised);
   color: var(--text-1);
   font: inherit;
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   letter-spacing: 0.02em;
   transition:
     border-color 150ms ease,
@@ -185,7 +185,7 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
   border: 1px solid rgba(var(--accent-rgb), 0.28);
   background: var(--accent-soft);
   color: var(--text-1);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
@@ -196,7 +196,7 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
   border-radius: 999px;
   background: var(--accent);
   color: var(--accent-ink);
-  font-size: calc(13.5px * var(--fs-scale));
+  font-size: var(--fs-h2);
   font-weight: 600;
   letter-spacing: 0.04em;
   transition:
@@ -225,7 +225,7 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
 .login-foot {
   margin: 16px 0 0;
   text-align: center;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-caption);
   color: var(--text-2);
   line-height: 1.6;
 }
@@ -233,7 +233,7 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
 .login-note {
   margin: 6px 0 0;
   text-align: center;
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
   line-height: 1.6;
 }
@@ -247,7 +247,7 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
   justify-content: center;
   gap: 8px;
   margin: 14px 0 0;
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-3);
   line-height: 1.6;
 }
@@ -296,7 +296,7 @@ html:is([data-theme='light'], [data-theme='white']) .login-card {
   }
 
   .login-brand-name {
-    font-size: calc(22px * var(--fs-scale));
+    font-size: var(--fs-display);
   }
 }
 
@@ -452,7 +452,7 @@ html:is([data-theme='dark'], [data-theme='black']) .login-page .seg-btn.on {
   backdrop-filter: blur(10px) saturate(1.08);
   color: var(--text-1);
   font: inherit;
-  font-size: calc(18px * var(--fs-scale));
+  font-size: var(--fs-h1);
   font-weight: 800;
   letter-spacing: 0.04em;
   white-space: nowrap;
@@ -645,7 +645,7 @@ html:is([data-theme='dark'], [data-theme='black']) .login-page .seg-btn.on {
     height: 46px;
     padding: 0 22px;
     gap: 9px;
-    font-size: calc(16px * var(--fs-scale));
+    font-size: var(--fs-h1);
   }
   .login-launch-mark svg {
     height: calc(22px * var(--fs-scale));
@@ -757,7 +757,7 @@ html:is([data-theme='dark'], [data-theme='black']) .login-page .seg-btn.on {
   color: #fff;
   font: inherit;
   font-weight: 700;
-  font-size: 14.5px;
+  font-size: var(--fs-h2);
   cursor: pointer;
   transition: filter 0.14s ease, transform 0.14s ease;
 }
@@ -774,7 +774,7 @@ html:is([data-theme='dark'], [data-theme='black']) .login-page .seg-btn.on {
 
 .login-demo-note {
   margin: 7px 2px 0;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   line-height: 1.5;
   color: var(--text-3, #6b7280);
 }

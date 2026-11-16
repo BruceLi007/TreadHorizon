@@ -19,7 +19,6 @@
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Node.js >= 22.13](https://img.shields.io/badge/Node.js-%E2%89%A5%2022.13-339933.svg)
-![Local-first](https://img.shields.io/badge/local--first-%E6%95%B0%E6%8D%AE%E4%B8%8D%E4%B8%8A%E4%BA%91-success.svg)
 
 > 仓库地址：<https://github.com/BruceLi007/TreadHorizon> · 许可：[MIT](LICENSE)
 

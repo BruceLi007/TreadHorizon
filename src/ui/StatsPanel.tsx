@@ -44,7 +44,9 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'time', label: '时间趋势' },
   { key: 'region', label: '地区分布' },
   { key: 'places', label: '地点排行' },
-  { key: 'provinces', label: '省份点亮' },
+  // 2026-11-16 D-490：主地图热力图改成按城市点亮后，这个页签里放的是「省份排行」+ 地图图例，
+  // 名字从「省份点亮」改成「省份排行」，避免让人以为地图还按省上色。
+  { key: 'provinces', label: '省份排行' },
   { key: 'distance', label: '离家距离' },
 ];
 
@@ -1495,7 +1497,7 @@ export default function StatsPanel({
                   </div>
                 ) : provinceChart.list.length === 0 ? (
                   <div className="st-state">
-                    {t('还没有点亮任何省份，新增一条到访记录后就会亮起。')}
+                    {t('还没有点亮任何城市，新增一条到访记录后就会亮起。')}
                   </div>
                 ) : (
                   <>
@@ -1538,7 +1540,7 @@ export default function StatsPanel({
                 )}
 
                 <p className="st-prov-hint">
-                  {t('省份点亮在主地图上查看 · hover 地图省份看详情。')}
+                  {t('热力图按城市点亮：hover 地图上的城市看详情；下面的排行仍按省份汇总。')}
                   <br />
                   {t('本视图按全量数据统计，不受上方筛选影响。')}
                 </p>

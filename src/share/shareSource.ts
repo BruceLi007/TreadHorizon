@@ -6,6 +6,7 @@ import type {
   Place,
   PlaceDetail,
   ProvinceLightData,
+  CityLightData,
   StatsCityRow,
   StatsData,
   StatsDistanceRow,
@@ -40,6 +41,8 @@ export interface ShareSource {
   thumbUrl(id: string): string;
   stats(q: StatsQuery): StatsData;
   provinceLight(): ProvinceLightData;
+  /** 2026-11-16 D-490：统计模式热力图按城市点亮（manifest 只有城市名，按名字聚合） */
+  cityLight(): CityLightData;
   photos(q: PhotoWallQuery): PhotoWallData;
 }
 
@@ -382,9 +385,48 @@ export function buildShareSource(token: string, manifest: ShareManifest, expires
     };
   };
 
-  const photos = (q: PhotoWallQuery): PhotoWallData => {
-    const items: (PhotoWallItem & { placeId: string; province: string })[] = [];
+  /**
+   * 2026-11-16 D-490：分享页的统计模式热力图也按城市点亮。
+   * manifest 里只有城市**名字**（没有 city_code），所以这里只按名字聚合，
+   * 前端匹配边界时是「先代码后名字」，对不上代码就会落到名字上。
+   */
+  const cityLight = (): CityLightData => {
+    const map = new Map<string, { places: number; visits: number; first: string; last: string; province: string }>();
     for (const p of manifest.places) {
+      const name = p.city ?? '';
+      if (!name) continue;
+      const dates = p.visits.map((v) => v.date).filter(Boolean).sort();
+      const cur = map.get(name) ?? {
+        places: 0,
+        visits: 0,
+        first: dates[0] ?? '',
+        last: dates[dates.length - 1] ?? '',
+        province: p.provinceName ?? '',
+      };
+      cur.places += 1;
+      cur.visits += p.visits.length;
+      if (dates[0] && (!cur.first || dates[0] < cur.first)) cur.first = dates[0];
+      if (dates.length && (!cur.last || dates[dates.length - 1] > cur.last)) cur.last = dates[dates.length - 1];
+      map.set(name, cur);
+    }
+    const cities = [...map.entries()].map(([name, v]) => ({
+      name,
+      code: null,
+      province: v.province || null,
+      places: v.places,
+      visits: v.visits,
+      first_date: v.first || null,
+      last_date: v.last || null,
+    }));
+    return {
+      cities,
+      maxPlaces: Math.max(1, ...cities.map((c) => c.places)),
+      maxVisits: Math.max(1, ...cities.map((c) => c.visits)),
+    };
+  };
+
+  const photos = (q: PhotoWallQuery): PhotoWallData => {
+    const items: (PhotoWallItem & { placeId: string; province: string })[] = [];    for (const p of manifest.places) {
       for (const v of p.visits) {
         for (const id of v.media) {
           const m = mediaList.get(id);
@@ -452,6 +494,7 @@ export function buildShareSource(token: string, manifest: ShareManifest, expires
     },
     stats,
     provinceLight,
+    cityLight,
     photos,
   };
 }

@@ -64,8 +64,8 @@ const dict: Dict = {
     'Next: open the official site → sign in or register (invite code required) → My shares → upload this file.',
   '去官网登录 / 注册 →': 'Sign in / register on the site →',
   '导出失败': 'Export failed',
-  '在本地版导出分享包后，在这里上传；上传成功会得到免登录查看的链接。':
-    'Export a package in the local version, then upload it here to get a public read-only link.',
+  '导出分享包后，在这里上传；上传成功会得到免登录查看的链接。':
+    'Export a package, then upload it here to get a public read-only link.',
   '分享占用 {size} · 共 {n} 份 · 被打开 {views} 次 · 独立访客 {visitors} 人':
     'Shares use {size} · {n} links · {views} opens · {visitors} unique visitors',
   '分享包（.zip）': 'Share package (.zip)',

@@ -139,12 +139,14 @@ const USERS_TAB: { id: TabId; label: string; desc: string } = {
 
 /** 通用分类（不含回收站 / 账号 / 关于：回收站在「关于」上面，账号固定在左下角） */
 const MAIN_TABS: { id: TabId; label: string; desc: string }[] = [
-  { id: 'general', label: '通用', desc: '外观明暗、界面语言、主题与字体' },
-  { id: 'backup', label: '备份与恢复', desc: '导出到备份目录 / 从备份恢复 / 备份提醒' },
+  // 2026-11-16 D-503（用户要求：删掉设置里「无关的说明文字」）：通用 / 备份与恢复 / 后台任务
+  // 三个分类的副标题一并去掉，desc 置空后标题栏只显示分类名。
+  { id: 'general', label: '通用', desc: '' },
+  { id: 'backup', label: '备份与恢复', desc: '' },
   { id: 'library', label: '素材库', desc: '素材库路径、重新关联与视频封面' },
   // 2026-11-15 D-431（用户要求）：原来单独一栏的「上传」并进「后台任务」，
   // 这里集中放所有有持续时间的任务（上传 / 备份 / 分享 / 回收站），按分类显示。
-  { id: 'tasks', label: '后台任务', desc: '上传、备份、分享、回收站的运行状态' },
+  { id: 'tasks', label: '后台任务', desc: '' },
   { id: 'tdt', label: '天地图 Key', desc: '天地图 Key（Key 只存本机）' },
   { id: 'security', label: '安全', desc: '秘密基地密码' },
 ];
@@ -159,7 +161,8 @@ const ABOUT_TAB: { id: TabId; label: string; desc: string } = {
 const TRASH_TAB: { id: TabId; label: string; desc: string } = {
   id: 'trash',
   label: '回收站',
-  desc: '已删除的地点 / 到访 / 照片视频',
+  // 2026-11-16 D-504：副标题「已删除的地点 / 到访 / 照片视频」按用户要求删除
+  desc: '',
 };
 
 /** 我的分享：2026-11-15 D-424（用户要求）——单独一栏，放在「素材库」下面；只在云端（multi）且非只读时出现 */
@@ -528,7 +531,7 @@ export default function SettingsModal({
           <header className="set-head">
             <div className="set-head-text">
               <div className="set-title">{t(current.label)}</div>
-              <div className="set-sub">{t(current.desc)}</div>
+              {current.desc ? <div className="set-sub">{t(current.desc)}</div> : null}
             </div>
             <button type="button" className="icon set-close" onClick={onClose} aria-label={t('关闭设置')}>
               <CloseIcon />

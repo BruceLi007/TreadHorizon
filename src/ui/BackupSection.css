@@ -25,13 +25,13 @@
 }
 
 .bk-card-title {
-  font-size: calc(13px * var(--fs-scale));
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--text-1);
 }
 
 .bk-muted {
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
 }
 
@@ -41,14 +41,14 @@
   align-items: baseline;
   gap: 10px;
   padding: 2px 0;
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   line-height: 1.6;
 }
 
 .bk-label {
   flex: none;
   min-width: 56px;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-3);
 }
 
@@ -76,7 +76,7 @@
   border: 1px solid var(--line);
   background: var(--bg-raised);
   color: var(--text-1);
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   outline: none;
 }
 
@@ -95,7 +95,7 @@
   border: 1px solid rgba(224, 108, 117, 0.35);
   background: rgba(224, 108, 117, 0.08);
   color: var(--bad);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   line-height: 1.6;
 }
 
@@ -108,7 +108,7 @@
   flex: none;
   height: 28px;
   padding: 0 10px;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 .bk-hint {
@@ -122,7 +122,7 @@
   align-items: flex-start;
   gap: 8px;
   margin-bottom: 10px;
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   line-height: 1.5;
   color: var(--text-2);
   cursor: pointer;
@@ -137,7 +137,7 @@
 .bk-check small {
   display: block;
   margin-top: 2px;
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
 }
 
@@ -155,7 +155,7 @@
   border: 1px solid rgba(var(--accent-rgb), 0.35);
   background: var(--accent-soft);
   color: var(--text-2);
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   line-height: 1.6;
 }
 
@@ -181,7 +181,7 @@
   flex: none;
   height: 28px;
   padding: 0 10px;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 .bk-progress-bar {
@@ -215,7 +215,7 @@
 
 .bk-progress-text {
   margin-top: 5px;
-  font-size: calc(11.5px * var(--fs-scale));
+  font-size: var(--fs-meta);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
@@ -225,7 +225,7 @@
   display: block;
   width: 100%;
   margin-bottom: 10px;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   color: var(--text-2);
 }
 
@@ -238,7 +238,7 @@
   background: var(--bg-raised);
   color: var(--text-1);
   font: inherit;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
   cursor: pointer;
 }
 
@@ -260,7 +260,8 @@
 
 .bk-summary-title {
   margin-bottom: 6px;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
+  font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--text-3);
 }
@@ -293,7 +294,7 @@
   border: 1px solid rgba(var(--accent-rgb), 0.4);
   background: var(--accent-soft);
   color: var(--text-2);
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-caption);
   line-height: 1.6;
 }
 
@@ -320,7 +321,9 @@
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 8px;
-  font-size: calc(11.5px * var(--fs-scale));
+  /* 2026-11-16 D-511：这一行显示的是路径，和上面的「备份目录」路径同一类信息，
+     原来用 meta（比正文小一档）看着不统一 → 提到 body。 */
+  font-size: var(--fs-body);
   line-height: 1.6;
 }
 
@@ -333,7 +336,7 @@
   flex: none;
   height: 28px;
   padding: 0 10px;
-  font-size: calc(12px * var(--fs-scale));
+  font-size: var(--fs-body);
 }
 
 /* 导出完成 → 文件名 + 完整路径 +「打开备份目录」（2026-11-11：不再有浏览器下载） */
@@ -361,7 +364,7 @@
 /* 恢复已完成：结果区里的小标题 */
 .bk-result-title {
   margin: 0 0 4px;
-  font-size: calc(12.5px * var(--fs-scale));
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--text-1);
 }

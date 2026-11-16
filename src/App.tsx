@@ -80,7 +80,7 @@ import {
   tr,
   type Lang,
 } from './i18n';
-import type { Addr, BackupStatus, Place, PlaceDetail, Poi, ProvinceLight, ShareUploadTask, UpdateCheckResult, UploadItem } from './lib/types';
+import type { Addr, BackupStatus, CityLight, Place, PlaceDetail, Poi, ShareUploadTask, UpdateCheckResult, UploadItem } from './lib/types';
 
 export interface DraftState {
   lng: number;
@@ -353,7 +353,7 @@ export default function App() {
   const [statsOpen, setStatsOpen] = useState(false);
   /** 2026-11-15 D-460（用户要求）：统计「模式」与「窗口」解耦 —— 关掉统计窗口后地图仍保持热力图/省份点亮，只有切到总览 / 家 / My旅迹 才退出统计模式 */
   const [statsMode, setStatsMode] = useState(false);
-  const [provinceStats, setProvinceStats] = useState<ProvinceLight[] | null>(null);
+  const [cityStats, setCityStats] = useState<CityLight[] | null>(null);
   // 照片墙（F-BRW-04/05）
   const [photoWall, setPhotoWall] = useState<{
     focus?: { mediaId?: string; placeId?: string } | null;
@@ -2232,11 +2232,12 @@ export default function App() {
     setStatsMode(true);
     setStatsOpen(true);
     try {
-      const d = await api.statsProvinces();
-      setProvinceStats(d.provinces);
+      // 2026-11-16 D-490：热力图按地级市点亮，取城市口径的全量汇总
+      const d = await api.statsCities();
+      setCityStats(d.cities);
     } catch {
-      // 省份点亮数据失败不阻塞统计数字；地图层会降级为灰色省界
-      setProvinceStats(null);
+      // 城市点亮数据失败不阻塞统计数字；地图层会降级为灰色市界
+      setCityStats(null);
     }
   }, [closePanels]);
 
@@ -2450,7 +2451,7 @@ export default function App() {
           pinMode={pinMode && !draft}
           onMapClick={startPinDraft}
           statsMode={statsMode}
-          provinceStats={provinceStats}
+          cityStats={cityStats}
           homeColor={homeColor}
           markerColors={markerColors}
           showCovers={showMarkerCovers}
@@ -2819,7 +2820,7 @@ export default function App() {
               if (statsOpen) setStatsOpen(false);
               else void enterStats();
             }}
-            title={t('统计模式（省份点亮 / 年份 / 排行）')}
+            title={t('统计模式（城市点亮 / 年份 / 排行）')}
             aria-pressed={statsOpen}
           >
             {t('统计')}
