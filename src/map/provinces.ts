@@ -205,3 +205,39 @@ export function buildCityIndex(cities: CityLight[]): {
   return { byName, byCode, maxPlaces };
 }
 
+/**
+ * 2026-11-17 D-516：直辖市 / 港澳在边界数据里是一整块（北京市 110000 … 澳门 820000），
+ * 但库里的 `place.city` 常常是下一级的「海淀区 / 浦东新区 / 油尖旺区」、`city_code` 还为空
+ * （真正的市界数据里没有「区」这一层）→ 按市点亮时这些点一个都匹配不到。
+ * 折回整块本身，北京才能以 33 个地点落在最高档。
+ * **服务端 `server/stats.mjs` 的 cityLight() 有同一份规则，改这里要同步。**
+ */
+const MUNICIPALITY_NAMES = ['北京市', '天津市', '上海市', '重庆市', '香港特别行政区', '澳门特别行政区'];
+
+/** 「北京 / 北京市」「香港 / 香港特别行政区」→ 边界数据里的整块名；普通省市返回 null */
+export function municipalityName(province?: string | null): string | null {
+  const p = String(province ?? '').trim();
+  if (!p) return null;
+  if (p.startsWith('香港')) return '香港特别行政区';
+  if (p.startsWith('澳门')) return '澳门特别行政区';
+  for (const m of MUNICIPALITY_NAMES) {
+    if (p === m || p === m.slice(0, 2)) return m;
+  }
+  return null;
+}
+
+/** 「海淀区 / 浦东新区 / 渝中区 / 崇明县 / 旗」都是下一级行政区，市界数据里没有它们 */
+export function isMunicipalityDistrict(city?: string | null): boolean {
+  const c = String(city ?? '').trim();
+  if (!c) return true;
+  if (c === '市辖区') return true;
+  return /(区|县|旗)$/.test(c);
+}
+
+/** 折回整块：直辖市 / 港澳的下一级区县 →「北京市」这类整块名；其余原样返回 */
+export function foldMunicipalityCity(province?: string | null, city?: string | null): string {
+  const muni = municipalityName(province);
+  const c = String(city ?? '').trim();
+  return muni && isMunicipalityDistrict(c) ? muni : c;
+}
+

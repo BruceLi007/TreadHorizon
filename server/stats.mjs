@@ -640,12 +640,43 @@ export function provinceLight(ownerId = null) {
 // ── 城市点亮（2026-11-16 D-490，全量口径）─────────────────────────────
 
 /**
+ * 2026-11-17 D-516：直辖市 / 港澳在边界数据里是一整块（北京市 110000 … 澳门 820000），
+ * 但库里的 `place.city` 常常是下一级的「海淀区 / 浦东新区 / 油尖旺区」、`city_code` 还是空的，
+ * 按市点亮时这些点一个都匹配不到市界（实测北京 33 个地点整块不亮）。
+ * 这里把它们折回整块本身：区 / 县 / 旗 / 新区 一律归到该直辖市（港澳），
+ * 代码用 `province_code`（156110000 → 前端 normCityCode → 110000）；
+ * 港澳老数据的 `province_code` 为空，靠名字兜底。
+ * 分享页 `src/share/shareSource.ts` 的 cityLight() 走 `src/map/provinces.ts` 里的同一份规则，改这里要同步。
+ */
+const MUNICIPALITIES = ['北京市', '天津市', '上海市', '重庆市', '香港特别行政区', '澳门特别行政区'];
+
+/** 「北京 / 北京市」「香港 / 香港特别行政区」→ 边界数据里的整块名；普通省市返回 null */
+function municipalityName(province) {
+  const p = String(province || '').trim();
+  if (!p) return null;
+  if (p.startsWith('香港')) return '香港特别行政区';
+  if (p.startsWith('澳门')) return '澳门特别行政区';
+  for (const m of MUNICIPALITIES) {
+    if (p === m || p === m.slice(0, 2)) return m;
+  }
+  return null;
+}
+
+/** 「海淀区 / 浦东新区 / 渝中区 / 崇明县 / 旗」都是下一级行政区，市界数据里没有它们 */
+function isDistrictLevel(city) {
+  const c = String(city || '').trim();
+  if (!c) return true;
+  if (c === '市辖区') return true;
+  return /(区|县|旗)$/.test(c);
+}
+
+/**
  * 按**地级市 / 州 / 盟**汇总（统计模式热力图用）。
  *
  * 归属优先级：place.city_code（6 位行政区划码）→ place.city 名字。
  * 同名不同省的城市（少见）用 `省|市名` 兜底分组，避免把两个城市合成一个。
  * 直辖市 / 港澳台在边界数据里是一整块，城市名就是「北京市 / 上海市 / 天津市 /
- * 重庆市 / 香港特别行政区…」，与 place.city 原值一致，前端归一后能对上。
+ * 重庆市 / 香港特别行政区…」；库里的下一级区县由 D-516 折回整块（见上）。
  */
 export function cityLight(ownerId = null) {
   const vOwner = ownerId ? ' AND v.user_id = ?' : '';
@@ -667,8 +698,13 @@ export function cityLight(ownerId = null) {
 
   const agg = new Map();
   for (const r of rows) {
-    const name = r.city || r.city_code || r.province || UNKNOWN;
-    const key = (r.city_code || '') + '|' + name;
+    // D-516：直辖市 / 港澳的下一级区县折回整块（边界数据里它们是一块）
+    const muni = municipalityName(r.province);
+    const folded = muni && isDistrictLevel(r.city) ? muni : String(r.city || '').trim();
+    const name = folded || r.city_code || r.province || UNKNOWN;
+    const code = r.city_code || (folded && folded === muni ? r.province_code : null);
+    // 折回整块的分组合并到同一块（否则「带码的一行 + 没码的一行」会各占一条，块里只算一半）
+    const key = folded && folded === muni ? 'muni|' + folded : (code || '') + '|' + name;
     let a = agg.get(key);
     if (!a) {
       a = {
@@ -682,7 +718,7 @@ export function cityLight(ownerId = null) {
       };
       agg.set(key, a);
     }
-    if (!a.code && r.city_code) a.code = r.city_code;
+    if (!a.code && code) a.code = code;
     if (!a.province && r.province) a.province = r.province;
     a.places += 1;
     a.visits += Number(r.visits) || 0;

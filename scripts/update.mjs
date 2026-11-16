@@ -17,6 +17,8 @@
  *   5. npm ci（失败回落到 npm install）
  *   6. npm run build
  *   7. 启动服务（调用 scripts/launch.mjs；--no-restart 时跳过第 4、7 步）
+ *   8. 核对端口上**实际运行**的版本（2026-11-17 D-516：launch 遇到端口占用会直接返回 0，
+ *      旧进程继续跑就会出现「新前端 + 旧后端」，新增接口 404）
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -126,6 +128,23 @@ async function probeHealth(port, timeoutMs = 1500) {
   } catch {
     return null;
   }
+}
+
+/**
+ * 2026-11-17 D-516：重启后核对端口上**实际运行**的版本。
+ * 为什么需要：`launch.mjs` 发现端口已有服务在跑时会直接返回 0（双击两次启动就是这样），
+ * 所以 `stop.mjs` 没成功 / 被 `--no-restart` 跳过时，脚本会报「更新完成」，
+ * 而用户拿到的是「新前端 + 旧后端」—— 2.0.11 的 `/api/stats/cities` 在 2.0.10 后端上 404，
+ * 统计热力图于是整块不亮。这里最多等 ~15s 让新服务起来，拿不到版本也算失败。
+ */
+async function confirmRunningVersion(port, tries = 30) {
+  for (let i = 0; i < tries; i++) {
+    const h = await probeHealth(port);
+    const version = h?.body?.version || null;
+    if (h?.ok && version) return { version, dataDir: h.body.dataDir || null };
+    await sleep(500);
+  }
+  return null;
 }
 
 function pathsEqual(a, b) {
@@ -253,6 +272,27 @@ async function main() {
     if (!restartOk) {
       console.error('');
       console.error('⚠️ 文件已更新，但服务启动失败，请查看上面的提示（常见原因：端口被占用 / 数据目录不可写）。');
+    } else {
+      // D-516：launch 在端口被占用时也会返回 0，必须核对实际运行的版本
+      const running = await confirmRunningVersion(PORT);
+      if (!running) {
+        restartOk = false;
+        console.error('');
+        console.error(`⚠️ 无法确认服务已切换到 v${versionAfter}：/api/health 一直没有返回版本。`);
+        console.error('   请手动停止再启动：TreadHorizon-Stop.bat → TreadHorizon-Start.bat（macOS 用 .command）。');
+      } else if (running.version !== versionAfter) {
+        restartOk = false;
+        console.error('');
+        console.error(`⚠️ 端口 ${PORT} 上实际运行的仍是 v${running.version}，不是刚更新的 v${versionAfter}。`);
+        console.error('   launch 检测到端口已占用时不会替换旧进程 —— 这就是「更新完成但新功能不生效」的常见原因');
+        console.error('   （前端已经是新构建、后端还是旧进程，新接口会 404）。');
+        console.error('   请先停止再启动：TreadHorizon-Stop.bat → TreadHorizon-Start.bat（macOS 用 .command）。');
+        if (running.dataDir && !pathsEqual(running.dataDir, DATA_DIR)) {
+          console.error(`   注意：占用端口的是另一个副本（数据目录 ${running.dataDir}），不是当前目录 ${DATA_DIR}。`);
+        }
+      } else {
+        console.log(`   已确认运行版本：v${running.version}`);
+      }
     }
   }
 
@@ -261,7 +301,8 @@ async function main() {
     console.log(`✅ 更新完成：v${versionBefore} → v${versionAfter}（git ${headAfter}）`);
     if (!noRestart) console.log('   服务已重新启动；浏览器没自动打开的话，手动访问地址即可。');
   } else {
-    console.log(`ℹ️ 更新文件已完成：v${versionBefore} → v${versionAfter}（git ${headAfter}），但服务未能重新启动。`);
+    console.log(`ℹ️ 更新文件已完成：v${versionBefore} → v${versionAfter}（git ${headAfter}），但服务没有切换到新版本。`);
+    console.log('   请手动停止再启动：TreadHorizon-Stop.bat → TreadHorizon-Start.bat（或 npm run launch）。');
   }
   process.exit(restartOk ? 0 : 1);
 }

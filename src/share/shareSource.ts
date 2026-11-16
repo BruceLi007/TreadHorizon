@@ -19,6 +19,7 @@ import type {
 } from '../lib/types';
 import type { ShareManifest, SharePlace, ShareVisit } from './api';
 import { mediaUrl } from './api';
+import { foldMunicipalityCity } from '../map/provinces';
 
 /**
  * 2026-11-15 D-423：分享页复用正式版前端。
@@ -389,11 +390,13 @@ export function buildShareSource(token: string, manifest: ShareManifest, expires
    * 2026-11-16 D-490：分享页的统计模式热力图也按城市点亮。
    * manifest 里只有城市**名字**（没有 city_code），所以这里只按名字聚合，
    * 前端匹配边界时是「先代码后名字」，对不上代码就会落到名字上。
+   * 2026-11-17 D-516：直辖市 / 港澳的「区」折回整块（与 server/stats.mjs 的 cityLight 同规则），
+   * 否则北京 / 香港这些按区存的老分享包整块不亮。
    */
   const cityLight = (): CityLightData => {
     const map = new Map<string, { places: number; visits: number; first: string; last: string; province: string }>();
     for (const p of manifest.places) {
-      const name = p.city ?? '';
+      const name = foldMunicipalityCity(p.provinceName, p.city);
       if (!name) continue;
       const dates = p.visits.map((v) => v.date).filter(Boolean).sort();
       const cur = map.get(name) ?? {
