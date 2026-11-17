@@ -23,6 +23,9 @@ const ALLOW_RAW = [
   '.share-video-badge',
   // 欢迎页地图上的迷你地名卡（插画内文字，按图形尺寸固定，不跟用户字号）
   '.lb-pin-card-prov',
+  // 欢迎页夜晚小场景里的音符 / 睡眠 z（插画内文字，随图形缩放，不跟用户字号）
+  '.lb-note',
+  '.lb-moon-zzz',
 ];
 
 const files = [];

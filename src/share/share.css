@@ -331,3 +331,46 @@ body {
     padding: 6px 10px;
   }
 }
+
+/* ── 2026-11-17 D-521（用户截图修订）：观者也能切欢迎页天光 ─────────────────
+   控件**不放进**欢迎信息卡（用户要求），仍留在左下角，整体缩小一档，
+   透明度照时间轴那一套：`.timeline` 默认 opacity .45、hover / active 变 1（见 src/styles.css）；
+   这里用 :hover / :focus-within / :active —— 点一下按钮拿到焦点就保持不透明。
+   尺寸压小后竖向五颗 = 130px 高（bottom 12 → 顶到 142），欢迎卡底边在 150，不再压到卡片。 */
+html[data-share] .sky-switch {
+  left: 14px;
+  bottom: 12px;
+  padding: 3px;
+  gap: 1px;
+  opacity: 0.45;
+  transition:
+    opacity 160ms ease,
+    background-color 400ms ease,
+    border-color 400ms ease,
+    box-shadow 400ms ease;
+}
+html[data-share] .sky-switch:hover,
+html[data-share] .sky-switch:focus-within,
+html[data-share] .sky-switch:active,
+html[data-share] .sky-switch.is-awake {
+  opacity: 1;
+}
+html[data-share] .sky-switch-btn {
+  width: 24px;
+  height: 24px;
+}
+html[data-share] .sky-switch-btn svg {
+  width: 16px;
+  height: 16px;
+}
+@media (min-width: 701px) {
+  html[data-share] .sky-switch-btn {
+    width: 26px;
+    height: 26px;
+  }
+  html[data-share] .sky-switch-btn svg {
+    width: 17px;
+    height: 17px;
+  }
+}
+

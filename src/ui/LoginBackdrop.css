@@ -1,7 +1,7 @@
-/* ── 登录 / Key 引导页的「Q 版 3D 中国地图」背景（D-266 → D-267 → D-268）──
-   数据 = public/province-boundaries-low.json（项目自带 40KB 概化省界）；
-   纯 SVG + CSS：小岛立体模型（阴影 + 厚度 + 顶面拼图色块）+ 雪山 / 沙漠 / 湖泊 / 草原 /
-   森林 / 黄河长江 + Q 版太阳云朵小羊；无接口 / 无 Key / 无第三方资源。
+/* ── 登录 / Key 引导 / 本地欢迎页的「Q 版 3D 中国地图」背景 ──
+   2026-11-08 D-266 初版 → D-267 动效/透明卡 → D-268 立体化 + 地形元素 + Q 版化
+   2026-11-17（用户要求四时段）：天空四层交叉淡化 + 地图按 color-mix 派生暖调/夜色
+   + 日出露珠晨雾 / 日落火烧云归鸟 / 午夜蟋蟀萤火虫帐篷篝火；无接口 / 无 Key / 无第三方资源。
    动效只动 transform / opacity，prefers-reduced-motion 全部关闭。 */
 
 .login-backdrop {
@@ -10,50 +10,196 @@
   overflow: hidden;
   pointer-events: none;
   z-index: 0;
+
+  /* ── 白天（中午）的地图配色，四时段共用这一套变量 ── */
+  --lb-slab-side: #87976f;
+  --lb-slab-side-line: #74845f;
+  --lb-prov-stroke: rgba(255, 255, 255, 0.9);
+  --lb-slab-shadow: rgba(38, 72, 104, 0.3);
+  --lb-wave: rgba(255, 255, 255, 0.6);
+  --lb-cloud-fill: #ffffff;
+  --lb-cloud-shadow: rgba(120, 172, 205, 0.25);
+  --lb-hill: #b8dd82;
+  --lb-hill-line: #9cc465;
+  --lb-dune-1: #eec27a;
+  --lb-dune-2: #e2ae62;
+  --lb-dune-line: #c9924a;
+  --lb-tree-dark: #59b36a;
+  --lb-tree-light: #74c780;
+  --lb-tree-trunk: #a97b4d;
+  --lb-mt-a: #a9c4e0;
+  --lb-mt-b: #6f93bb;
+  --lb-mt-snow: #ffffff;
+  --lb-mt-shadow: rgba(62, 98, 132, 0.18);
+  --lb-lake-a: #8fd6f4;
+  --lb-lake-b: #4faee0;
+  --lb-lake-stroke: rgba(255, 255, 255, 0.95);
+  --lb-lake-shine: rgba(255, 255, 255, 0.55);
+  --lb-river-under: rgba(255, 255, 255, 0.6);
+  --lb-river-flow: rgba(255, 255, 255, 0.85);
+  --lb-bird: rgba(70, 105, 130, 0.55);
+  --lb-boat-hull: #f6fbff;
+  --lb-boat-sail: #ffffff;
+  --lb-boat-mast: #a97b4d;
+  --lb-boat-hull-line: #bcd9ea;
+  --lb-boat-sail-line: #e2eef6;
+  --lb-sparkle: #ffffff;
+  --lb-balloon-1: #ffd9b8;
+  --lb-balloon-2: #ff9f80;
+  --lb-balloon-3: #fff5e8;
 }
 
-/* 天空 + 海面底色（固定明亮配色，不跟随深色主题变黑，登录页第一眼是彩色小岛模型） */
+/* ── 天空：四层渐变叠着，按时段交叉淡化（背景图不能 transition，用 opacity）── */
 .lb-sky {
   position: absolute;
   inset: 0;
+}
+
+.lb-sky-layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 900ms ease;
+}
+
+.lb-sky-layer.is-on {
+  opacity: 1;
+}
+
+/* 中午：原来的明亮配色，原样保留 */
+.lb-sky-noon {
   background:
     radial-gradient(52% 46% at 94.5% 7%, rgba(255, 240, 176, 0.75), transparent 70%),
     linear-gradient(180deg, #a9dcf7 0%, #cdeefc 34%, #e6f7ff 56%, #a9def0 74%, #6cc2e4 100%);
 }
 
-/* 2026-11-08 D-277（用户要求）：太阳从地图里挪到「页面右上角」，
-   独立成一层 SVG，不再跟随地图 84%×85% 的 inset 缩放。 */
-.lb-sun-page {
+/* 日出：雾蓝紫 → 蜜桃 → 浅金，海面偏冷，右侧留一团晨光 */
+.lb-sky-sunrise {
+  background:
+    radial-gradient(46% 42% at 94% 8%, rgba(255, 205, 150, 0.92), transparent 70%),
+    radial-gradient(64% 34% at 62% 70%, rgba(255, 190, 170, 0.28), transparent 76%),
+    linear-gradient(
+      180deg,
+      #7fa6d8 0%,
+      #a9c5e6 15%,
+      #d9dcec 30%,
+      #ffe6d6 45%,
+      #ffd3b4 58%,
+      #f9c3a5 68%,
+      #e2d3d8 78%,
+      #c3d2e2 88%,
+      #a8c0d8 100%
+    );
+}
+
+/* 日落：紫罗兰天幕 → 玫瑰 → 金橙，海面转紫调 */
+.lb-sky-sunset {
+  background:
+    radial-gradient(48% 46% at 94% 10%, rgba(255, 186, 106, 0.95), transparent 70%),
+    radial-gradient(70% 36% at 58% 70%, rgba(255, 140, 100, 0.4), transparent 76%),
+    linear-gradient(
+      180deg,
+      #5b5a96 0%,
+      #7d6aa6 12%,
+      #b47b9c 26%,
+      #e98a7c 40%,
+      #ffab6b 54%,
+      #ffc978 64%,
+      #e89a78 74%,
+      #a06a7e 85%,
+      #6e5677 100%
+    );
+}
+
+/* 午夜：深海军蓝，右上一点月光 */
+.lb-sky-night {
+  background:
+    radial-gradient(40% 36% at 90% 9%, rgba(180, 205, 255, 0.22), transparent 70%),
+    radial-gradient(64% 46% at 18% 4%, rgba(80, 100, 190, 0.28), transparent 75%),
+    linear-gradient(
+      180deg,
+      #070d23 0%,
+      #0c1635 16%,
+      #14224c 34%,
+      #1c2f5e 52%,
+      #213a68 66%,
+      #1a2f55 78%,
+      #122341 90%,
+      #0d1a33 100%
+    );
+}
+
+/* ── 午夜星空（整页一层，盖在天空上、地图下面）── */
+.lb-night-sky {
   position: absolute;
-  top: clamp(6px, 1.6vh, 20px);
-  right: clamp(8px, 2vw, 36px);
-  width: clamp(128px, 12.5vw, 220px);
-  height: clamp(128px, 12.5vw, 220px);
-  z-index: 1;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 900ms ease;
   pointer-events: none;
 }
 
+.lb-night-sky.is-on {
+  opacity: 1;
+}
+
+/* 白天不显示星空时，把 120 颗星的闪烁动画停掉（省电，也避免隐藏层空转） */
+.lb-night-sky:not(.is-on) * {
+  animation-play-state: paused;
+}
+
+.lb-star {
+  fill: #ffffff;
+  opacity: var(--lb-star-o, 0.6);
+  animation: lb-star-twinkle-page 3.2s ease-in-out infinite;
+}
+
+.lb-big-star {
+  fill: #eaf2ff;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: lb-star-twinkle-page 4.6s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px rgba(200, 225, 255, 0.85));
+}
+
+.lb-milky {
+  opacity: 0.9;
+}
+
+.lb-shooting {
+  opacity: 0;
+  animation: lb-shoot 14s ease-in-out infinite;
+}
+
+.lb-shooting-tail {
+  fill: none;
+  stroke: #dfe9ff;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+.lb-shooting-head {
+  fill: #ffffff;
+  filter: drop-shadow(0 0 5px rgba(210, 230, 255, 0.95));
+}
+
+/* ── 地图主体 ── */
 .login-backdrop .lb-map {
   position: absolute;
-  /* 2026-11-08（用户要求）：背景地图再缩一圈，四周留出天空 / 海面。
-     原 8% / 7.5% / 84%×85%（1920 下渲染约 1613×907）→ 11% / 10.5% / 78%×79%
-     （1920 下约 1498×842，视觉约小 7%）。改尺寸只动这一处，地图内部坐标不用改。 */
+  /* 2026-11-08（用户要求）：背景地图再缩一圈，四周留出天空 / 海面。改尺寸只动这一处。 */
   left: 11%;
   top: 10.5%;
   width: 78%;
   height: 79%;
   display: block;
-  /* 2026-11-08（用户要求）：打标签光标 / 点击只作用于「地图区域」（小岛 + 岛上地形），
-     天空、海面、云、船等地图外区域保持默认光标且点击不打标签；见下方地图图层规则。 */
+  /* 打标签光标 / 点击只作用于「地图区域」；见下方地图图层规则。 */
   pointer-events: none;
-  /* 2026-11-08（登录页观感微调）：省界 JSON 是异步拉取的，地图不再「啪」一下出现，
-     而是从天空底色里 700ms 淡入；首帧与动画结束后都是完全可见。 */
   animation: lb-map-in 700ms ease-out both;
 }
 
-/* 2026-11-08（用户要求）：只有「地图区域」有打标签光标 / 点击行为。
-   小岛侧面 + 顶面省份 + 岛上的河流 / 湖泊 / 沙漠 / 草原 / 森林 / 雪山 / 省贴纸
-   都设为可交互并显示打标签光标；天空 / 海面 / 云 / 船 / 海鸟 / 足迹虚线不参与。 */
+/* 只有「地图区域」有打标签光标 / 点击行为。 */
 .lb-slab-side,
 .lb-slab-top,
 .lb-rivers,
@@ -68,50 +214,197 @@
 
 /* ── 小岛模型：底面阴影 / 侧面厚度 / 顶面省份拼图 ── */
 .lb-slab-shadow path {
-  fill: rgba(38, 72, 104, 0.3);
+  fill: var(--lb-slab-shadow);
+  transition: fill 800ms ease;
 }
+
 .lb-slab-side path {
-  fill: #87976f;
-  stroke: #74845f;
+  fill: var(--lb-slab-side);
+  stroke: var(--lb-slab-side-line);
   stroke-width: 0.6;
   stroke-linejoin: round;
+  transition:
+    fill 800ms ease,
+    stroke 800ms ease;
 }
+
 .lb-slab-top path {
-  stroke: rgba(255, 255, 255, 0.9);
+  fill: var(--lb-fill);
+  stroke: var(--lb-prov-stroke);
   stroke-width: 1.35;
   stroke-linejoin: round;
+  transition:
+    fill 800ms ease,
+    stroke 800ms ease;
+}
+
+/* 时段对省色的派生：不复制四套色板，只调混合比例 */
+.login-backdrop[data-sky='sunrise'] .lb-slab-top path {
+  fill: color-mix(in srgb, var(--lb-fill) 91%, #ffd9c0);
+}
+
+.login-backdrop[data-sky='sunset'] .lb-slab-top path {
+  fill: color-mix(in srgb, var(--lb-fill) 79%, #d9774e);
+}
+
+.login-backdrop[data-sky='night'] .lb-slab-top path {
+  fill: color-mix(in srgb, var(--lb-fill) 48%, #24385c);
+}
+
+.login-backdrop[data-sky='night'] .lb-slab-top {
+  filter: saturate(1.12);
+}
+
+/* ── 四时段地图配色（只改 CSS 变量，元素规则共用一份）── */
+.login-backdrop[data-sky='sunrise'] {
+  --lb-slab-shadow: rgba(60, 70, 110, 0.28);
+  --lb-prov-stroke: rgba(255, 248, 238, 0.92);
+  --lb-wave: rgba(255, 240, 230, 0.5);
+  --lb-cloud-fill: #fff6ee;
+  --lb-cloud-shadow: rgba(160, 130, 150, 0.22);
+  --lb-hill: #bede8c;
+  --lb-hill-line: #a2c76c;
+  --lb-lake-a: #a9dcf2;
+  --lb-lake-b: #69b3da;
+  --lb-mt-a: #b6c8e0;
+  --lb-mt-b: #7890b2;
+  --lb-bird: rgba(90, 105, 140, 0.5);
+  --lb-boat-hull-line: #cfe2ee;
+  --lb-boat-sail-line: #eef6fb;
+}
+
+.login-backdrop[data-sky='sunset'] {
+  --lb-slab-side: #7a5e50;
+  --lb-slab-side-line: #674d43;
+  --lb-slab-shadow: rgba(58, 28, 58, 0.42);
+  --lb-prov-stroke: rgba(255, 236, 210, 0.82);
+  --lb-wave: rgba(255, 215, 180, 0.35);
+  --lb-cloud-fill: #ffd7b0;
+  --lb-cloud-shadow: rgba(150, 80, 90, 0.28);
+  --lb-hill: #c9b06a;
+  --lb-hill-line: #a98d55;
+  --lb-dune-1: #e8a45e;
+  --lb-dune-2: #d98d4c;
+  --lb-dune-line: #b86f3e;
+  --lb-tree-dark: #59754a;
+  --lb-tree-light: #78915a;
+  --lb-tree-trunk: #7d5138;
+  --lb-mt-a: #b48fa8;
+  --lb-mt-b: #6f5a7e;
+  --lb-mt-snow: #ffe6d2;
+  --lb-mt-shadow: rgba(70, 35, 65, 0.28);
+  --lb-lake-a: #b9d2e6;
+  --lb-lake-b: #6f93b8;
+  --lb-lake-stroke: rgba(255, 236, 214, 0.85);
+  --lb-lake-shine: rgba(255, 255, 255, 0.5);
+  --lb-river-flow: rgba(255, 236, 210, 0.8);
+  --lb-bird: rgba(255, 228, 210, 0.9);
+  --lb-boat-hull: #ffe0bf;
+  --lb-boat-sail: #fff0d8;
+  --lb-boat-mast: #8a5c3f;
+  --lb-boat-hull-line: #e0b089;
+  --lb-boat-sail-line: #f2cfae;
+  --lb-sparkle: rgba(255, 240, 210, 0.9);
+  --lb-balloon-1: #ffce9a;
+  --lb-balloon-2: #d96a5c;
+  --lb-balloon-3: #fff0d8;
+}
+
+.login-backdrop[data-sky='night'] {
+  --lb-slab-side: #22314d;
+  --lb-slab-side-line: #1a2740;
+  --lb-prov-stroke: rgba(150, 185, 235, 0.32);
+  --lb-slab-shadow: rgba(0, 0, 0, 0.55);
+  --lb-wave: rgba(140, 180, 255, 0.2);
+  --lb-cloud-fill: #2b3d61;
+  --lb-cloud-shadow: rgba(0, 0, 0, 0.3);
+  --lb-hill: #2b4a44;
+  --lb-hill-line: #223c39;
+  --lb-dune-1: #584a3a;
+  --lb-dune-2: #4a3e31;
+  --lb-dune-line: #3a3028;
+  --lb-tree-dark: #215343;
+  --lb-tree-light: #2b6653;
+  --lb-tree-trunk: #3a3644;
+  --lb-mt-a: #3f547d;
+  --lb-mt-b: #28374f;
+  --lb-mt-snow: #dbe8ff;
+  --lb-mt-shadow: rgba(0, 0, 0, 0.32);
+  --lb-lake-a: #2c6d9f;
+  --lb-lake-b: #1a4a74;
+  --lb-lake-stroke: rgba(160, 210, 255, 0.55);
+  --lb-lake-shine: rgba(190, 225, 255, 0.35);
+  --lb-river-under: rgba(60, 90, 130, 0.6);
+  --lb-river-flow: rgba(170, 215, 255, 0.55);
+  --lb-bird: transparent;
+  --lb-boat-hull: #3d5278;
+  --lb-boat-sail: #4a6088;
+  --lb-boat-mast: #3a3f55;
+  --lb-boat-hull-line: #2b3a58;
+  --lb-boat-sail-line: #34496b;
+  --lb-sparkle: rgba(200, 220, 255, 0.8);
+  --lb-balloon-1: #41577f;
+  --lb-balloon-2: #2c3c5c;
+  --lb-balloon-3: #8ea6cf;
 }
 
 /* ── 河流：实色河身 + 流动的浅色水光 ── */
 .lb-river-under {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.6);
+  stroke: var(--lb-river-under);
   stroke-linecap: round;
+  transition: stroke 800ms ease;
 }
+
 .lb-river {
   fill: none;
+  stroke: var(--lb-river);
   stroke-linecap: round;
+  transition: stroke 800ms ease;
 }
+
 .lb-river-flow {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.85);
+  stroke: var(--lb-river-flow);
   stroke-linecap: round;
   stroke-dasharray: 7 16;
   animation: lb-flow 1.8s linear infinite;
 }
 
-/* ── 湖泊（带涟漪） ── */
+.login-backdrop[data-sky='night'] .lb-river {
+  stroke: color-mix(in srgb, var(--lb-river) 52%, #6fb2e8);
+}
+
+.login-backdrop[data-sky='night'] .lb-river-flow {
+  stroke: rgba(170, 215, 255, 0.55);
+}
+
+/* ── 湖泊（带涟漪）── */
+.lb-lake-stop-a {
+  stop-color: var(--lb-lake-a);
+  transition: stop-color 800ms ease;
+}
+
+.lb-lake-stop-b {
+  stop-color: var(--lb-lake-b);
+  transition: stop-color 800ms ease;
+}
+
 .lb-lake {
   fill: url(#lb-lake);
-  stroke: rgba(255, 255, 255, 0.95);
+  stroke: var(--lb-lake-stroke);
   stroke-width: 1.6;
+  transition: stroke 800ms ease;
 }
+
 .lb-lake-shine {
-  fill: rgba(255, 255, 255, 0.55);
+  fill: var(--lb-lake-shine);
+  transition: fill 800ms ease;
 }
+
 .lb-lake-ring {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.8);
+  stroke: var(--lb-lake-stroke);
   stroke-width: 1.6;
   transform-box: fill-box;
   transform-origin: center;
@@ -120,36 +413,48 @@
 
 /* ── 沙漠沙丘 + 闪光 ── */
 .lb-dune {
-  stroke: #c9924a;
+  stroke: var(--lb-dune-line);
   stroke-width: 1.2;
+  transition:
+    fill 800ms ease,
+    stroke 800ms ease;
 }
+
 .lb-dune.d1 {
-  fill: #eec27a;
+  fill: var(--lb-dune-1);
 }
+
 .lb-dune.d2 {
-  fill: #e2ae62;
+  fill: var(--lb-dune-2);
 }
+
 .lb-sparkle {
-  fill: #ffffff;
+  fill: var(--lb-sparkle);
   transform-box: fill-box;
   transform-origin: center;
   animation: lb-twinkle 3.2s ease-in-out infinite;
 }
+
 .lb-sparkle.s2 {
   animation-delay: 1.1s;
 }
 
 /* ── 草原小山 + Q 版小羊 ── */
 .lb-hill {
-  fill: #b8dd82;
-  stroke: #9cc465;
+  fill: var(--lb-hill);
+  stroke: var(--lb-hill-line);
   stroke-width: 1.1;
+  transition:
+    fill 800ms ease,
+    stroke 800ms ease;
 }
+
 .lb-sheep {
   transform-box: fill-box;
   transform-origin: 50% 100%;
   animation: lb-baa 2.6s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
 }
+
 .lb-sheep.sheep-b {
   animation-delay: 1.1s;
 }
@@ -160,56 +465,61 @@
   transform-origin: 50% 100%;
   animation: lb-sway 3.6s ease-in-out infinite alternate;
 }
+
 .lb-tree.tree-b {
   animation-delay: 0.7s;
 }
+
 .lb-tree.tree-c {
   animation-delay: 1.3s;
 }
 
-/* ── 雪山：轻微起伏 + 雪顶高光 ── */
-.lb-mt-shadow {
-  fill: rgba(62, 98, 132, 0.18);
+.lb-tree-dark {
+  fill: var(--lb-tree-dark);
+  transition: fill 800ms ease;
 }
+
+.lb-tree-light {
+  fill: var(--lb-tree-light);
+  transition: fill 800ms ease;
+}
+
+.lb-tree-trunk {
+  fill: var(--lb-tree-trunk);
+  transition: fill 800ms ease;
+}
+
+/* ── 雪山：轻微起伏 + 雪顶高光 ── */
+.lb-mt-stop-a {
+  stop-color: var(--lb-mt-a);
+  transition: stop-color 800ms ease;
+}
+
+.lb-mt-stop-b {
+  stop-color: var(--lb-mt-b);
+  transition: stop-color 800ms ease;
+}
+
+.lb-mt-shadow {
+  fill: var(--lb-mt-shadow);
+}
+
 .lb-mt-body {
   fill: url(#lb-mountain-body);
-  stroke: rgba(255, 255, 255, 0.95);
+  stroke: var(--lb-prov-stroke);
   stroke-width: 1.6;
   stroke-linejoin: round;
 }
+
 .lb-mt-snow {
-  fill: #ffffff;
+  fill: var(--lb-mt-snow);
+  transition: fill 800ms ease;
 }
+
 .lb-mountain {
   transform-box: fill-box;
   transform-origin: 50% 100%;
   animation: lb-mt-bob 5.2s ease-in-out infinite alternate;
-}
-
-/* ── Q 版太阳（光芒旋转、圆脸）── */
-.lb-sun-ray {
-  fill: #ffd45e;
-  transform-box: fill-box;
-  transform-origin: 50% 100%;
-}
-.lb-sun-rays {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: lb-sun-spin 46s linear infinite;
-}
-.lb-sun-body {
-  fill: #ffe28a;
-  stroke: #fff6cc;
-  stroke-width: 3;
-}
-.lb-sun-face path {
-  fill: none;
-  stroke: #d98a3d;
-  stroke-width: 2.4;
-  stroke-linecap: round;
-}
-.lb-sun-glow {
-  animation: lb-glow 5.6s ease-in-out infinite;
 }
 
 /* ── Q 版云朵：慢慢漂 + 上下浮（每朵的时长 / 延迟在组件里内联）── */
@@ -218,18 +528,26 @@
   transform-origin: center;
   animation: lb-cloud-drift 18s ease-in-out infinite;
 }
+
+.lb-cloud-puff {
+  fill: var(--lb-cloud-fill);
+  transition: fill 800ms ease;
+}
+
 .lb-cloud-shadow {
-  fill: rgba(120, 172, 205, 0.25);
+  fill: var(--lb-cloud-shadow);
+  transition: fill 800ms ease;
 }
 
 /* ── 海面波浪 ── */
 .lb-wave {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.6);
+  stroke: var(--lb-wave);
   stroke-width: 3;
   stroke-linecap: round;
   stroke-dasharray: 13 17;
   animation: lb-wave 7s linear infinite;
+  transition: stroke 800ms ease;
 }
 
 /* ── Q 版小帆船：轻轻摇摆 + 海鸟 ── */
@@ -239,25 +557,379 @@
   filter: drop-shadow(0 3px 5px rgba(60, 110, 140, 0.2));
   animation: lb-boat-bob 4.6s ease-in-out infinite;
 }
+
 .lb-boat.boat-b {
   animation-delay: 1.6s;
   animation-duration: 5.4s;
 }
+
+.lb-boat-hull {
+  fill: var(--lb-boat-hull);
+  stroke: var(--lb-boat-hull-line);
+  stroke-width: 1.5;
+  transition:
+    fill 800ms ease,
+    stroke 800ms ease;
+}
+
+.lb-boat-sail {
+  fill: var(--lb-boat-sail);
+  stroke: var(--lb-boat-sail-line);
+  stroke-width: 1.2;
+  transition:
+    fill 800ms ease,
+    stroke 800ms ease;
+}
+
+.lb-boat-mast {
+  fill: var(--lb-boat-mast);
+  transition: fill 800ms ease;
+}
+
+.lb-boat-lamp {
+  fill: #ffd27a;
+  opacity: 0;
+  transition: opacity 700ms ease;
+}
+
+.login-backdrop[data-sky='night'] .lb-boat-lamp {
+  opacity: 1;
+  filter: drop-shadow(0 0 5px rgba(255, 210, 120, 0.95));
+}
+
 .lb-bird {
   fill: none;
-  stroke: rgba(70, 105, 130, 0.55);
+  stroke: var(--lb-bird);
   stroke-width: 2;
   stroke-linecap: round;
   transform-box: fill-box;
   transform-origin: center;
   animation: lb-bird-fly 9s ease-in-out infinite;
+  transition: stroke 800ms ease;
 }
+
 .lb-bird.bird-b {
   animation-delay: 2.4s;
 }
 
-/* ── 34 省 marker（2026-11-08 用户要求）：应用里那套 marker + 同一套三态动效；
-   悬停时在 marker 正上方显示该省景点的 4:3 卡通贴卡片（比原来的圆形贴纸稍大）。 */
+/* ── 四时段岛上 / 天空小场景 ──
+   全部挂载，用 root 的 data-sky 控制可见；没轮到的那组动画暂停。 */
+.lb-scene {
+  opacity: 0;
+  transition: opacity 850ms ease;
+  pointer-events: none;
+}
+
+.lb-scene * {
+  animation-play-state: paused;
+}
+
+.login-backdrop[data-sky='sunrise'] .lb-scene-sunrise,
+.login-backdrop[data-sky='noon'] .lb-scene-noon,
+.login-backdrop[data-sky='sunset'] .lb-scene-sunset,
+.login-backdrop[data-sky='night'] .lb-scene-night {
+  opacity: 1;
+}
+
+.login-backdrop[data-sky='sunrise'] .lb-scene-sunrise *,
+.login-backdrop[data-sky='noon'] .lb-scene-noon *,
+.login-backdrop[data-sky='sunset'] .lb-scene-sunset *,
+.login-backdrop[data-sky='night'] .lb-scene-night * {
+  animation-play-state: running;
+}
+
+/* ── 日出：草叶露珠 ── */
+.lb-dew-shadow {
+  fill: rgba(50, 80, 60, 0.14);
+}
+
+.lb-grass-blade {
+  fill: none;
+  stroke: #6aa95f;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+}
+
+.lb-grass-blade.b2 {
+  stroke: #7cb96c;
+}
+
+.lb-grass-blade.b3 {
+  stroke: #5e9c55;
+}
+
+.lb-grass-blade.b4 {
+  stroke: #84c174;
+}
+
+.lb-dew-grass {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: lb-grass-sway 4.6s ease-in-out infinite alternate;
+}
+
+.lb-dew-drop {
+  transform-box: fill-box;
+  transform-origin: 50% 0%;
+  animation: lb-dew-bob 3.4s ease-in-out infinite;
+}
+
+.lb-dew-drop.d2 {
+  animation-delay: 1.2s;
+}
+
+.lb-dew-drop-body {
+  fill: #a8e4ff;
+  stroke: rgba(255, 255, 255, 0.95);
+  stroke-width: 1;
+}
+
+.lb-dew-shine {
+  fill: #ffffff;
+  opacity: 0.9;
+  animation: lb-dew-shine 3.4s ease-in-out infinite;
+}
+
+/* ── 日出：海面晨雾 ── */
+.lb-mist {
+  pointer-events: none;
+}
+
+.lb-mist-puff {
+  fill: #ffffff;
+  opacity: 0.52;
+}
+
+.lb-mist-puff.m1 {
+  animation: lb-mist-drift 30s ease-in-out infinite alternate;
+}
+
+.lb-mist-puff.m2 {
+  animation: lb-mist-drift 36s ease-in-out infinite alternate-reverse;
+}
+
+.lb-mist-puff.m3 {
+  animation: lb-mist-drift 26s ease-in-out infinite alternate;
+}
+
+/* ── 热气球（四时段各一只）──
+   2026-11-17（用户要求「随机飘动」）：飘动改由组件里的 rAF 随机风场驱动（写 transform 属性），
+   这里只留配色；不要再加 CSS transform 动画，否则会盖掉随机漂移。 */
+.lb-balloon-envelope {
+  fill: var(--lb-balloon-1);
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 1.5;
+  transition: fill 800ms ease;
+}
+
+.lb-balloon-panel.p1 {
+  fill: var(--lb-balloon-2);
+  opacity: 0.92;
+  transition: fill 800ms ease;
+}
+
+.lb-balloon-panel.p2 {
+  fill: var(--lb-balloon-3);
+  opacity: 0.92;
+  transition: fill 800ms ease;
+}
+
+.lb-balloon-shadow {
+  fill: rgba(40, 60, 90, 0.18);
+}
+
+.lb-balloon-rope {
+  fill: none;
+  stroke: #a97b4d;
+  stroke-width: 1;
+}
+
+.lb-balloon-basket {
+  fill: #b98a5f;
+  stroke: #8f6742;
+  stroke-width: 0.8;
+}
+
+.lb-balloon-burner {
+  fill: #ffd27a;
+  opacity: 0;
+}
+
+.login-backdrop[data-sky='night'] .lb-balloon-burner {
+  opacity: 1;
+  filter: drop-shadow(0 0 6px rgba(255, 205, 120, 0.95));
+}
+
+.login-backdrop[data-sky='night'] .lb-balloon-basket {
+  fill: #4a3a2e;
+  stroke: #33261e;
+}
+
+/* ── 午夜：萤火虫 ── */
+.lb-firefly {
+  transform-box: fill-box;
+  animation: lb-firefly 6s ease-in-out infinite;
+}
+
+.lb-firefly-dot {
+  fill: #fff6c8;
+  filter: drop-shadow(0 0 4px rgba(255, 217, 138, 0.95));
+}
+
+.lb-firefly-halo {
+  opacity: 0.85;
+}
+
+/* ── 午夜：帐篷 + 篝火 ── */
+.lb-camp-glow {
+  opacity: 0.95;
+}
+
+.lb-camp-logs rect {
+  fill: #5b4030;
+  stroke: #46301f;
+  stroke-width: 0.7;
+}
+
+.lb-flame {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: lb-flicker 1.4s ease-in-out infinite alternate;
+}
+
+.lb-flame-outer {
+  fill: #ff8b3d;
+}
+
+.lb-flame-inner {
+  fill: #ffd166;
+}
+
+.lb-sparks circle {
+  fill: #ffd98a;
+  opacity: 0;
+  animation: lb-spark 2.8s ease-out infinite;
+}
+
+.lb-sparks .sp2 {
+  animation-delay: 0.9s;
+}
+
+.lb-sparks .sp3 {
+  animation-delay: 1.7s;
+}
+
+.lb-tent-shadow {
+  fill: rgba(6, 12, 24, 0.35);
+}
+
+.lb-tent-body {
+  fill: #e6d3ac;
+  stroke: #b99b6d;
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+
+.lb-tent-side {
+  fill: #cdb58c;
+  opacity: 0.9;
+}
+
+.lb-tent-door {
+  fill: #3b3145;
+}
+
+.lb-tent-ridge {
+  fill: none;
+  stroke: #b99b6d;
+  stroke-width: 1;
+}
+
+.lb-tent-guy {
+  fill: none;
+  stroke: #8f7a5a;
+  stroke-width: 0.9;
+  stroke-linecap: round;
+}
+
+.lb-tent-lantern {
+  fill: #ffd27a;
+  filter: drop-shadow(0 0 5px rgba(255, 200, 110, 0.95));
+}
+
+/* ── 午夜：蟋蟀 + 音符 ── */
+.lb-cricket-shadow {
+  fill: rgba(4, 10, 20, 0.3);
+}
+
+.lb-cricket-body {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: lb-cricket-bob 3.4s ease-in-out infinite;
+  animation-delay: var(--lb-cricket-delay, 0s);
+}
+
+.lb-cricket-belly {
+  fill: #2f3a57;
+  stroke: rgba(214, 232, 255, 0.6);
+  stroke-width: 0.7;
+}
+
+.lb-cricket-head {
+  fill: #394563;
+  stroke: rgba(214, 232, 255, 0.6);
+  stroke-width: 0.7;
+}
+
+.lb-cricket-leg {
+  fill: none;
+  stroke: #2f3a57;
+  stroke-width: 1.1;
+  stroke-linecap: round;
+}
+
+.lb-cricket-antenna {
+  fill: none;
+  stroke: #394563;
+  stroke-width: 0.75;
+  stroke-linecap: round;
+}
+
+.lb-cricket-wing {
+  fill: none;
+  stroke: rgba(214, 232, 255, 0.45);
+  stroke-width: 0.8;
+}
+
+.lb-cricket-eye {
+  fill: #ffffff;
+}
+
+.lb-note {
+  fill: #ffd98a;
+  font-size: 9px;
+  font-weight: 700;
+  opacity: 0;
+  animation: lb-note 3.4s ease-out infinite;
+}
+
+.lb-note.n1 {
+  animation-delay: var(--lb-cricket-delay, 0s);
+}
+
+.lb-note.n2 {
+  font-size: 7.5px;
+  animation-delay: calc(var(--lb-cricket-delay, 0s) + 1.5s);
+}
+
+.lb-note-static {
+  fill: #ffeec2;
+  font-size: 9.5px;
+  font-weight: 700;
+  opacity: 0.78;
+}
+
+/* ── 34 省 marker：应用里那套 marker + 同一套三态动效 ── */
 .lb-pin {
   pointer-events: auto;
   cursor: pointer;
@@ -391,21 +1063,41 @@
   transition: opacity 340ms ease-in;
 }
 
-/* 边缘柔化：中心留白给登录卡，四周轻轻泛白，像手办摄影棚 */
+/* ── 边缘柔化：中心留白给登录卡，四周轻轻压暗／泛白，像手办摄影棚 ── */
 .lb-vignette {
   position: absolute;
   inset: 0;
   background:
     radial-gradient(72% 62% at 50% 46%, transparent 52%, rgba(255, 255, 255, 0.34) 100%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, transparent 26%, transparent 78%, rgba(255, 255, 255, 0.22) 100%);
+  transition: background 900ms ease;
 }
 
-/* 窄屏：slice 铺满，图标略淡、边缘柔化加强，保证登录表单清楚 */
+.login-backdrop[data-sky='sunrise'] .lb-vignette {
+  background:
+    radial-gradient(72% 62% at 50% 46%, transparent 52%, rgba(255, 240, 230, 0.32) 100%),
+    linear-gradient(180deg, rgba(255, 236, 220, 0.2) 0%, transparent 26%, transparent 78%, rgba(255, 225, 205, 0.24) 100%);
+}
+
+.login-backdrop[data-sky='sunset'] .lb-vignette {
+  background:
+    radial-gradient(72% 62% at 50% 46%, transparent 48%, rgba(70, 30, 60, 0.34) 100%),
+    linear-gradient(180deg, rgba(60, 25, 55, 0.2) 0%, transparent 30%, transparent 74%, rgba(60, 25, 55, 0.24) 100%);
+}
+
+.login-backdrop[data-sky='night'] .lb-vignette {
+  background:
+    radial-gradient(72% 62% at 50% 46%, transparent 46%, rgba(3, 7, 18, 0.6) 100%),
+    linear-gradient(180deg, rgba(4, 8, 20, 0.32) 0%, transparent 30%, transparent 74%, rgba(3, 6, 16, 0.38) 100%);
+}
+
+/* ── 窄屏：地图略淡、边缘柔化加强，保证欢迎页文字 / 按钮清楚 ── */
 @media (max-width: 700px) {
   .login-backdrop .lb-pins,
   .login-backdrop .lb-clouds {
     opacity: 0.9;
   }
+
   .login-backdrop .lb-map {
     opacity: 0.95;
     /* 2026-11-08（用户要求）：窄屏同样把地图缩一圈，顶部留天空、底部留海面 */
@@ -414,10 +1106,28 @@
     width: 100%;
     height: 88%;
   }
+
   .lb-vignette {
     background:
       radial-gradient(90% 62% at 50% 50%, transparent 30%, rgba(255, 255, 255, 0.55) 100%),
       linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, transparent 24%, transparent 76%, rgba(255, 255, 255, 0.25) 100%);
+  }
+
+  .login-backdrop[data-sky='night'] .lb-vignette {
+    background:
+      radial-gradient(90% 62% at 50% 50%, transparent 26%, rgba(3, 7, 18, 0.66) 100%),
+      linear-gradient(180deg, rgba(4, 8, 20, 0.34) 0%, transparent 26%, transparent 74%, rgba(3, 6, 16, 0.4) 100%);
+  }
+
+  .login-backdrop[data-sky='sunset'] .lb-vignette {
+    background:
+      radial-gradient(90% 62% at 50% 50%, transparent 28%, rgba(60, 25, 55, 0.42) 100%),
+      linear-gradient(180deg, rgba(60, 25, 55, 0.24) 0%, transparent 26%, transparent 74%, rgba(60, 25, 55, 0.3) 100%);
+  }
+
+  /* 窄屏装饰减量：晨雾 / 萤火虫太密会糊住地图 */
+  .lb-mist-puff.m3 {
+    display: none;
   }
 }
 
@@ -477,7 +1187,6 @@
 }
 
 /* 标记三态动效（2026-11-08 用户要求：与项目实际完全一致，数值照搬 styles.css） */
-/* 常驻呼吸：从底部轻微起伏 + 微摆 */
 @keyframes lb-pin-breathe {
   0%,
   100% {
@@ -488,7 +1197,6 @@
   }
 }
 
-/* 悬停：内层轻跳一下 */
 @keyframes lb-pin-hop {
   0% {
     transform: translateY(0) scale(1);
@@ -501,7 +1209,6 @@
   }
 }
 
-/* 点击压扁回弹 */
 @keyframes lb-pin-pop {
   0% {
     transform: scale(1, 1);
@@ -517,7 +1224,6 @@
   }
 }
 
-/* 点击涟漪（椭圆透视 + 双环错峰） */
 @keyframes lb-pin-ripple {
   0% {
     transform: scale(0.35);
@@ -602,24 +1308,6 @@
   }
 }
 
-/* 太阳光芒旋转 + 光晕呼吸 */
-@keyframes lb-sun-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-@keyframes lb-glow {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.9;
-  }
-  50% {
-    transform: scale(1.08);
-    opacity: 1;
-  }
-}
-
 /* 云朵慢漂 + 轻浮 */
 @keyframes lb-cloud-drift {
   0%,
@@ -638,31 +1326,194 @@
   }
 }
 
+/* 海鸟飞 */
+@keyframes lb-bird-fly {
+  0%,
+  100% {
+    transform: translate(0, 0) scaleY(1);
+  }
+  40% {
+    transform: translate(-14px, -6px) scaleY(0.7);
+  }
+  70% {
+    transform: translate(-24px, 2px) scaleY(1);
+  }
+}
+
+/* 夜空白星 / 流星 */
+@keyframes lb-star-twinkle-page {
+  0%,
+  100% {
+    opacity: 0.14;
+  }
+  50% {
+    opacity: var(--lb-star-o, 0.6);
+  }
+}
+
+@keyframes lb-shoot {
+  0%,
+  84% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  86% {
+    opacity: 0.95;
+  }
+  90% {
+    opacity: 0;
+    transform: translate(64px, 30px);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(64px, 30px);
+  }
+}
+
+/* 露珠 / 草叶 / 晨雾 */
+@keyframes lb-grass-sway {
+  from {
+    transform: rotate(-2.4deg);
+  }
+  to {
+    transform: rotate(2.4deg);
+  }
+}
+
+@keyframes lb-dew-bob {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  50% {
+    transform: translateY(1.2px) scale(1.02, 0.98);
+  }
+}
+
+@keyframes lb-dew-shine {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+@keyframes lb-mist-drift {
+  from {
+    transform: translateX(-18px);
+    opacity: 0.28;
+  }
+  to {
+    transform: translateX(22px);
+    opacity: 0.48;
+  }
+}
+
+/* 篝火 / 萤火虫 / 蟋蟀 */
+@keyframes lb-flicker {
+  from {
+    transform: scale(1, 1) skewX(-2deg);
+  }
+  to {
+    transform: scale(0.94, 1.08) skewX(3deg);
+  }
+}
+
+@keyframes lb-spark {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.6);
+  }
+  20% {
+    opacity: 0.95;
+  }
+  70% {
+    opacity: 0.5;
+    transform: translate(-5px, -22px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-9px, -38px) scale(0.4);
+  }
+}
+
+@keyframes lb-firefly {
+  0%,
+  100% {
+    transform: translate(0, 0);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translate(var(--lb-ff-dx, 6px), var(--lb-ff-dy, -6px));
+    opacity: 1;
+  }
+}
+
+@keyframes lb-cricket-bob {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  35% {
+    transform: translateY(-1.4px) scale(0.98, 1.04);
+  }
+  70% {
+    transform: translateY(0) scale(1.03, 0.97);
+  }
+}
+
+@keyframes lb-note {
+  0% {
+    opacity: 0;
+    transform: translate(0, 4px) rotate(-6deg);
+  }
+  25% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(7px, -22px) rotate(8deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lb-map {
     animation: none;
   }
+
   .lb-tag-inner,
-  .lb-tag-ring {
-    animation: none;
-  }
+  .lb-tag-ring,
   .lb-pin-card {
     transition: none;
   }
+
   .lb-pin-body,
   .lb-pin-media,
   .lb-pin-ripple-ring,
-  .lb-river,
+  .lb-river-flow,
   .lb-lake-ring,
   .lb-sparkle,
   .lb-sheep,
   .lb-tree,
-  .lb-mountains > .lb-mountain-g,
   .lb-mountain,
-  .lb-sun-rays,
-  .lb-sun-glow,
   .lb-cloud,
-  .lb-wave {
+  .lb-wave,
+  .lb-boat,
+  .lb-bird,
+  .lb-star,
+  .lb-big-star,
+  .lb-shooting,
+  .lb-dew-grass,
+  .lb-dew-drop,
+  .lb-dew-shine,
+  .lb-mist-puff,
+  .lb-flame,
+  .lb-sparks circle,
+  .lb-firefly,
+  .lb-cricket-body,
+  .lb-note {
     animation: none;
   }
 }

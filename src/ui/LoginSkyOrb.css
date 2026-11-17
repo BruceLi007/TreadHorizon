@@ -1,0 +1,386 @@
+/* ── 欢迎页右上角日 / 月挂件（2026-11-17，四时段欢迎页）──
+   320×300 的画布（viewBox -160 -150 320 300），太阳/月亮圆心 = (0,0)。
+   四款同时挂载，`.is-on` 可见；隐藏的整组动画暂停（play-state），切换只做 opacity 交叉淡化。 */
+
+/* 页面右上角的挂件容器：比原来的 220×220 更大，给日落火烧云留出位置；
+   日 / 月圆心仍在 (0,0)，视觉位置和原来基本一致。 */
+.lb-sun-page {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: clamp(260px, 17vw, 320px);
+  height: clamp(244px, 15.94vw, 300px);
+  z-index: 1;
+  pointer-events: none;
+  /* 2026-11-17（用户指出火烧云左边还有竖线）：那是 SVG viewBox 左边界把云裁掉了。
+     云本身已右移收进画布；这里再允许溢出，避免以后微调 / 动画时又被画布边切出直边。 */
+  overflow: visible;
+}
+
+.lb-orb {
+  opacity: 0;
+  transition: opacity 800ms ease;
+}
+
+.lb-orb.is-on {
+  opacity: 1;
+}
+
+.lb-orb:not(.is-on) * {
+  animation-play-state: paused !important;
+}
+
+/* ── 中午：原版太阳（光芒修正为绕圆心转）── */
+.lb-sun-ray {
+  fill: #ffd45e;
+}
+
+.lb-sun-rays {
+  transform-box: view-box;
+  transform-origin: 0px 0px;
+  animation: lb-sun-spin 46s linear infinite;
+}
+
+.lb-sun-body {
+  fill: #ffe28a;
+  stroke: #fff6cc;
+  stroke-width: 3;
+}
+
+.lb-sun-face path {
+  fill: none;
+  stroke: #d98a3d;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.lb-sun-glow {
+  animation: lb-orb-glow 5.6s ease-in-out infinite;
+  transform-box: view-box;
+  transform-origin: 0px 0px;
+}
+
+/* ── 日出：云海上的小太阳 ── */
+.lb-orb-glow {
+  transform-box: view-box;
+  transform-origin: 0px 0px;
+  animation: lb-orb-glow 6.4s ease-in-out infinite;
+}
+
+.lb-orb-rays-short {
+  transform-box: view-box;
+  transform-origin: 0px 0px;
+  animation: lb-sun-spin 80s linear infinite;
+  fill: #ffc887;
+  opacity: 0.85;
+}
+
+.lb-rise-body {
+  fill: #ffdca8;
+  stroke: #fff4e0;
+  stroke-width: 2.8;
+}
+
+.lb-rise-face path {
+  fill: none;
+  stroke: #c97a3c;
+  stroke-width: 2.3;
+  stroke-linecap: round;
+}
+
+.lb-rise-blush {
+  fill: #ff9f7a;
+  opacity: 0.38;
+}
+
+.lb-cloudbank ellipse,
+.lb-cloudbank rect {
+  stroke: rgba(255, 255, 255, 0.42);
+  stroke-width: 1;
+}
+
+.lb-cloudbank-set ellipse,
+.lb-cloudbank-set rect {
+  stroke: rgba(255, 244, 224, 0.5);
+}
+
+.lb-cloudbank-rise ellipse,
+.lb-cloudbank-rise rect {
+  fill: url(#lb-cloudbank);
+}
+
+.lb-cloudbank {
+  transform-box: view-box;
+  transform-origin: 0px 0px;
+  animation: lb-cloudbank-bob 7s ease-in-out infinite;
+  filter: drop-shadow(0 6px 10px rgba(160, 110, 90, 0.18));
+}
+
+/* 云带顶部的高光（不跟随云带渐变，单独一层白） */
+.lb-cloudbank .lb-cloudbank-hi {
+  fill: rgba(255, 255, 255, 0.62);
+  stroke: none;
+}
+
+.lb-cloudbank-set {
+  filter: drop-shadow(0 6px 12px rgba(150, 70, 70, 0.22));
+}
+
+/* ── 日落：大落日 + 长光芒 + 归鸟 ── */
+.lb-orb-rays-long {
+  transform-box: view-box;
+  transform-origin: 0px 0px;
+  animation: lb-sun-spin 120s linear infinite;
+  fill: #ffc46b;
+  opacity: 0.9;
+}
+
+.lb-set-ring {
+  fill: none;
+  stroke: rgba(255, 226, 170, 0.55);
+  stroke-width: 2;
+  stroke-dasharray: 2 10;
+  transform-box: view-box;
+  transform-origin: 0px 0px;
+  animation: lb-sun-spin 60s linear infinite reverse;
+}
+
+.lb-set-body {
+  stroke: #ffe2b0;
+  stroke-width: 3;
+  animation: lb-set-sink 9s ease-in-out infinite;
+  transform-box: view-box;
+  transform-origin: 0px 0px;
+}
+
+.lb-set-face path,
+.lb-set-face circle {
+  fill: none;
+  stroke: #8f3f22;
+  stroke-width: 2.3;
+  stroke-linecap: round;
+}
+
+.lb-set-face circle {
+  fill: #8f3f22;
+  stroke: none;
+}
+
+.lb-set-blush {
+  fill: #ff8f66;
+  opacity: 0.4;
+}
+
+.lb-cloudbank-set ellipse,
+.lb-cloudbank-set rect {
+  fill: url(#lb-cloudbank-set);
+  stroke: rgba(255, 232, 200, 0.85);
+  filter: none;
+}
+
+.lb-set-birds {
+  transform-box: view-box;
+}
+
+/* 火烧云：暖金渐变 + 发光边，慢慢漂 */
+.lb-firecloud {
+  animation: lb-firecloud-drift 16s ease-in-out infinite alternate;
+  transform-box: fill-box;
+  /* 2026-11-17（用户指出火烧云外面有矩形「框」）：
+     那层半透明径向光晕（lb-fc-aura）在 Chrome 里会连包围盒一起留下一个浅色矩形边，
+     滤镜 / 换圆 / 换实色都复现；直接去掉光晕，云的渐变和边缘描边已经够读作「火烧云」。 */
+}
+
+.lb-fc-puff,
+.lb-fc-base {
+  fill: url(#lb-firecloud);
+  stroke: none;
+}
+
+.lb-fc-hi {
+  fill: rgba(255, 252, 235, 0.78);
+  stroke: none;
+}
+
+.lb-fc-shadow {
+  fill: rgba(120, 50, 70, 0.22);
+}
+
+.lb-firecloud.fc2 {
+  animation-duration: 21s;
+  animation-delay: -4s;
+}
+
+.lb-firecloud.fc3 {
+  animation-duration: 18s;
+  animation-delay: -8s;
+}
+
+.lb-set-bird {
+  fill: none;
+  stroke: #6b3b52;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: lb-bird-flap 2.2s ease-in-out infinite;
+}
+
+.lb-set-bird.b2 {
+  animation-delay: 0.5s;
+}
+
+.lb-set-bird.b3 {
+  animation-delay: 1.05s;
+}
+
+/* ── 午夜：满月睡脸 ── */
+.lb-moon-body {
+  stroke: #fffdf0;
+  stroke-width: 2.6;
+}
+
+.lb-moon-craters circle {
+  fill: #e6d9ad;
+  opacity: 0.55;
+}
+
+.lb-moon-face path {
+  fill: none;
+  stroke: #8f9bb2;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.lb-moon-face ellipse {
+  fill: #8f9bb2;
+}
+
+.lb-moon-star {
+  fill: #eaf2ff;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: lb-star-twinkle 3.4s ease-in-out infinite;
+}
+
+.lb-moon-star.s2 {
+  animation-delay: 1.1s;
+}
+
+.lb-moon-star.s3 {
+  animation-delay: 2.2s;
+}
+
+.lb-cloudbank-moon ellipse,
+.lb-cloudbank-moon rect {
+  fill: url(#lb-cloudbank-moon);
+  stroke: rgba(240, 247, 255, 0.75);
+}
+
+.lb-cloudbank-moon {
+  filter: drop-shadow(0 6px 14px rgba(20, 40, 90, 0.28));
+}
+
+.lb-moon-zzz {
+  fill: #dfe9ff;
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.75;
+  animation: lb-zzz 4.6s ease-in-out infinite;
+}
+
+.lb-moon-zzz.z2 {
+  font-size: 8px;
+  animation-delay: 1.2s;
+}
+
+/* ── 动效 ── */
+@keyframes lb-sun-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes lb-orb-glow {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.07);
+    opacity: 1;
+  }
+}
+
+@keyframes lb-cloudbank-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2.4px);
+  }
+}
+
+@keyframes lb-set-sink {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(2.4px);
+  }
+}
+
+@keyframes lb-bird-flap {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(0.55);
+  }
+}
+
+@keyframes lb-firecloud-drift {
+  from {
+    transform: translateX(-8px) translateY(1px);
+  }
+  to {
+    transform: translateX(10px) translateY(-3px);
+  }
+}
+
+@keyframes lb-star-twinkle {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes lb-zzz {
+  0% {
+    opacity: 0.22;
+    transform: translate(0, 3px);
+  }
+  45% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0.12;
+    transform: translate(7px, -9px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-orb *,
+  .lb-orb .lb-cloudbank {
+    animation: none !important;
+  }
+}

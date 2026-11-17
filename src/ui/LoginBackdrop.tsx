@@ -1,19 +1,20 @@
 /**
- * 登录 / Key 引导页的「Q 版 3D 中国地图」品牌背景
- * （2026-11-08 D-266 初版 → D-267 动效/透明卡 → D-268 立体化 + 地形元素 + Q 版化，方案 A）
+ * 登录 / Key 引导 / 本地欢迎页的「Q 版 3D 中国地图」品牌背景
+ * （2026-11-08 D-266 初版 → D-267 动效/透明卡 → D-268 立体化 + 地形元素 + Q 版化）
+ *
+ * 2026-11-17（用户要求「欢迎页做成日出 / 中午 / 日落 / 午夜四版」）：
+ * - 同一个场景四种天光：天空渐变、太阳/月亮挂件、地图配色、地面小场景全部按时段切换；
+ * - 地图不复制四套省色：每个省保留原色（内联 --lb-fill），暖调 / 夜色由 CSS color-mix 派生；
+ * - 太阳 / 月亮在 <LoginSkyOrb> 里，独立于地图缩放；四款同时挂载、opacity 交叉淡化；
+ * - 地面小场景：日出露珠 + 晨雾 / 日落火烧云 + 归鸟 / 午夜蟋蟀 + 萤火虫 + 帐篷篝火；
+ * - 同一只热气球在四个时段各出现一次（中午升到东侧高空），每只独立随机飘。
  *
  * 为什么不用真地图：未登录时 multi 模式拿不到任何账号 Key 与数据（/api/* 除 auth/health 全 401），
  * 直接渲染 T.Map 只会是灰块。这里用项目自带的省界数据（public/province-boundaries-low.json，
- * 40KB 概化版，与统计面板省份点亮同源）搭一个「桌面立体模型」风格的 Q 版中国地图：
- * - 3D 立体感：整块地图做成有厚度的小岛模型——底面阴影 + 侧面厚度 + 顶面省份「拼图」色块 + 白色描边；
- * - 色彩丰富：按地形给各省上色（雪山 / 沙漠 / 草原 / 森林 / 平原 / 水乡 / 南方），并叠加地形元素：
- *   雪山、沙漠沙丘、湖泊（带涟漪）、森林小树、草原小羊、黄河 / 长江两条会流动的河；
- * - Q 版：圆角、厚描边、粉彩配色，云朵 / 太阳 / 小羊 / 小树 / 水波都有轻快的弹性动效；
- * - 项目自带的 marker / 家图标做成「白色圆徽章 + 彩色圈」贴在地图上，并按 14s 时间轴依次演示
- *   呼吸 → 悬停轻跳 → 点击压扁回弹 → 3D 涟漪 → 松手回弹；另有一组聚合点脉冲；
+ * 40KB 概化版，与统计面板省份点亮同源）搭一个「桌面立体模型」风格的 Q 版中国地图。
  * - 纯 SVG + CSS，无接口 / 无 Key / 无第三方资源；prefers-reduced-motion 关闭所有动效；窄屏 slice 铺满。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react';
 import type { ProvinceBoundaryData, ProvinceBoundaryFeature } from '../lib/types';
 import {
@@ -22,6 +23,8 @@ import {
   type StickerIconKind,
 } from './LoginProvinceStickers';
 import { MARKER_COLOR_OPTIONS, markerColorHex, type MarkerColorId } from '../lib/markerPalette';
+import { SKY_TIMES, useSkyTime, type SkyTime } from './skyTime';
+import LoginSkyOrb from './LoginSkyOrb';
 import './LoginBackdrop.css';
 
 /** SVG 设计画布（16:9，正好覆盖常见桌面视口） */
@@ -91,9 +94,6 @@ const TERRAIN_FILLS: Record<Terrain, string[]> = {
   basin: ['#d8e9aa', '#d0e3a1', '#e0edb5'],
   loess: ['#ecd8ac', '#e7d1a1', '#f0ddb6'],
 };
-/** 小岛模型底座颜色（侧面厚度 + 底面阴影） */
-const SLAB_SIDE = '#7f8f6d';
-const SLAB_SIDE_DARK = '#5f6d51';
 
 /** 单个 marker 的实际显示尺寸（与 src/map/cluster.ts 的 SINGLE_SIZE 一致） */
 const PIN_SIZE = 30;
@@ -185,6 +185,34 @@ const GRASSLANDS = [
   { lng: 119.6, lat: 46.6, s: 1.35 }, // 呼伦贝尔草原
   { lng: 96.5, lat: 33.8, s: 1.05 }, // 藏北草原
 ];
+/* ── 2026-11-17 四时段地面小场景（经纬度）── */
+const DEW_PATCHES = [
+  { lng: 121.4, lat: 47.6, s: 1.75 }, // 东北草甸
+  { lng: 112.3, lat: 27.4, s: 1.55 }, // 湖南
+  { lng: 106.4, lat: 25.4, s: 1.4 }, // 黔南
+];
+const CRICKETS = [
+  { lng: 114.6, lat: 25.3, s: 1.9, flip: false },
+  { lng: 119.3, lat: 27.0, s: 1.55, flip: true },
+];
+const CAMP = { tent: [118.2, 45.1], fire: [117.2, 45.8] };
+const FIREFLY_ANCHORS = [
+  { lng: 122.4, lat: 50.2 }, // 大兴安岭
+  { lng: 117.6, lat: 27.5 }, // 武夷山
+  { lng: 101.4, lat: 25.2 }, // 滇西
+];
+/** 9 个相对锚点的固定偏移（确定性，不用随机数） */
+const FIREFLY_OFFSETS: [number, number][] = [
+  [-22, -16],
+  [6, -26],
+  [26, 2],
+  [-30, 12],
+  [2, 18],
+  [22, 24],
+  [-14, 30],
+  [34, -12],
+  [-4, -34],
+];
 /** 黄河 / 长江 的示意折线（经纬度） */
 const RIVERS: { key: string; color: string; width: number; points: [number, number][] }[] = [
   {
@@ -223,6 +251,17 @@ const RIVERS: { key: string; color: string; width: number; points: [number, numb
   },
 ];
 
+/** 四时段的热气球（SVG viewBox 坐标；同一只气球，位置 / 受光不同） */
+const BALLOONS: Record<SkyTime, { x: number; y: number; s: number; delay: number }[]> = {
+  noon: [{ x: 1420, y: 300, s: 0.88, delay: 0.9 }],
+  sunrise: [
+    { x: 1392, y: 432, s: 1.06, delay: 0 },
+    { x: 1478, y: 330, s: 0.62, delay: 1.4 },
+  ],
+  sunset: [{ x: 196, y: 150, s: 1.12, delay: 0.6 }],
+  night: [{ x: 1148, y: 782, s: 1.0, delay: 0 }],
+};
+
 interface ScenePoint {
   x: number;
   y: number;
@@ -248,6 +287,18 @@ interface Scene {
   sun: ScenePoint;
   clouds: (ScenePoint & { key: string; s: number; dur: number; delay: number })[];
   waves: { key: string; d: string }[];
+  /* 四时段的岛上小场景 */
+  dew: (ScenePoint & { key: string; s: number })[];
+  crickets: (ScenePoint & { key: string; s: number; flip: boolean })[];
+  fireflies: (ScenePoint & {
+    key: string;
+    r: number;
+    dur: number;
+    delay: number;
+    dx: number;
+    dy: number;
+  })[];
+  camp: { tent: ScenePoint; fire: ScenePoint };
 }
 
 /** 平滑折线（Catmull-Rom 近似），用于河流 / 足迹 */
@@ -297,6 +348,10 @@ function buildScene(data: ProvinceBoundaryData): Scene {
     sun: { x: VIEW_W * 0.9, y: VIEW_H * 0.12 },
     clouds: [],
     waves: [],
+    dew: [],
+    crickets: [],
+    fireflies: [],
+    camp: { tent: { x: 0, y: 0 }, fire: { x: 0, y: 0 } },
   };
   if (!Number.isFinite(minLng) || !Number.isFinite(minLat)) return empty;
 
@@ -408,6 +463,33 @@ function buildScene(data: ProvinceBoundaryData): Scene {
     { key: 'w5', d: `M40 690 Q90 665 140 690` },
   ];
 
+  /* ── 四时段岛上小场景 ── */
+  const dew = DEW_PATCHES.map((p, i) => ({ ...at(p.lng, p.lat), key: `dew-${i}`, s: p.s }));
+  const crickets = CRICKETS.map((p, i) => ({
+    ...at(p.lng, p.lat),
+    key: `cricket-${i}`,
+    s: p.s,
+    flip: p.flip,
+  }));
+  const fireflies = FIREFLY_ANCHORS.flatMap((anchor, ai) =>
+    FIREFLY_OFFSETS.map(([dx, dy], oi) => {
+      const base = at(anchor.lng, anchor.lat);
+      const seed = (ai * 9 + oi) % 5;
+      return {
+        ...base,
+        x: base.x + dx,
+        y: base.y + dy,
+        key: `ff-${ai}-${oi}`,
+        r: 1.9 + (seed % 3) * 0.4,
+        dur: 4.2 + seed * 0.8,
+        delay: -(ai * 1.3 + oi * 0.45),
+        dx: (oi % 2 === 0 ? 1 : -1) * (4 + (oi % 4) * 2),
+        dy: -4 - (oi % 3) * 3,
+      };
+    })
+  );
+  const camp = { tent: at(CAMP.tent[0], CAMP.tent[1]), fire: at(CAMP.fire[0], CAMP.fire[1]) };
+
   return {
     provinces,
     provincePins,
@@ -420,11 +502,318 @@ function buildScene(data: ProvinceBoundaryData): Scene {
     sun,
     clouds,
     waves,
+    dew,
+    crickets,
+    fireflies,
+    camp,
   };
 }
 
-export default function LoginBackdrop() {
+/** 午夜星空：确定性星点（不随渲染变化），一条很淡的银河 + 偶尔一颗流星 */
+function makeStars(count: number) {
+  let seed = 0x5eed1234;
+  const rnd = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  return Array.from({ length: count }, (_, i) => ({
+    id: i,
+    x: rnd() * VIEW_W,
+    y: rnd() * 720,
+    r: 0.6 + rnd() * 1.5,
+    dur: 2.6 + rnd() * 3.8,
+    delay: -rnd() * 6,
+    o: 0.45 + rnd() * 0.55,
+  }));
+}
+
+/** 四角星路径（夜空里的大星） */
+function starPath(s: number): string {
+  const k = s * 0.26;
+  return `M0 ${-s} L${k} ${-k} L${s} 0 L${k} ${k} L0 ${s} L${-k} ${k} L${-s} 0 L${-k} ${-k} Z`;
+}
+
+function NightSky({ on }: { on: boolean }) {
+  const stars = useMemo(() => makeStars(120), []);
+  const bigStars = [
+    { x: 250, y: 160, s: 5.4 },
+    { x: 700, y: 120, s: 3.8 },
+    { x: 1450, y: 300, s: 4.4 },
+    { x: 160, y: 420, s: 3.2 },
+  ];
+  return (
+    <svg
+      className={on ? 'lb-night-sky is-on' : 'lb-night-sky'}
+      viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+      preserveAspectRatio="xMidYMid slice"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <defs>
+        <radialGradient id="lb-milky">
+          <stop offset="0%" stopColor="#9fb6ff" stopOpacity="0.22" />
+          <stop offset="55%" stopColor="#7f9ce8" stopOpacity="0.07" />
+          <stop offset="100%" stopColor="#7f9ce8" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="lb-shoot" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="-96" y2="44">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0" />
+          <stop offset="70%" stopColor="#dfe9ff" stopOpacity="0.75" />
+          <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
+        </linearGradient>
+      </defs>
+      <g className="lb-milky">
+        <ellipse cx="820" cy="250" rx="520" ry="120" transform="rotate(-17 820 250)" fill="url(#lb-milky)" />
+        <ellipse cx="640" cy="330" rx="380" ry="70" transform="rotate(-17 640 330)" fill="url(#lb-milky)" />
+      </g>
+      <g className="lb-stars">
+        {stars.map((s) => (
+          <circle
+            key={s.id}
+            className="lb-star"
+            cx={s.x.toFixed(1)}
+            cy={s.y.toFixed(1)}
+            r={s.r.toFixed(2)}
+            style={
+              {
+                '--lb-star-o': s.o.toFixed(2),
+                animationDuration: `${s.dur.toFixed(2)}s`,
+                animationDelay: `${s.delay.toFixed(2)}s`,
+              } as CSSProperties
+            }
+          />
+        ))}
+      </g>
+      <g className="lb-big-stars">
+        {bigStars.map((b, i) => (
+          <g key={`big-${i}`} transform={`translate(${b.x} ${b.y})`}>
+            <path
+              className="lb-big-star"
+              d={starPath(b.s)}
+              style={{ animationDelay: `${(-i * 1.3).toFixed(2)}s` } as CSSProperties}
+            />
+          </g>
+        ))}
+      </g>
+      <g className="lb-shooting-wrap" transform="translate(1290 190)">
+        <g className="lb-shooting">
+          <path className="lb-shooting-tail" d="M0 0 L-96 44" />
+          <circle className="lb-shooting-head" cx="0" cy="0" r="1.9" />
+        </g>
+      </g>
+    </svg>
+  );
+}
+
+/** 日出三处草叶 + 露珠 */
+function DewPatches({ scene }: { scene: Scene }) {
+  return (
+    <>
+      {scene.dew.map((d) => (
+        <g key={d.key} className="lb-dew" transform={`translate(${d.x.toFixed(1)} ${d.y.toFixed(1)}) scale(${d.s})`}>
+          <ellipse className="lb-dew-shadow" cx="0" cy="3" rx="15" ry="4" />
+          <g className="lb-dew-grass">
+            <path className="lb-grass-blade b1" d="M-10 2 C-13 -6 -10 -14 -5 -20" />
+            <path className="lb-grass-blade b2" d="M-2 2 C-3 -8 -1 -16 2 -23" />
+            <path className="lb-grass-blade b3" d="M7 2 C8 -6 6 -13 4 -18" />
+            <path className="lb-grass-blade b4" d="M-15 2 C-16 -4 -14 -9 -11 -13" />
+          </g>
+          <g className="lb-dew-drop-wrap" transform="translate(-5 -20)">
+            <g className="lb-dew-drop d1">
+              <path className="lb-dew-drop-body" d="M0 0 C2.6 3.8 3.4 5.2 3.4 6.8 A3.4 3.4 0 1 1 -3.4 6.8 C-3.4 5.2 -2.6 3.8 0 0 Z" />
+              <circle className="lb-dew-shine" cx="-1" cy="6" r="0.95" />
+            </g>
+          </g>
+          <g className="lb-dew-drop-wrap" transform="translate(2 -23)">
+            <g className="lb-dew-drop d2">
+              <path className="lb-dew-drop-body" d="M0 0 C2 3 2.7 4.2 2.7 5.5 A2.7 2.7 0 1 1 -2.7 5.5 C-2.7 4.2 -2 3 0 0 Z" />
+              <circle className="lb-dew-shine" cx="-0.8" cy="4.8" r="0.75" />
+            </g>
+          </g>
+        </g>
+      ))}
+    </>
+  );
+}
+
+/** 午夜两只蟋蟀 + 飘起来的音符 */
+function Crickets({ scene }: { scene: Scene }) {
+  return (
+    <>
+      {scene.crickets.map((c, i) => (
+        <g
+          key={c.key}
+          transform={`translate(${c.x.toFixed(1)} ${c.y.toFixed(1)})`}
+          style={{ '--lb-cricket-delay': `${i * 1.4}s` } as CSSProperties}
+        >
+          {/* 虫子本体按 flip 镜像；音符不镜像（否则会反字） */}
+          <g transform={`scale(${c.flip ? -c.s : c.s} ${c.s})`}>
+            <ellipse className="lb-cricket-shadow" cx="2" cy="5" rx="10" ry="3.2" />
+            <g className="lb-cricket-body">
+              <path className="lb-cricket-leg" d="M2 2 L9 7 M4 1 L11 3.4" />
+              <ellipse className="lb-cricket-belly" cx="0" cy="0" rx="6.6" ry="3.8" />
+              <circle className="lb-cricket-head" cx="-7.4" cy="-1.6" r="2.9" />
+              <path className="lb-cricket-antenna" d="M-8.8 -3.4 C-10.4 -6.4 -12.4 -7.6 -14.6 -8" />
+              <path className="lb-cricket-antenna" d="M-8 -4.1 C-9 -6.8 -10.4 -9 -12.2 -10.2" />
+              <path className="lb-cricket-wing" d="M-2.6 -2.6 L5.2 -1.4" />
+              <circle className="lb-cricket-eye" cx="-8.2" cy="-2.3" r="0.7" />
+            </g>
+          </g>
+          <g className="lb-cricket-notes" transform={`scale(${c.s})`}>
+            <text className="lb-note n1" x="8" y="-11">
+              ♪
+            </text>
+            <text className="lb-note n2" x="15" y="-15">
+              ♫
+            </text>
+            {/* 静止的一枚音符：动画音符大部分时间透明，静帧里也要看得出「蟋蟀在叫」 */}
+            <text className="lb-note-static" x="11" y="-5">
+              ♪
+            </text>
+          </g>
+        </g>
+      ))}
+    </>
+  );
+}
+
+/** 午夜萤火虫 */
+function Fireflies({ scene }: { scene: Scene }) {
+  return (
+    <>
+      {scene.fireflies.map((f) => (
+        <g key={f.key} transform={`translate(${f.x.toFixed(1)} ${f.y.toFixed(1)})`}>
+          <g
+            className="lb-firefly"
+            style={
+              {
+                '--lb-ff-dx': `${f.dx}px`,
+                '--lb-ff-dy': `${f.dy}px`,
+                animationDuration: `${f.dur.toFixed(2)}s`,
+                animationDelay: `${f.delay.toFixed(2)}s`,
+              } as CSSProperties
+            }
+          >
+            <circle className="lb-firefly-halo" r={f.r * 3.3} fill="url(#lb-firefly-glow)" />
+            <circle className="lb-firefly-dot" r={f.r} />
+          </g>
+        </g>
+      ))}
+    </>
+  );
+}
+
+/** 午夜帐篷 + 篝火（呼伦贝尔草原边上） */
+function NightCamp({ scene }: { scene: Scene }) {
+  const { tent, fire } = scene.camp;
+  return (
+    <>
+      <g className="lb-camp" transform={`translate(${fire.x.toFixed(1)} ${fire.y.toFixed(1)})`}>
+        <ellipse className="lb-camp-glow" rx="58" ry="22" fill="url(#lb-camp-glow)" />
+        <g className="lb-camp-logs">
+          <rect x="-12" y="2" width="24" height="4.6" rx="2.3" transform="rotate(-17)" />
+          <rect x="-12" y="2" width="24" height="4.6" rx="2.3" transform="rotate(15)" />
+        </g>
+        <g className="lb-flame">
+          <path
+            className="lb-flame-outer"
+            d="M0 -21 C6.4 -12.5 9.4 -6.4 9.4 -1.2 A9.4 9.4 0 0 1 -9.4 -1.2 C-9.4 -8 -4.4 -13 0 -21 Z"
+          />
+          <path
+            className="lb-flame-inner"
+            d="M0 -11.6 C3.2 -6.4 4.8 -3 4.8 0.2 A4.8 4.8 0 0 1 -4.8 0.2 C-4.8 -3 -2.2 -7 0 -11.6 Z"
+          />
+        </g>
+        <g className="lb-sparks">
+          <circle className="sp1" cx="-2.6" cy="-25" r="1.1" />
+          <circle className="sp2" cx="4" cy="-31" r="0.9" />
+          <circle className="sp3" cx="-7.4" cy="-35" r="0.7" />
+        </g>
+      </g>
+      <g className="lb-tent" transform={`translate(${tent.x.toFixed(1)} ${tent.y.toFixed(1)}) scale(1.12)`}>
+        <ellipse className="lb-tent-shadow" cx="0" cy="3" rx="27" ry="7" />
+        <path className="lb-tent-body" d="M-25 2 L0 -31 L25 2 Z" />
+        <path className="lb-tent-side" d="M0 -31 L25 2 L9 2 L0 -22 Z" />
+        <path className="lb-tent-door" d="M-8.4 2 L0 -17 L8.4 2 Z" />
+        <path className="lb-tent-ridge" d="M0 -31 L0 2" />
+        <path className="lb-tent-guy" d="M-25 2 L-33 9 M25 2 L33 9" />
+        <circle className="lb-tent-lantern" cx="16" cy="-2" r="2.3" />
+      </g>
+    </>
+  );
+}
+
+/** 热气球（同一只气球：日出奶油珊瑚、日落逆光暖边、午夜深色 + 小灯）
+ *  2026-11-17（用户要求「随机飘动」）：每只气球挂一套随机风场——
+ *  两条不同周期的正弦叠加成缓慢漂移 + 按横向位移轻微倾斜；刷新后路径重掷。
+ *  用 rAF 直接写 transform 属性，和 CSS 的缩放 / 定位外层互不干扰。 */
+function Balloon({ x, y, s, delay }: { x: number; y: number; s: number; delay: number }) {
+  const driftRef = useRef<SVGGElement | null>(null);
+  useEffect(() => {
+    const el = driftRef.current;
+    if (!el || typeof window === 'undefined') return;
+    if (
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      return;
+    }
+    // 每只气球一套随机参数：振幅 / 两个角速度 / 相位
+    const ax = 18 + Math.random() * 12;
+    const ay = 7 + Math.random() * 6;
+    const wx = 0.19 + Math.random() * 0.12; // 约 21~33s 一个来回
+    const wy = 0.065 + Math.random() * 0.05; // 约 55~97s
+    const phase = delay * 0.9 + Math.random() * Math.PI * 2;
+    const phase2 = Math.random() * Math.PI * 2;
+    let raf = 0;
+    const tick = (now: number) => {
+      const t = now / 1000;
+      const dx =
+        Math.sin(t * wx + phase) * ax + Math.sin(t * wy + phase2) * ax * 0.38;
+      const dy =
+        Math.sin(t * wy + phase * 0.7) * ay + Math.sin(t * wx * 1.27 + phase2) * ay * 0.42;
+      const rot = dx * 0.055;
+      el.setAttribute(
+        'transform',
+        `translate(${dx.toFixed(2)} ${dy.toFixed(2)}) rotate(${rot.toFixed(2)})`
+      );
+      raf = window.requestAnimationFrame(tick);
+    };
+    raf = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(raf);
+  }, [delay]);
+
+  return (
+    <g className="lb-balloon-wrap" transform={`translate(${x} ${y}) scale(${s})`}>
+      <g ref={driftRef} className="lb-balloon">
+        <ellipse className="lb-balloon-shadow" cx="0" cy="46" rx="16" ry="5" />
+        <path
+          className="lb-balloon-envelope"
+          d="M0 -35 C18 -35 28 -20 28 -5 C28 9 16 21 0 28 C-16 21 -28 9 -28 -5 C-28 -20 -18 -35 0 -35 Z"
+        />
+        <path className="lb-balloon-panel p1" d="M0 -35 C-9 -21 -13 -12 -13 1 C-13 13 -7 23 0 28 Z" />
+        <path className="lb-balloon-panel p2" d="M0 -35 C9 -21 13 -12 13 1 C13 13 7 23 0 28 Z" />
+        <path className="lb-balloon-rope" d="M-10 26 L-5 39 M10 26 L5 39" />
+        <rect className="lb-balloon-basket" x="-6.2" y="38" width="12.4" height="9" rx="2.6" />
+        <circle className="lb-balloon-burner" cx="0" cy="36.6" r="1.9" />
+      </g>
+    </g>
+  );
+}
+
+export default function LoginBackdrop({ time }: { time?: SkyTime }) {
+  const auto = useSkyTime();
+  const sky = time ?? auto.time;
   const [data, setData] = useState<ProvinceBoundaryData | null>(null);
+
+  /* 把时段写到 <html data-sky>：左上 Logo / 标语、左下时段控件的深色适配都靠它。
+     用 useLayoutEffect 在首帧绘制前写，避免夜间先闪一帧深色文字 / 浅色控件。 */
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.dataset.sky = sky;
+    return () => {
+      if (root.dataset.sky === sky) delete root.dataset.sky;
+    };
+  }, [sky]);
 
   /* ── 2026-11-08 D-277（用户要求）：34 省卡通贴自动循环演示 ──
      每 2 秒切换一批（5 个省的卡片一起弹出，2 秒后随下一批切换消失），
@@ -585,9 +974,17 @@ export default function LoginBackdrop() {
   const scene = useMemo(() => (data ? buildScene(data) : null), [data]);
 
   return (
-    <div className="login-backdrop" aria-hidden="true">
-      {/* 天空 / 海面底色（CSS 渐变，独立于主题） */}
-      <div className="lb-sky" />
+    <div className="login-backdrop" data-sky={sky} aria-hidden="true">
+      {/* 天空 / 海面底色：四层渐变叠着，按时段交叉淡化 */}
+      <div className="lb-sky">
+        {SKY_TIMES.map((t) => (
+          <div key={t} className={`lb-sky-layer lb-sky-${t}${t === sky ? ' is-on' : ''}`} />
+        ))}
+      </div>
+
+      {/* 午夜星空（整页一层，盖在天空上、地图下面） */}
+      <NightSky on={sky === 'night'} />
+
       {scene && (
         <svg
           className="lb-map"
@@ -600,19 +997,27 @@ export default function LoginBackdrop() {
             <filter id="lb-slab-blur" x="-10%" y="-10%" width="120%" height="130%">
               <feGaussianBlur stdDeviation="9" />
             </filter>
-            <radialGradient id="lb-sun-glow">
-              <stop offset="0%" stopColor="#fff3bf" stopOpacity="0.9" />
-              <stop offset="60%" stopColor="#ffe89a" stopOpacity="0.35" />
-              <stop offset="100%" stopColor="#ffe89a" stopOpacity="0" />
-            </radialGradient>
             <linearGradient id="lb-lake" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#8fd6f4" />
-              <stop offset="100%" stopColor="#4faee0" />
+              <stop className="lb-lake-stop-a" offset="0%" />
+              <stop className="lb-lake-stop-b" offset="100%" />
             </linearGradient>
             <linearGradient id="lb-mountain-body" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#a9c4e0" />
-              <stop offset="100%" stopColor="#6f93bb" />
+              <stop className="lb-mt-stop-a" offset="0%" />
+              <stop className="lb-mt-stop-b" offset="100%" />
             </linearGradient>
+            <radialGradient id="lb-firefly-glow">
+              <stop offset="0%" stopColor="#ffe9a3" stopOpacity="0.85" />
+              <stop offset="55%" stopColor="#ffe08a" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="#ffe08a" stopOpacity="0" />
+            </radialGradient>
+            <radialGradient id="lb-camp-glow">
+              <stop offset="0%" stopColor="#ffb15c" stopOpacity="0.5" />
+              <stop offset="55%" stopColor="#ff9440" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#ff8a3d" stopOpacity="0" />
+            </radialGradient>
+            <filter id="lb-mist-blur" x="-20%" y="-150%" width="140%" height="400%">
+              <feGaussianBlur stdDeviation="16" />
+            </filter>
           </defs>
 
           {/* 海面波浪 */}
@@ -635,16 +1040,20 @@ export default function LoginBackdrop() {
           </g>
           <g className="lb-slab-top">
             {scene.provinces.map((p) => (
-              <path key={`tp-${p.key}`} d={p.d} fill={p.fill} />
+              <path
+                key={`tp-${p.key}`}
+                d={p.d}
+                style={{ '--lb-fill': p.fill } as CSSProperties}
+              />
             ))}
           </g>
 
           {/* 河流（黄河 / 长江）：实色河身 + 流动的浅色水光 */}
           <g className="lb-rivers">
             {scene.rivers.map((r) => (
-              <g key={r.key}>
+              <g key={r.key} style={{ '--lb-river': r.color } as CSSProperties}>
                 <path className="lb-river-under" d={r.d} strokeWidth={r.width + 3} />
-                <path className="lb-river" d={r.d} stroke={r.color} strokeWidth={r.width} />
+                <path className="lb-river" d={r.d} strokeWidth={r.width} />
                 <path className="lb-river-flow" d={r.d} strokeWidth={Math.max(1.5, r.width * 0.45)} />
               </g>
             ))}
@@ -694,22 +1103,22 @@ export default function LoginBackdrop() {
             {scene.forests.map((f) => (
               <g key={f.key} transform={`translate(${f.x.toFixed(1)} ${f.y.toFixed(1)}) scale(${f.s})`}>
                 <g className="lb-tree tree-a">
-                  <rect x="-1.6" y="2" width="3.2" height="7" rx="1.4" fill="#a97b4d" />
-                  <path d="M0 -18 L10 -2 Q0 3 -10 -2 Z" fill="#59b36a" />
-                  <path d="M0 -11 L8 1 Q0 5 -8 1 Z" fill="#74c780" />
+                  <rect className="lb-tree-trunk" x="-1.6" y="2" width="3.2" height="7" rx="1.4" />
+                  <path className="lb-tree-dark" d="M0 -18 L10 -2 Q0 3 -10 -2 Z" />
+                  <path className="lb-tree-light" d="M0 -11 L8 1 Q0 5 -8 1 Z" />
                 </g>
                 <g transform="translate(13 3) scale(0.82)">
                   <g className="lb-tree tree-b">
-                    <rect x="-1.5" y="2" width="3" height="6.5" rx="1.3" fill="#a97b4d" />
-                    <path d="M0 -17 L9 -2 Q0 3 -9 -2 Z" fill="#4fa863" />
-                    <path d="M0 -10 L7 1 Q0 5 -7 1 Z" fill="#6fc27c" />
+                    <rect className="lb-tree-trunk" x="-1.5" y="2" width="3" height="6.5" rx="1.3" />
+                    <path className="lb-tree-dark" d="M0 -17 L9 -2 Q0 3 -9 -2 Z" />
+                    <path className="lb-tree-light" d="M0 -10 L7 1 Q0 5 -7 1 Z" />
                   </g>
                 </g>
                 <g transform="translate(-12 4) scale(0.7)">
                   <g className="lb-tree tree-c">
-                    <rect x="-1.5" y="2" width="3" height="6.5" rx="1.3" fill="#a97b4d" />
-                    <path d="M0 -17 L9 -2 Q0 3 -9 -2 Z" fill="#63bb70" />
-                    <path d="M0 -10 L7 1 Q0 5 -7 1 Z" fill="#7fcb87" />
+                    <rect className="lb-tree-trunk" x="-1.5" y="2" width="3" height="6.5" rx="1.3" />
+                    <path className="lb-tree-dark" d="M0 -17 L9 -2 Q0 3 -9 -2 Z" />
+                    <path className="lb-tree-light" d="M0 -10 L7 1 Q0 5 -7 1 Z" />
                   </g>
                 </g>
               </g>
@@ -729,20 +1138,58 @@ export default function LoginBackdrop() {
             ))}
           </g>
 
-          {/* 2026-11-08 D-277（用户要求）：太阳从地图内挪到「页面右上角」，
-              由 <svg className="lb-sun-page"> 在下方地图 SVG 之外渲染（见文件末尾）。
-              这里只保留云朵（Q 版天空）。 */}
+          {/* ── 四时段岛上小场景（全部挂载，按时段交叉淡化；没轮到的动画暂停）── */}
+          {/* 日出：草叶露珠 + 贴着海面的晨雾 */}
+          <g className="lb-scene lb-scene-sunrise">
+            <DewPatches scene={scene} />
+            <g className="lb-mist" filter="url(#lb-mist-blur)">
+              <ellipse className="lb-mist-puff m1" cx="520" cy="792" rx="300" ry="34" />
+              <ellipse className="lb-mist-puff m2" cx="1120" cy="822" rx="330" ry="40" />
+              <ellipse className="lb-mist-puff m3" cx="820" cy="748" rx="220" ry="26" />
+            </g>
+          </g>
+
+          {/* 午夜：萤火虫 / 帐篷 / 篝火 / 蟋蟀 */}
+          <g className="lb-scene lb-scene-night">
+            <Fireflies scene={scene} />
+            <NightCamp scene={scene} />
+            <Crickets scene={scene} />
+          </g>
+
+          {/* Q 版云朵 */}
           <g className="lb-clouds">
             {scene.clouds.map((c) => (
               <g key={c.key} transform={`translate(${c.x.toFixed(1)} ${c.y.toFixed(1)}) scale(${c.s})`}>
                 <g className="lb-cloud" style={{ animationDuration: `${c.dur}s`, animationDelay: `${c.delay}s` }}>
                   <ellipse className="lb-cloud-shadow" cx="2" cy="16" rx="34" ry="8" />
-                  <circle cx="-18" cy="2" r="16" fill="#ffffff" />
-                  <circle cx="4" cy="-6" r="21" fill="#ffffff" />
-                  <circle cx="24" cy="4" r="14" fill="#ffffff" />
-                  <rect x="-20" y="4" width="46" height="12" rx="6" fill="#ffffff" />
+                  <circle className="lb-cloud-puff" cx="-18" cy="2" r="16" />
+                  <circle className="lb-cloud-puff" cx="4" cy="-6" r="21" />
+                  <circle className="lb-cloud-puff" cx="24" cy="4" r="14" />
+                  <rect className="lb-cloud-puff" x="-20" y="4" width="46" height="12" rx="6" />
                 </g>
               </g>
+            ))}
+          </g>
+
+          {/* 热气球：四时段各一只（中午升到东侧高空，不压地图） */}
+          <g className="lb-scene lb-scene-noon">
+            {BALLOONS.noon.map((b, i) => (
+              <Balloon key={`balloon-noon-${i}`} {...b} />
+            ))}
+          </g>
+          <g className="lb-scene lb-scene-sunrise">
+            {BALLOONS.sunrise.map((b, i) => (
+              <Balloon key={`balloon-rise-${i}`} {...b} />
+            ))}
+          </g>
+          <g className="lb-scene lb-scene-sunset">
+            {BALLOONS.sunset.map((b, i) => (
+              <Balloon key={`balloon-set-${i}`} {...b} />
+            ))}
+          </g>
+          <g className="lb-scene lb-scene-night">
+            {BALLOONS.night.map((b, i) => (
+              <Balloon key={`balloon-night-${i}`} {...b} />
             ))}
           </g>
 
@@ -750,16 +1197,18 @@ export default function LoginBackdrop() {
           <g className="lb-boats">
             <g transform="translate(1360 764)">
               <g className="lb-boat">
-                <path d="M-22 6 L22 6 L16 16 L-16 16 Z" fill="#f6fbff" stroke="#bcd9ea" strokeWidth="1.5" />
-                <path d="M0 -18 L14 4 L-14 4 Z" fill="#ffffff" stroke="#e2eef6" strokeWidth="1.2" />
-                <rect x="-1.4" y="4" width="2.8" height="8" fill="#a97b4d" />
+                <path className="lb-boat-hull" d="M-22 6 L22 6 L16 16 L-16 16 Z" />
+                <path className="lb-boat-sail" d="M0 -18 L14 4 L-14 4 Z" />
+                <rect className="lb-boat-mast" x="-1.4" y="4" width="2.8" height="8" />
+                <circle className="lb-boat-lamp" cx="9" cy="9" r="1.6" />
               </g>
             </g>
             <g transform="translate(238 842) scale(0.78)">
               <g className="lb-boat boat-b">
-                <path d="M-22 6 L22 6 L16 16 L-16 16 Z" fill="#f6fbff" stroke="#bcd9ea" strokeWidth="1.5" />
-                <path d="M0 -18 L14 4 L-14 4 Z" fill="#ffffff" stroke="#e2eef6" strokeWidth="1.2" />
-                <rect x="-1.4" y="4" width="2.8" height="8" fill="#a97b4d" />
+                <path className="lb-boat-hull" d="M-22 6 L22 6 L16 16 L-16 16 Z" />
+                <path className="lb-boat-sail" d="M0 -18 L14 4 L-14 4 Z" />
+                <rect className="lb-boat-mast" x="-1.4" y="4" width="2.8" height="8" />
+                <circle className="lb-boat-lamp" cx="9" cy="9" r="1.6" />
               </g>
             </g>
           </g>
@@ -898,39 +1347,8 @@ export default function LoginBackdrop() {
           </g>
         </svg>
       )}
-      {/* 2026-11-08 D-277（用户要求）：太阳移到页面右上角（不再跟随地图 inset 缩放） */}
-      <svg className="lb-sun-page" viewBox="-110 -110 220 220" aria-hidden="true" focusable="false">
-        <defs>
-          <radialGradient id="lb-sun-glow-page">
-            <stop offset="0%" stopColor="#fff3bf" stopOpacity="0.9" />
-            <stop offset="60%" stopColor="#ffe89a" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#ffe89a" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-        <g className="lb-sun">
-          <circle className="lb-sun-glow" r="96" fill="url(#lb-sun-glow-page)" />
-          <g className="lb-sun-rays">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <rect
-                key={i}
-                className="lb-sun-ray"
-                x="-2.6"
-                y="-68"
-                width="5.2"
-                height="15"
-                rx="2.6"
-                transform={`rotate(${i * 45})`}
-              />
-            ))}
-          </g>
-          <circle className="lb-sun-body" r="32" />
-          <g className="lb-sun-face">
-            <path d="M-12 -6 Q-9 -11 -6 -6" />
-            <path d="M6 -6 Q9 -11 12 -6" />
-            <path d="M-8 6 Q0 13 8 6" />
-          </g>
-        </g>
-      </svg>
+      {/* 2026-11-08 D-277（用户要求）：太阳移到页面右上角；2026-11-17 四时段换成日 / 月挂件 */}
+      <LoginSkyOrb time={sky} />
       <div className="lb-vignette" />
     </div>
   );

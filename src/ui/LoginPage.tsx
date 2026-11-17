@@ -4,6 +4,8 @@ import { useT } from '../i18n';
 import Segmented from './Segmented';
 import LoginBackdrop from './LoginBackdrop';
 import LoginBrandRow from './LoginBrandRow';
+import SkyTimeSwitch from './SkyTimeSwitch';
+import { useSkyTime, type SkyMode } from './skyTime';
 import { WiggleText } from './LoginSlogan';
 import { ClimberMark } from './ClimberMark';
 import CloseIcon from './CloseIcon';
@@ -16,6 +18,11 @@ interface Props {
   onLoggedIn: () => void;
   /** 主题标语（设置 → 通用 → 主题，只存本机）；null = i18n 默认文案，空串 = 不显示（D-269） */
   slogan?: string | null;
+  /**
+   * 欢迎页时段偏好（2026-11-17 D-521，设置 → 通用 → 欢迎页，只存本机）：
+   * 缺省 auto = 跟随本机时间；左下角控件仍可临时切，刷新回到这里的值。
+   */
+  skyMode?: SkyMode;
   /**
    * 只读样板展示入口（2026-11-09 D-335，用户要求「云端版当样板展示窗口」）：
    * App 从 /api/auth/me 拿到；enabled 时登录卡显示「浏览样板展示（只读）」按钮，
@@ -30,8 +37,10 @@ interface Props {
  * 只在 `AUTH_MODE=multi`（云端多用户）且未登录时显示；本地模式（默认）不会走到这里。
  * 登录成功后服务端下发 HttpOnly + SameSite=Lax 会话 Cookie，前端不需要保存 token。
  */
-export default function LoginPage({ onLoggedIn, slogan, demo }: Props) {
+export default function LoginPage({ onLoggedIn, slogan, skyMode, demo }: Props) {
   const t = useT();
+  /** 2026-11-17（用户要求）：欢迎页四时段——没人动控件时按本机时间自动选（D-521：默认值来自设置） */
+  const sky = useSkyTime(skyMode);
   const [mode, setMode] = useState<Mode>('login');
   /** 2026-11-08（用户要求）：登录卡默认折叠在左下角按钮里，点「开始记录我的旅迹」才弹出 */
   const [open, setOpen] = useState(false);
@@ -125,9 +134,11 @@ export default function LoginPage({ onLoggedIn, slogan, demo }: Props) {
   };
 
   return (
-    <div className={mode === 'register' ? 'login-page is-register' : 'login-page'}>
-      {/* 2026-11-08 D-266：中国地图品牌背景（省界自绘 + 项目图标，无 Key 依赖） */}
-      <LoginBackdrop />
+    <div className={mode === 'register' ? 'login-page is-register' : 'login-page'} data-sky={sky.time}>
+      {/* 2026-11-08 D-266：中国地图品牌背景（省界自绘 + 项目图标，无 Key 依赖）
+          2026-11-17：四个时段（日出 / 中午 / 日落 / 午夜），左下角控件可手动切 */}
+      <LoginBackdrop time={sky.time} />
+      <SkyTimeSwitch mode={sky.mode} onChange={sky.choose} />
       {/* 2026-11-08 D-277（用户要求）：左上角改为「正式 Logo + 右侧缩小的主题标语」 */}
       <LoginBrandRow slogan={slogan} />
       <div

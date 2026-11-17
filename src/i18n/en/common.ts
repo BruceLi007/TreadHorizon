@@ -397,6 +397,16 @@ const dict: Dict = {
   // ── 2026-11-15 D-446：我的分享显示分享时间 ──
   '分享于 {time}': 'Shared {time}',
 
+  // ── 2026-11-17：欢迎页四时段（日出 / 中午 / 日落 / 午夜）──
+  '欢迎页时段': 'Welcome screen time of day',
+  '自动（跟随当前时间）': 'Auto (follows local time)',
+  // 2026-11-17 D-521：设置里放成 5 段的分段控件，用短标签「自动」
+  '自动': 'Auto',
+  '日出': 'Sunrise',
+  '中午': 'Noon',
+  '日落': 'Sunset',
+  '午夜': 'Midnight',
+
   // ── 2026-11-15 D-447：复制分享链接的结果提示 ──
   '链接已复制': 'Link copied',
   '复制失败，请手动复制': 'Copy failed — please copy manually',

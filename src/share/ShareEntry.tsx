@@ -9,6 +9,7 @@ import App from '../App';
 import LocalEntryPage from '../ui/LocalEntryPage';
 import LoginBackdrop from '../ui/LoginBackdrop';
 import LoginBrandRow from '../ui/LoginBrandRow';
+import { useSkyTime } from '../ui/skyTime';
 import { applyUiPrefs } from '../lib/uiPrefs';
 import ShareKeyDialog from './ShareKeyDialog';
 import { loadShare, unlockShare, type PublicShare } from './api';
@@ -50,6 +51,12 @@ function lockHud(): void {
 export default function ShareEntry() {
   const token = useMemo(tokenFromPath, []);
   const t = makeShareT(SHARE_LANG);
+  /**
+   * 2026-11-17 D-521（用户要求「分享页控件」）：观者也能切天光。
+   * 访客没有设置页 → 每次都是 auto（按观者本机时间），控件放在欢迎信息卡里
+   * （左下角会被卡片压住，见 share.css 的 html[data-share] 规则）。
+   */
+  const sky = useSkyTime();
   const [stage, setStage] = useState<Stage>('loading');
   const [pub, setPub] = useState<PublicShare | null>(null);
   const [source, setSource] = useState<ShareSource | null>(null);
@@ -148,7 +155,7 @@ export default function ShareEntry() {
       // （LoginBackdrop + LoginBrandRow + login-card），文案居中、控件走 login-field/login-submit 的 38px。
       return (
         <div className="login-page local-entry-page share-gate-page">
-          <LoginBackdrop />
+          <LoginBackdrop time={sky.time} />
           <LoginBrandRow slogan={null} />
           <div className="key-modal-backdrop">
             <form
@@ -222,7 +229,7 @@ export default function ShareEntry() {
             : t('errorBody');
     return (
       <div className="login-page local-entry-page share-gate-page">
-        <LoginBackdrop />
+        <LoginBackdrop time={sky.time} />
         <LoginBrandRow slogan={null} />
         <div className="key-modal-backdrop">
           <div className="login-card key-modal-card share-gate-card">
@@ -264,6 +271,7 @@ export default function ShareEntry() {
         <div className="share-cover">
           <LocalEntryPage
             onEnter={enter}
+            sky={sky}
             ctaLabel="开始浏览"
             overlay={
               <>

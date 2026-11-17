@@ -13,6 +13,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../i18n';
 import LoginBackdrop from './LoginBackdrop';
 import LoginBrandRow from './LoginBrandRow';
+import SkyTimeSwitch from './SkyTimeSwitch';
+import { useSkyTime, type SkyMode, type SkyTimeState } from './skyTime';
 import { ClimberMark } from './ClimberMark';
 import { WiggleText } from './LoginSlogan';
 import './LoginPage.css';
@@ -22,6 +24,17 @@ interface Props {
   onEnter: () => void;
   /** 主题标语（设置 → 通用 → 主题，只存本机）；null = i18n 默认文案，空串 = 不显示 */
   slogan?: string | null;
+  /**
+   * 欢迎页时段偏好（2026-11-17 D-521，设置 → 通用 → 欢迎页，只存本机）：
+   * 缺省 auto = 跟随本机时间；左下角控件仍可临时切，刷新回到这里的值。
+   * 分享页不传（访客没有设置页）→ 观者每次都是 auto。
+   */
+  skyMode?: SkyMode;
+  /**
+   * 受控时段（2026-11-17 D-521：分享页把状态提到 ShareEntry，
+   * 这样密码 / 失效页也能和欢迎页同天光）。传了就用它；不传则本页自己 useSkyTime(skyMode)。
+   */
+  sky?: SkyTimeState;
   /**
    * 右下按钮文案（2026-11-08 D-312，用户要求）：缺天地图 Key 时复用本页，
    * 按钮显示「请填写地图Key」，点击重新打开 Key 小窗。
@@ -42,8 +55,19 @@ const prefersReducedMotion = () =>
 /** 淡出时长（与 CSS `.local-entry-page` 的 transition 一致） */
 const LEAVE_MS = 240;
 
-export default function LocalEntryPage({ onEnter, slogan, ctaLabel, instant, overlay }: Props) {
+export default function LocalEntryPage({
+  onEnter,
+  slogan,
+  skyMode,
+  sky: controlledSky,
+  ctaLabel,
+  instant,
+  overlay,
+}: Props) {
   const t = useT();
+  /** 2026-11-17（用户要求）：欢迎页四时段——没人动控件时按本机时间自动选（D-521：默认值来自设置） */
+  const ownSky = useSkyTime(skyMode);
+  const sky = controlledSky ?? ownSky;
   const label = ctaLabel ?? t('开始记录我的旅迹');
   /** 点击后先淡出再进入应用，避免明亮欢迎页直接切到深色地图的硬切感 */
   const [leaving, setLeaving] = useState(false);
@@ -69,9 +93,11 @@ export default function LocalEntryPage({ onEnter, slogan, ctaLabel, instant, ove
   return (
     <div
       className={leaving ? 'login-page local-entry-page is-leaving' : 'login-page local-entry-page'}
+      data-sky={sky.time}
     >
-      {/* 与登录页 / Key 引导页共用的中国地图品牌背景 */}
-      <LoginBackdrop />
+      {/* 与登录页 / Key 引导页共用的中国地图品牌背景（2026-11-17：四时段） */}
+      <LoginBackdrop time={sky.time} />
+      <SkyTimeSwitch mode={sky.mode} onChange={sky.choose} />
       {/* 左上角正式 Logo + 右侧缩小的主题标语 */}
       <LoginBrandRow slogan={slogan} />
       {/* 右下角入口按钮：点击不需要登录，直接进入应用 */}

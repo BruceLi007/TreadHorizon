@@ -616,6 +616,41 @@ html:is([data-theme='dark'], [data-theme='black']) .login-page .seg-btn.on {
   overflow-wrap: anywhere;
 }
 
+/* ── 2026-11-17（四时段欢迎页）：日落 / 午夜左上天空是深的，Logo 与标语换浅色 ──
+   带子元素字色由 .login-slogan 继承；日光下的墨色版本（中午 / 日出）不改。 */
+html[data-sky='sunset'] .login-brand-logo,
+html[data-sky='night'] .login-brand-logo {
+  color: #f2f6ff;
+  filter:
+    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.22))
+    drop-shadow(0 10px 26px rgba(5, 12, 30, 0.5));
+}
+
+html[data-sky='sunset'] .login-slogan,
+html[data-sky='night'] .login-slogan {
+  color: #eef4ff;
+  text-shadow:
+    0 2px 0 rgba(6, 11, 26, 0.45),
+    0 10px 26px rgba(8, 16, 40, 0.5);
+}
+
+/* 日落偏暖，标语用奶油白（紫罗兰天空上更融） */
+html[data-sky='sunset'] .login-slogan {
+  color: #fff1e0;
+  text-shadow:
+    0 2px 0 rgba(58, 24, 48, 0.42),
+    0 10px 26px rgba(70, 30, 60, 0.42);
+}
+
+/* ── 2026-11-17（四时段欢迎页）：深色时段里登录卡更实一点 ──
+   卡片本来就是 66% 半透明（为了透出地图）；在夜色 / 暮色背景上会发灰，
+   这里提到 86%，像一张亮着灯的白纸卡，文字对比也更稳。 */
+html[data-sky='sunset'] .login-page .login-card,
+html[data-sky='night'] .login-page .login-card {
+  background-color: color-mix(in srgb, var(--bg-panel) 86%, transparent);
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
 @media (max-width: 700px) {
   .login-brand-row {
     top: 12px;

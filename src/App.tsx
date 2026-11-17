@@ -39,6 +39,7 @@ import LoginPage from './ui/LoginPage';
 import { WiggleText } from './ui/LoginSlogan';
 import KeySetupPage from './ui/KeySetupPage';
 import LocalEntryPage from './ui/LocalEntryPage';
+import { readSkyPref, SKY_PREF_KEY, type SkyMode } from './ui/skyTime';
 import SecretPrompt from './ui/SecretPrompt';
 import ShareConfirmDialog from './ui/ShareConfirmDialog';
 import ShareUploadDialog from './ui/ShareUploadDialog';
@@ -404,6 +405,12 @@ export default function App() {
   // 界面语言（2026-11-04，D-138）：简体中文 / English；只存 localStorage
   const [lang, setLang] = useState<Lang>(readLang);
   /**
+   * 欢迎页时段偏好（2026-11-17 D-521，用户要求「设置里的时段项」）：
+   * `auto` = 跟随本机当前时间（默认），也可以固定成日出 / 中午 / 日落 / 午夜。
+   * 只存本机 localStorage（`tm-sky`）；欢迎页左下角的控件是本次浏览的临时覆盖，不改这里。
+   */
+  const [skyMode, setSkyMode] = useState<SkyMode>(readSkyPref);
+  /**
    * 账号模式与当前用户（2026-11-06 M6 P2-1，D-200）：
    * null = 还没拿到；local = 单机无账号（默认，行为与以前完全一致）；
    * multi 且 user=null = 需要先登录，整页显示登录 / 邀请码注册页。
@@ -724,6 +731,15 @@ export default function App() {
       /* 隐私模式下可能写不进去，忽略 */
     }
   }, [lang]);
+
+  // ── 欢迎页时段偏好（2026-11-17 D-521）：只存本机浏览器，和主题 / 字体一致 ──
+  useEffect(() => {
+    try {
+      localStorage.setItem(SKY_PREF_KEY, skyMode);
+    } catch {
+      /* 隐私模式下可能写不进去，忽略 */
+    }
+  }, [skyMode]);
 
   // ── 顶栏搜索（D-130）：展开后点外面自动收起 ──
   useEffect(() => {
@@ -2373,6 +2389,7 @@ export default function App() {
         <LoginPage
           onLoggedIn={() => window.location.reload()}
           slogan={slogan}
+          skyMode={skyMode}
           demo={authMe?.demo}
         />
       </I18nContext.Provider>
@@ -2388,6 +2405,7 @@ export default function App() {
       <I18nContext.Provider value={i18n}>
         <LocalEntryPage
           slogan={slogan}
+          skyMode={skyMode}
           onEnter={() => setKeySetupClosed(false)}
           ctaLabel={t('请填写地图Key')}
           instant
@@ -2415,7 +2433,7 @@ export default function App() {
   if (welcomeReplay || (authMe?.mode === 'local' && !localEntered)) {
     return (
       <I18nContext.Provider value={i18n}>
-        <LocalEntryPage slogan={slogan} onEnter={enterFromWelcome} />
+        <LocalEntryPage slogan={slogan} skyMode={skyMode} onEnter={enterFromWelcome} />
       </I18nContext.Provider>
     );
   }
@@ -3166,6 +3184,8 @@ export default function App() {
           onSlogan={setSlogan}
           lang={lang}
           onLang={setLang}
+          skyMode={skyMode}
+          onSkyMode={setSkyMode}
           homeColor={homeColor}
           onHomeColor={changeHomeColor}
           markerColors={markerColors}

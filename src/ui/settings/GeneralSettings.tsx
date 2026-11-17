@@ -30,6 +30,7 @@ import {
 } from './types';
 import Segmented from '../Segmented';
 import { LANGS, useT, type Lang } from '../../i18n';
+import { SKY_LABELS, SKY_TIMES, type SkyMode } from '../skyTime';
 
 interface Props {
   theme: Theme;
@@ -51,6 +52,12 @@ interface Props {
   /** 界面语言（2026-11-04，D-138）：简体中文 / English */
   lang: Lang;
   onLang: (l: Lang) => void;
+  /**
+   * 欢迎页时段偏好（2026-11-17 D-521，用户要求）：auto = 跟随当前时间（默认），
+   * 或固定成日出 / 中午 / 日落 / 午夜；只存本机。欢迎页左下角的控件是临时覆盖，不改这里。
+   */
+  skyMode: SkyMode;
+  onSkyMode: (m: SkyMode) => void;
   /** 「家」图标配色（2026-11-05，D-161）：7 色可选，只存本机 */
   homeColor: HomeColor;
   onHomeColor: (c: HomeColor) => void;
@@ -78,6 +85,8 @@ export default function GeneralSettings({
   onSlogan,
   lang,
   onLang,
+  skyMode,
+  onSkyMode,
   homeColor,
   onHomeColor,
   markerColors,
@@ -106,6 +115,8 @@ export default function GeneralSettings({
   const fontLabel = t(
     (APP_FONTS.find((f) => f.id === font) ?? APP_FONTS.find((f) => f.id === DEFAULT_FONT)!).label
   );
+  // 2026-11-17 D-521：欢迎页时段偏好（设置 → 通用 → 欢迎页）——auto 跟时间，或固定某一套天光
+  const skyModeLabel = skyMode === 'auto' ? t('自动（跟随当前时间）') : t(SKY_LABELS[skyMode]);
   // 2026-11-05 D-146 / D-147：主题标语（顶栏大按钮组上方那一句）。
   // 未自定义时输入框显示 i18n 默认文案；任意一次编辑就转成「自定义」；留空 = 顶栏不显示标语。
   const defaultSlogan = `${t('世界辣 ~ ~ ~ 么大')} ${t('我想 · · · 总得去看一看吧 ! ! !')}`;
@@ -178,6 +189,26 @@ export default function GeneralSettings({
           options={LANGS.map((l) => ({ id: l.id, label: l.label }))}
           value={lang}
           onChange={(id) => onLang(id as Lang)}
+        />
+      </section>
+
+      {/* ── 欢迎页时段（2026-11-17 D-521，用户要求）：默认 auto = 跟随当前时间；
+             固定某个时段后，欢迎页每次打开都是那一套天光（左下角控件仍可临时切） ── */}
+      <section className="set-section">
+        <div className="set-section-head">
+          <h3 className="set-section-title">{t('欢迎页时段')}</h3>
+          <span className="set-section-tag">{skyModeLabel}</span>
+        </div>
+        <Segmented
+          size="sm"
+          variant="radio"
+          ariaLabel={t('欢迎页时段')}
+          options={[
+            { id: 'auto', label: t('自动') },
+            ...SKY_TIMES.map((m) => ({ id: m, label: t(SKY_LABELS[m]) })),
+          ]}
+          value={skyMode}
+          onChange={(id) => onSkyMode(id as SkyMode)}
         />
       </section>
 

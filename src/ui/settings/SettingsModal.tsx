@@ -4,6 +4,7 @@ import type { BackupStatus, ShareUploadTask, UpdateCheckResult, UploadItem } fro
 import type { AppFont, FontSize, FontWeight, Slogan, Theme, ThemeLevel } from './types';
 import type { HomeColor } from '../../lib/homeIcon';
 import type { MarkerColorPrefs } from '../../lib/markerColors';
+import type { SkyMode } from '../skyTime';
 import { useT, type Lang } from '../../i18n';
 import CloseIcon from '../CloseIcon';
 import type { AuthMode, AuthUser } from '../../lib/types';
@@ -56,6 +57,12 @@ interface Props {
   /** 界面语言（2026-11-04，D-138）：简体中文 / English，只存本机浏览器 */
   lang: Lang;
   onLang: (l: Lang) => void;
+  /**
+   * 欢迎页时段偏好（2026-11-17 D-521，用户要求「设置里的时段项」）：
+   * auto（跟随当前时间）/ 日出 / 中午 / 日落 / 午夜；只存本机浏览器。
+   */
+  skyMode: SkyMode;
+  onSkyMode: (m: SkyMode) => void;
   /** 「家」图标配色（2026-11-05，D-161）：7 色可选，只存本机浏览器 */
   homeColor: HomeColor;
   onHomeColor: (c: HomeColor) => void;
@@ -321,6 +328,8 @@ export default function SettingsModal({
   onSlogan,
   lang,
   onLang,
+  skyMode,
+  onSkyMode,
   homeColor,
   onHomeColor,
   markerColors,
@@ -554,6 +563,8 @@ export default function SettingsModal({
                 onSlogan={onSlogan}
                 lang={lang}
                 onLang={onLang}
+                skyMode={skyMode}
+                onSkyMode={onSkyMode}
                 homeColor={homeColor}
                 onHomeColor={onHomeColor}
                 markerColors={markerColors}

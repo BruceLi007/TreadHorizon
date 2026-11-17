@@ -1,0 +1,140 @@
+/* ── 欢迎页左下角「时段」控件（2026-11-17）──
+   默认白色磨砂小药丸；日落 / 午夜自动换深玻璃底 + 浅色图标（html[data-sky] 由 LoginBackdrop 写入）。
+   手机端竖成一列，避免和右下角「开始记录我的旅迹」按钮抢位置。 */
+
+.sky-switch {
+  position: absolute;
+  left: clamp(16px, 3.2vw, 64px);
+  bottom: clamp(18px, 5.5vh, 56px);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  background: color-mix(in srgb, #ffffff 76%, transparent);
+  backdrop-filter: blur(12px) saturate(1.1);
+  box-shadow:
+    0 10px 26px rgba(31, 71, 102, 0.18),
+    0 2px 6px rgba(31, 71, 102, 0.1);
+  transition:
+    background-color 400ms ease,
+    border-color 400ms ease,
+    box-shadow 400ms ease;
+}
+
+.sky-switch-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #33475b;
+  opacity: 0.6;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.sky-switch-btn svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+
+.sky-switch-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.sky-switch-btn:focus-visible {
+  outline: 2px solid var(--accent, #161b22);
+  outline-offset: 2px;
+}
+
+html[data-sky='sunset'] .sky-switch-btn:focus-visible,
+html[data-sky='night'] .sky-switch-btn:focus-visible {
+  outline-color: #cfe0ff;
+}
+
+.sky-switch-btn.is-on {
+  opacity: 1;
+  color: #ffffff;
+  background: #161b22;
+  box-shadow: 0 2px 8px rgba(20, 30, 40, 0.28);
+}
+
+.sky-switch-btn.is-on:hover {
+  background: #161b22;
+  transform: translateY(-1px);
+}
+
+/* 日落 / 午夜：左上天空是深的，控件换深玻璃底 + 浅色图标 */
+html[data-sky='sunset'] .sky-switch,
+html[data-sky='night'] .sky-switch {
+  border-color: rgba(198, 214, 255, 0.28);
+  background: color-mix(in srgb, #0d1730 58%, transparent);
+  box-shadow:
+    0 12px 30px rgba(4, 10, 26, 0.38),
+    0 2px 6px rgba(4, 10, 26, 0.24);
+}
+
+html[data-sky='sunset'] .sky-switch-btn,
+html[data-sky='night'] .sky-switch-btn {
+  color: #dbe7ff;
+}
+
+html[data-sky='sunset'] .sky-switch-btn:hover,
+html[data-sky='night'] .sky-switch-btn:hover {
+  background: rgba(190, 210, 255, 0.14);
+}
+
+html[data-sky='sunset'] .sky-switch-btn.is-on,
+html[data-sky='night'] .sky-switch-btn.is-on {
+  background: #eef3ff;
+  color: #101a33;
+  box-shadow: 0 2px 10px rgba(150, 180, 255, 0.35);
+}
+
+html[data-sky='sunset'] .sky-switch-btn.is-on:hover,
+html[data-sky='night'] .sky-switch-btn.is-on:hover {
+  background: #ffffff;
+}
+
+@media (max-width: 700px) {
+  .sky-switch {
+    left: 14px;
+    bottom: 16px;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+  }
+
+  .sky-switch-btn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .sky-switch-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sky-switch,
+  .sky-switch-btn {
+    transition: none;
+  }
+
+  .sky-switch-btn.is-on:hover {
+    transform: none;
+  }
+}
