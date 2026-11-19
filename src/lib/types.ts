@@ -992,5 +992,29 @@ export interface BackgroundTasks {
   trashJobs: TrashJob[];
   /** 2026-11-15 D-431：本地分享包导出 */
   shareExportJobs: ShareExportJob[];
+  /** 2026-11-19 D-536：本地 → 云端 主页快照同步（服务端后台任务，关设置不中断） */
+  cloudSyncJobs: CloudSyncTaskRow[];
+}
+
+/**
+ * 云端同步任务（2026-11-19 D-536）。
+ *
+ * 与 `CloudSyncJob`（单条轮询用）字段一致，多的 `createdAt / finishedAt / canceled`
+ * 是「设置 → 后台任务」列表排序与状态显示需要的。
+ */
+export interface CloudSyncTaskRow {
+  jobId: string;
+  state: 'running' | 'done' | 'error' | 'canceled';
+  phase: 'pack' | 'upload';
+  total: number;
+  done: number;
+  bytes: number;
+  photos: number;
+  places: number;
+  visits: number;
+  error: string | null;
+  createdAt: number;
+  finishedAt: number | null;
+  canceled: boolean;
 }
 

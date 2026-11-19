@@ -673,6 +673,37 @@ export function cancelCloudSync(jobId) {
   return true;
 }
 
+/**
+ * 设置 → 后台任务：列出内存里最近的同步任务（2026-11-19 D-536）。
+ *
+ * 同步本来就是**服务端后台任务**（`startCloudSync` → setImmediate，关设置 / 刷新都不中断），
+ * 但以前只在「云端账号」卡片里按 jobId 轮询：关掉设置就看不到进度、后台任务里也没有这一项。
+ * 这里把内存 job 列表暴露给 `/api/background-tasks`，两处共用同一份状态。
+ * 任务在内存里按 `JOB_TTL_MS`（60 分钟）过期，前端只需要「当前 + 刚结束的几条」。
+ */
+export function listCloudSyncJobs() {
+  // 2026-11-19：列表也会被「设置 → 后台任务」每 2 秒轮询，顺手清掉过期任务 ——
+  // 否则超过 JOB_TTL_MS 的旧行要等到下一次起同步才消失（列表里挂着几小时前的任务很怪）。
+  pruneJobs();
+  return [...jobs.values()]
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    .map((j) => ({
+      jobId: j.jobId,
+      state: j.state,
+      phase: j.phase,
+      total: j.total,
+      done: j.done,
+      bytes: j.bytes,
+      photos: j.photos,
+      places: j.places,
+      visits: j.visits,
+      error: j.error,
+      createdAt: j.createdAt,
+      finishedAt: j.finishedAt,
+      canceled: j.canceled === true,
+    }));
+}
+
 /* ───────────── 路由 ───────────── */
 
 export async function registerCloudRoutes(app) {

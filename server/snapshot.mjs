@@ -175,6 +175,34 @@ export async function importSnapshot(ownerId, zipPath, stageDir) {
     }
   }
 
+  /**
+   * 4) 清掉**旧路径方案**留下的孤儿文件 + 该账号的缩略图缓存（2026-11-19 D-536）。
+   *
+   * 早期快照/导入把照片放在 `<mediaRoot>/<owner>/省/市/区/日期_地点/`（rel_path 里带账号前缀），
+   * 现在统一放 `<mediaRoot>/snapshot/<owner>/<batch>/`；上面的批次清理只覆盖后者，
+   * 旧目录会变成删不掉的孤儿（占着磁盘、库里已无引用）。
+   *
+   * 安全性：第 2 步已经 `DELETE FROM media WHERE user_id = ?` 并提交，这两处目录里的文件
+   * 在库里**一定没有引用**了；缩略图缓存（`thumbs/<owner>`）本来就是按需重建的，一起清掉更干净。
+   * 任何一步失败都只影响磁盘占用，不影响本次同步结果 —— 所以全部 try/catch 吞掉。
+   */
+  try {
+    const legacyDir = safeResolve(mediaRoot, String(ownerId));
+    if (legacyDir && legacyDir !== mediaRoot && existsSync(legacyDir) && statSync(legacyDir).isDirectory()) {
+      rmSync(legacyDir, { recursive: true, force: true });
+    }
+  } catch {
+    /* 孤儿目录清不掉不影响同步结果 */
+  }
+  try {
+    const thumbDir = safeResolve(CONFIG.thumbDir, String(ownerId));
+    if (thumbDir && thumbDir !== CONFIG.thumbDir && existsSync(thumbDir)) {
+      rmSync(thumbDir, { recursive: true, force: true });
+    }
+  } catch {
+    /* 缩略图缓存可重建 */
+  }
+
   return { places: manifest.places.length, visits: visitCount, photos: photoCount, bytes };
 }
 

@@ -454,6 +454,36 @@ export default function App() {
   useEffect(() => {
     if (authMe?.mode === 'local') void refreshCloudStatus();
   }, [authMe?.mode, refreshCloudStatus]);
+
+  /**
+   * 2026-11-19 D-537（用户：「同步成功后，还是没有提示同步成功」）：
+   * 同步完成 / 失败的提示放在 **App 层**盯着 jobId 轮询，而不是放在设置里的卡片 ——
+   * 这样用户点完「立即同步」把设置关掉（甚至刷新页面）也照样能收到提示；
+   * 卡片自己那套蓝色进度条只负责"看着舒服"，提示只有这里出一次。
+   *
+   * 注意：真正轮询的 effect 放在下面的 `say` 定义之后（依赖 `say`，不能提前引用）。
+   */
+  const [syncJobId, setSyncJobId] = useState<string | null>(null);
+
+  /**
+   * 刷新页面 / 重开应用时接回正在跑的同步（只在本地模式查一次）：
+   * `/api/background-tasks` 里若有 running 的云同步，就把 jobId 交给上面的 watcher，
+   * 结束后照样弹提示。
+   */
+  const syncResumeChecked = useRef(false);
+  useEffect(() => {
+    if (authMe?.mode !== 'local' || syncResumeChecked.current) return;
+    syncResumeChecked.current = true;
+    (async () => {
+      try {
+        const t = await api.backgroundTasks();
+        const running = (t?.cloudSyncJobs || []).find((j) => j.state === 'running');
+        if (running) setSyncJobId((cur) => cur ?? running.jobId);
+      } catch {
+        /* 云端 / 只读会话没有这个接口，忽略 */
+      }
+    })();
+  }, [authMe?.mode]);
   /** 2026-11-15 D-423：分享页以只读访客身份复用本组件——顶栏入口全部保留，但不可用时挂只读提示 */
   const guest = isGuestMode();
   /**
@@ -574,6 +604,52 @@ export default function App() {
     setToast(msg);
     window.setTimeout(() => setToast((t) => (t === msg ? null : t)), 3200);
   }, []);
+
+  /**
+   * 2026-11-19 D-537：盯着同步任务，结束时弹一次提示（成功带数量、失败带原因；取消不弹）。
+   * 放在 `say` 之后：依赖数组里引用了 say，提前放会踩 TDZ。
+   */
+  useEffect(() => {
+    if (!syncJobId) return;
+    let alive = true;
+    let timer: number | null = null;
+    const tick = async () => {
+      try {
+        const s = await api.cloudSyncStatus(syncJobId);
+        if (!alive) return;
+        if (s.state === 'running') {
+          timer = window.setTimeout(() => void tick(), 900);
+          return;
+        }
+        alive = false;
+        setSyncJobId(null);
+        void refreshCloudStatus();
+        if (s.state === 'done') {
+          say(
+            tr('已同步到云端：{p} 地点 · {v} 到访 · {m} 张照片', {
+              p: s.places,
+              v: s.visits,
+              m: s.photos,
+            })
+          );
+        } else if (s.state === 'error') {
+          say(tr('同步失败：{msg}', { msg: s.error || '' }));
+        }
+        // canceled：用户自己点的，不弹提示
+      } catch {
+        /* 任务已过期（内存 60 分钟）/ 服务重启：静默放弃，不打扰用户 */
+        if (alive) {
+          alive = false;
+          setSyncJobId(null);
+        }
+      }
+    };
+    void tick();
+    return () => {
+      alive = false;
+      if (timer != null) window.clearTimeout(timer);
+    };
+  }, [syncJobId, refreshCloudStatus, say]);
 
   /** D-161：切换家图标配色时先同步写 localStorage，保证同一次渲染里的 PlaceThumb 立刻读到新值 */
   const changeHomeColor = useCallback((c: HomeColor) => {
@@ -3231,6 +3307,7 @@ export default function App() {
           readOnly={readOnly}
           cloudStatus={cloudStatus}
           onCloudChanged={() => void refreshCloudStatus()}
+          onCloudSyncStarted={setSyncJobId}
           onClose={() => {
             setSettingsOpen(false);
             setSettingsInitialTab(undefined);

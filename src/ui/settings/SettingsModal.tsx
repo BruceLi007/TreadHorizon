@@ -120,6 +120,8 @@ interface Props {
   /** 2026-11-18 D-523：本地版「云端账号」（登录态 / 同步），由 App 持有并刷新 */
   cloudStatus?: CloudStatus | null;
   onCloudChanged?: () => void;
+  /** 2026-11-19 D-537：同步开始 → 把 jobId 交给 App（关设置也照常提示成功 / 失败） */
+  onCloudSyncStarted?: (jobId: string) => void;
 }
 
 export type TabId =
@@ -371,6 +373,7 @@ export default function SettingsModal({
   onRetryShareUpload = () => {},
   cloudStatus = null,
   onCloudChanged,
+  onCloudSyncStarted,
 }: Props) {
   const t = useT();
   const [tab, setTab] = useState<TabId>(initialTab ?? 'general');
@@ -586,7 +589,11 @@ export default function SettingsModal({
               />
             )}
             {activeTab === 'cloud' && (
-              <CloudAccountSection status={cloudStatus} onChanged={() => onCloudChanged?.()} />
+              <CloudAccountSection
+                status={cloudStatus}
+                onChanged={() => onCloudChanged?.()}
+                onSyncStarted={onCloudSyncStarted}
+              />
             )}
             {activeTab === 'backup' && (
               <BackupSettings onRestored={onRestored} onBackupStatus={onBackupStatus} />

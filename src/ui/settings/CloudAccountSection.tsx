@@ -14,6 +14,12 @@ import ConfirmDialog from '../ConfirmDialog';
 interface Props {
   status: CloudStatus | null;
   onChanged: () => void;
+  /**
+   * 2026-11-19 D-537（用户：「同步成功后，还是没有提示同步成功」）：
+   * 把 jobId 交给 App —— 由 App 层盯着任务结束并弹 toast，
+   * 这样**关掉设置**（甚至刷新页面）同步完成后也照样有提示。
+   */
+  onSyncStarted?: (jobId: string) => void;
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -23,7 +29,7 @@ const fmtTime = (ms?: number | null) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-export default function CloudAccountSection({ status, onChanged }: Props) {
+export default function CloudAccountSection({ status, onChanged, onSyncStarted }: Props) {
   const t = useT();
   const [baseUrl, setBaseUrl] = useState('');
   const [username, setUsername] = useState('');
@@ -104,6 +110,43 @@ export default function CloudAccountSection({ status, onChanged }: Props) {
     [onChanged]
   );
 
+  /**
+   * 2026-11-19 D-536：重开设置时接回正在跑的同步。
+   *
+   * 同步是服务端后台任务（关设置 / 刷新都不中断），但 jobId 以前只活在组件 state 里：
+   * 关掉设置再打开就看不到进度、也拿不回结果。这里从 `/api/background-tasks.cloudSyncJobs`
+   * 里找 running 的那条，重新挂上轮询；后台任务面板显示的是同一份数据。
+   */
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const t = await api.backgroundTasks();
+        const running = (t?.cloudSyncJobs || []).find((j) => j.state === 'running');
+        if (!alive || !running) return;
+        setJob({
+          jobId: running.jobId,
+          state: 'running',
+          phase: running.phase,
+          total: running.total,
+          done: running.done,
+          bytes: running.bytes,
+          photos: running.photos,
+          places: running.places,
+          visits: running.visits,
+          error: running.error,
+        });
+        void poll(running.jobId);
+        onSyncStarted?.(running.jobId);
+      } catch {
+        /* 云端 / 只读会话没有这个接口，忽略 */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [poll, onSyncStarted]);
+
   const startSync = async () => {
     setError('');
     try {
@@ -121,6 +164,7 @@ export default function CloudAccountSection({ status, onChanged }: Props) {
         error: null,
       });
       void poll(j.jobId);
+      onSyncStarted?.(j.jobId);
     } catch (e: any) {
       setError(e?.message || String(e));
     }

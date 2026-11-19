@@ -539,6 +539,16 @@ const dict: Dict = {
   '手机版为只读展示：请在电脑端添加照片 / 视频':
     'The mobile layout is view-only — add photos / videos on your computer',
   '还没有内容 · 请在电脑端添加足迹': 'Nothing here yet · Add footprints on your computer',
+  // 2026-11-19 D-536：云端同步进「后台任务」
+  '云端同步': 'Cloud sync',
+  '主页快照同步到云端（关设置不中断）': 'Home snapshot upload to the cloud (keeps running after closing Settings)',
+  '打包中': 'Packing',
+  '已同步': 'Synced',
+  '{p} 地点 · {v} 到访 · {m} 照片': '{p} places · {v} visits · {m} photos',
+  // 2026-11-19 D-537（同步完成提示）
+  '已同步到云端：{p} 地点 · {v} 到访 · {m} 张照片':
+    'Synced to the cloud: {p} places · {v} visits · {m} photos',
+  '同步失败：{msg}': 'Sync failed: {msg}',
 };
 
 export default dict;

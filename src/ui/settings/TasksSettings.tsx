@@ -8,8 +8,9 @@
  * - 一栏集中展示**所有有持续时间**的任务，按来源分类：
  *   ① 上传（本机队列，状态由 App 持有，直接复用 `UploadSettings`）；
  *   ② 备份（备份导出 / 备份恢复 / 备份包检查）；
- *   ③ 分享（本地分享包导出）；
- *   ④ 回收站（批量恢复 / 彻底删除）。
+ *   ③ 分享（本地分享包导出 / 云端分享上传）；
+ *   ④ 回收站（批量恢复 / 彻底删除）；
+ *   ⑤ 云端同步（本地 → 云端 主页快照同步，2026-11-19 D-536 —— 服务端后台任务，关设置不中断）。
  * - 服务端任务（②③④）每 2 秒轮询 `GET /api/background-tasks`，只在本页显示时轮询；
  *   上传（①）是纯前端状态，跟着 props 变。
  * - 只读样板会话 / 云端非管理员：接口会 403，这里静默显示「没有可查看的后台任务」。
@@ -22,6 +23,7 @@ import type {
   BackupExportJobStatus,
   BackupInspectJobStatus,
   BackupRestoreJobStatus,
+  CloudSyncTaskRow,
   ShareExportJob,
   ShareUploadTask,
   TrashJob,
@@ -68,6 +70,7 @@ const EMPTY: BackgroundTasks = {
   inspectJobs: [],
   shareExportJobs: [],
   trashJobs: [],
+  cloudSyncJobs: [],
 };
 
 /** 每个分类最多先显示几条（多了折在「展开全部」里） */
@@ -152,6 +155,7 @@ export default function TasksSettings({
         inspectJobs: next?.inspectJobs || [],
         trashJobs: next?.trashJobs || [],
         shareExportJobs: next?.shareExportJobs || [],
+        cloudSyncJobs: next?.cloudSyncJobs || [],
       });
       setDenied(false);
     } catch {
@@ -298,11 +302,56 @@ export default function TasksSettings({
     [tasks, t]
   );
 
+  /**
+   * 2026-11-19 D-536：本地 → 云端 主页快照同步。
+   * 它本来就是服务端后台任务（关设置 / 刷新不中断），只是以前没在后台任务里露脸；
+   * 这里把 `/api/background-tasks.cloudSyncJobs` 的最近几条列出来，进度口径与「云端账号」卡片一致。
+   */
+  const cloudRows: Row[] = useMemo(
+    () =>
+      (tasks.cloudSyncJobs as CloudSyncTaskRow[])
+        .map((j) => {
+          const running = j.state === 'running';
+          const phaseLabel = running
+            ? j.phase === 'upload'
+              ? t('上传中')
+              : t('打包中')
+            : j.state === 'done'
+              ? t('已同步')
+              : j.state === 'canceled'
+                ? t('已取消')
+                : undefined;
+          return {
+            id: `cloud-${j.jobId}`,
+            kind: t('同步到云端'),
+            tone: (running ? 'running' : j.state === 'error' ? 'error' : j.state === 'canceled' ? 'idle' : 'done') as Tone,
+            // 打包阶段还没有照片总数，用「已打包 / 总数」；上传阶段是占位进度（服务端上传是一次请求）
+            done: running && j.total > 0 ? j.done : undefined,
+            total: running && j.total > 0 ? j.total : undefined,
+            percentLabel: running && j.total === 0 ? t('打包中') : undefined,
+            detail: [
+              phaseLabel,
+              j.places > 0 || j.visits > 0
+                ? t('{p} 地点 · {v} 到访 · {m} 照片', { p: j.places, v: j.visits, m: j.photos || j.total })
+                : '',
+              j.bytes > 0 ? fmtBytes(j.bytes) : '',
+            ]
+              .filter(Boolean)
+              .join(' · '),
+            error: j.error,
+            createdAt: j.createdAt,
+          } as Row;
+        })
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)),
+    [tasks, t]
+  );
+
   const runningCount =
     uploadStats.active +
     backupRows.filter((r) => r.tone === 'running').length +
     shareRows.filter((r) => r.tone === 'running').length +
-    trashRows.filter((r) => r.tone === 'running').length;
+    trashRows.filter((r) => r.tone === 'running').length +
+    cloudRows.filter((r) => r.tone === 'running').length;
 
   const emptyHint = denied ? t('当前账号没有可查看的后台任务。') : t('暂无任务。');
 
@@ -460,6 +509,8 @@ export default function TasksSettings({
       )}
 
       {section('share', t('分享'), t('本地分享包导出 / 云端上传'), shareRows)}
+
+      {section('cloud', t('云端同步'), t('主页快照同步到云端（关设置不中断）'), cloudRows)}
 
       {section('trash', t('回收站'), t('批量恢复 / 彻底删除'), trashRows)}
     </div>

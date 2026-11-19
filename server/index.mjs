@@ -106,7 +106,7 @@ import { UserExportError, buildUserExportZip, userExportFileName } from './user-
 import { ZipError } from './zip.mjs';
 // 2026-11-14 D-416：分享（F-SHR-01）—— 公开只读接口 + 账号导入/列表/撤销 + 到期清理
 import { countTrashShares, listTrashShares, pruneShares, registerShareRoutes, revokeAllSharesForUser } from './share.mjs';
-import { registerCloudRoutes } from './cloud.mjs';
+import { listCloudSyncJobs, registerCloudRoutes } from './cloud.mjs';
 import { registerSnapshotRoutes } from './snapshot.mjs';
 import {
   cancelShareExport,
@@ -3989,7 +3989,14 @@ app.get('/api/background-tasks', async (req, reply) => {
   const owner = ownerOf(req);
   // 只读样板会话没有自己的任务，直接返回空（避免看到宿主数据）
   if (req.authUser?.readOnly) {
-    return { exportJobs: [], restoreJobs: [], inspectJobs: [], trashJobs: [], shareExportJobs: [] };
+    return {
+      exportJobs: [],
+      restoreJobs: [],
+      inspectJobs: [],
+      trashJobs: [],
+      shareExportJobs: [],
+      cloudSyncJobs: [],
+    };
   }
   return {
     exportJobs: listExportJobs(owner),
@@ -3998,6 +4005,8 @@ app.get('/api/background-tasks', async (req, reply) => {
     trashJobs: listTrashJobs(owner),
     // 本地分享包导出只在 local 模式存在（multi 下 /api/share/export/* 会被拒绝）
     shareExportJobs: CONFIG.authMode === 'multi' ? [] : listShareExportJobs(),
+    // 2026-11-19 D-536：本地 → 云端 主页快照同步也是后台任务（只有本地版有）
+    cloudSyncJobs: CONFIG.authMode === 'multi' ? [] : listCloudSyncJobs(),
   };
 });
 
