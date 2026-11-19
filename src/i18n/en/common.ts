@@ -413,6 +413,132 @@ const dict: Dict = {
   '读取到访失败：{msg}': 'Could not load visits: {msg}',
   '正在读取…': 'Loading…',
   '{n} 个文件': '{n} files',
+
+  // ── 2026-11-18 D-522：云端只读展示（按钮灰化 + 空库一行提示）──
+  '云端为只读展示：请在本地客户端添加足迹': 'Cloud is display-only — add places from the local app',
+  '云端为只读展示：分享请从本地客户端发起': 'Cloud is display-only — share from the local app',
+  '云端为只读展示：请在本地客户端添加照片 / 视频':
+    'Cloud is display-only — add photos/videos from the local app',
+  '还没有内容 · 去本地客户端 设置 → 云端账号 → 立即同步':
+    'Nothing here yet · Sync from the local app: Settings → Cloud account',
+
+  // ── 2026-11-18 D-523 / D-524：云端账号、分享直传、分享管理 ──
+  '云端账号': 'Cloud account',
+  '云端地址': 'Cloud URL',
+  '登录云端': 'Sign in to cloud',
+  '未登录': 'Not signed in',
+  '已登录 · {name}': 'Signed in · {name}',
+  '已连接': 'Connected',
+  '连不上云端': 'Cannot reach cloud',
+  '登录云端后上传': 'Sign in to upload',
+  '上传到云端{name}': 'Upload to cloud{name}',
+  '只在本机保存会话凭证，不保存密码':
+    'Only the session token is stored locally; your password is never saved',
+  '建议用 https 地址；公网 http 下密码是明文传输。':
+    'Use https if possible; over plain http your password is sent in plain text.',
+  '用你在云端官网注册的账号登录。登录后，本地分享可以直接上传到云端（只传缩略图，不上传原图）。':
+    'Sign in with the account you registered on the cloud site. After that, local shares can upload directly (thumbnails only).',
+  '云端已用 {used} / {quota} · {n} 份分享': 'Cloud usage {used} / {quota} · {n} shares',
+  '同步到云端': 'Sync to cloud',
+  '主页快照': 'Home snapshot',
+  '主页快照 · 只保留一份': 'Home snapshot · only one is kept',
+  '只保留一份': 'Only one',
+  '把全部地点 / 到访 / 照片的缩略图同步到云端，登录云端看到的就是这一份；视频与秘密基地不参与。':
+    'Syncs thumbnails of all places / visits / photos; the cloud shows exactly this snapshot. Videos and secret places are excluded.',
+  '正在生成缩略图… {done} / {total}': 'Generating thumbnails… {done} / {total}',
+  '取消同步': 'Cancel sync',
+  '上次同步 {time} · {places} 地点 · {visits} 到访 · {photos} 张照片 · {size}':
+    'Last sync {time} · {places} places · {visits} visits · {photos} photos · {size}',
+  '还没有同步过': 'Never synced',
+  '本地有未同步的改动（当前 {places} 地点 / {visits} 到访 / {photos} 张照片）':
+    'Local changes not synced yet ({places} places / {visits} visits / {photos} photos)',
+  '立即同步': 'Sync now',
+  '立即同步（覆盖云端）': 'Sync now (replaces cloud)',
+  '会覆盖云端现有的主页快照；上限 = 账号容量。':
+    'Replaces the current home snapshot; limited by your account quota.',
+  '上传的是 1280 长边缩略图，不含原图 / 视频 / 秘密基地；上传后可在云端「我的分享」里设访问密码。':
+    'Only 1280px WebP thumbnails are uploaded — no originals, videos, or secret places. Set an access password later in “My shares” on the cloud.',
+  '正在生成缩略图…': 'Generating thumbnails…',
+  '正在上传到云端…': 'Uploading to cloud…',
+  '上传在后台进行，关掉这个窗口也不会中断。':
+    'Uploading runs in the background; closing this window will not stop it.',
+  '已上传到云端': 'Uploaded to cloud',
+  '分享包 {size}': 'Package {size}',
+  '还没有登录云端账号：登录后就能直接上传（设置 → 云端账号）。':
+    'You are not signed in to the cloud yet — sign in to upload directly (Settings → Cloud account).',
+  '这条分享已经出现在云端「设置 → 我的分享」里，可以在那里预览、设密码、撤销或删除。':
+    'This share now appears in the cloud under Settings → My shares; preview it, set a password, revoke or delete it there.',
+  '选择封面': 'Choose cover',
+  '选择封面…': 'Choose cover…',
+  '每行张数': 'Photos per row',
+  '{n} 列': '{n} per row',
+  '每行 4 / 6 / 8 / 10 可切；点图片放大预览，选中一张作为分享封面。':
+    'Switch 4 / 6 / 8 / 10 per row; click a photo to preview, then pick one as the share cover.',
+  '点一下选中，双击放大': 'Click to select, double-click to enlarge',
+  '使用这张': 'Use this one',
+  '用这张做封面': 'Use as cover',
+  '默认第一张': 'Defaults to the first photo',
+  '分享链接': 'Share links',
+  '{n} 份': '{n} shares',
+  '占用 {size} · {n} 份 · 打开 {views} 次 · 访客 {visitors} 人':
+    'Using {size} · {n} shares · {views} views · {visitors} visitors',
+  '已设密码': 'Password set',
+  '设密码': 'Set password',
+  '改密码': 'Change password',
+  '重新上线': 'Bring back online',
+  '已过期，不能重新上线': 'Expired — cannot be brought back online',
+  '查看（{n}）': 'View ({n})',
+  '删除于 {time} · {size}': 'Deleted {time} · {size}',
+  '回收站是空的。': 'The recycle bin is empty.',
+  '设置访问密码': 'Set access password',
+  '访问密码': 'Access password',
+  '留空 = 公开': 'Leave empty = public',
+  '留空保存 = 取消密码，任何人拿到链接都能看。':
+    'Save with an empty value to remove the password; anyone with the link can view it.',
+  '保存': 'Save',
+  '同步于 {time} · {places} 地点 · {visits} 到访 · {photos} 张照片 · {size}':
+    'Synced {time} · {places} places · {visits} visits · {photos} photos · {size}',
+  '还没有同步内容：请在本地客户端 设置 → 云端账号 里同步。':
+    'Nothing synced yet — sync from the local app: Settings → Cloud account.',
+
+  // ── 2026-11-18 D-526 ~ D-530：分享成功提示 / 分享回收站并入回收站 / 同步二次确认 / 云端头像 / 词条补齐 ──
+  '分享已上传到云端': 'Share uploaded to cloud',
+  '同步到云端？': 'Sync to cloud?',
+  '开始同步': 'Start sync',
+  '会用本地全部足迹覆盖云端现有的主页快照（只保留一份）。':
+    'This replaces the current home snapshot on the cloud with all local footprints (only one is kept).',
+  '视频与秘密基地不参与；当前 {places} 地点 / {visits} 到访 / {photos} 张照片。':
+    'Videos and secret places are excluded. Now: {places} places / {visits} visits / {photos} photos.',
+  '登录云端账号、同步主页快照': 'Sign in to your cloud account and sync the home snapshot',
+  '后台任务': 'Background tasks',
+  '{places} 个地点 · {photos} 张照片 · {size}': '{places} places · {photos} photos · {size}',
+  ' · {n} 份分享': ' · {n} shares',
+  ' · 已设密码': ' · password set',
+  '恢复后为「已撤销」，可在「我的分享」里重新上线':
+    'Restored as “revoked”; bring it back online in My shares',
+  '恢复到「我的分享」（状态为已撤销）': 'Restore to My shares (as revoked)',
+  '彻底删除分享与文件，无法恢复': 'Permanently delete this share and its files',
+  '已恢复分享「{title}」（状态为已撤销，可在「我的分享」里重新上线）':
+    'Restored “{title}” as revoked — bring it back online in My shares',
+  '已彻底删除分享「{title}」': 'Permanently deleted “{title}”',
+  '恢复分享失败：{msg}': 'Failed to restore the share: {msg}',
+  '彻底删除分享失败：{msg}': 'Failed to delete the share permanently: {msg}',
+  '彻底删除分享「{title}」？': 'Permanently delete share “{title}”?',
+  '这份分享的分享包和缩略图会被': 'This share’s package and thumbnails will be ',
+  '；链接会立即失效。': '; the link stops working immediately.',
+  '删除的分享会进 设置 → 回收站，在那里恢复或彻底删除。':
+    'Deleted shares go to Settings → Recycle bin, where you can restore or delete them permanently.',
+  '回收站里没有分享。': 'No deleted shares.',
+  '分享只能单条恢复或彻底删除。': 'Shares can only be restored or deleted permanently one at a time.',
+  '恢复后为「已撤销」，可在「我的分享」里重新上线。':
+    'Restored as “revoked”; bring it back online in My shares.',
+  '已移到回收站（设置 → 回收站 里可以恢复或彻底删除）':
+    'Moved to the recycle bin (Settings → Recycle bin to restore or delete permanently)',
+  '手机版为只读展示：请在电脑端添加足迹':
+    'The mobile layout is view-only — add footprints on your computer',
+  '手机版为只读展示：请在电脑端添加照片 / 视频':
+    'The mobile layout is view-only — add photos / videos on your computer',
+  '还没有内容 · 请在电脑端添加足迹': 'Nothing here yet · Add footprints on your computer',
 };
 
 export default dict;

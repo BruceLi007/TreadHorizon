@@ -56,7 +56,7 @@ function stamp(d = new Date()) {
     d.getMinutes()
   )}`;
 }
-const sha16 = (s) => createHash('sha256').update(String(s)).digest('hex').slice(0, 16);
+export const sha16 = (s) => createHash('sha256').update(String(s)).digest('hex').slice(0, 16);
 
 function pruneJobs() {
   const cut = Date.now() - JOB_TTL_MS;
@@ -96,7 +96,7 @@ async function sourceImage(absPath) {
   return sharp(absPath, { failOn: 'none' });
 }
 
-async function makePreview(absPath, destPath) {
+export async function makePreview(absPath, destPath) {
   const img = await sourceImage(absPath);
   const info = await img
     .rotate()
@@ -196,7 +196,7 @@ function collectSelection(body, owner) {
   };
 }
 
-async function pool(items, limit, fn) {
+export async function pool(items, limit, fn) {
   let i = 0;
   const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
     while (i < items.length) {
@@ -207,16 +207,26 @@ async function pool(items, limit, fn) {
   await Promise.all(workers);
 }
 
-/** 启动一个导出任务（立即返回 jobId；实际导出在后台） */
+/** 启动一个导出任务（立即返回 jobId；实际导出在后台）
+ *  2026-11-18 D-524：body.cloud === true 时不写用户目录，而是在临时目录生成 zip 后
+ *  直接上传云端 `/api/shares/import`（本地「分享」默认走这条路）。
+ */
 export function startShareExport(body = {}, owner = null) {
   if (owner) throw new ShareExportError('云端版请在本地导出分享包后再上传', 403);
-  const dirRaw = String(body.dir || '').trim();
-  if (!dirRaw) throw new ShareExportError('请选择导出文件夹');
-  const dir = resolve(dirRaw);
-  try {
-    if (!statSync(dir).isDirectory()) throw new Error('不是文件夹');
-  } catch {
-    throw new ShareExportError('导出文件夹不存在或不可访问');
+  const cloudMode = body.cloud === true;
+  let dir;
+  if (cloudMode) {
+    dir = join(CONFIG.dataDir, 'tmp', `cloud-share-${randomUUID()}`);
+    mkdirSync(dir, { recursive: true });
+  } else {
+    const dirRaw = String(body.dir || '').trim();
+    if (!dirRaw) throw new ShareExportError('请选择导出文件夹');
+    dir = resolve(dirRaw);
+    try {
+      if (!statSync(dir).isDirectory()) throw new Error('不是文件夹');
+    } catch {
+      throw new ShareExportError('导出文件夹不存在或不可访问');
+    }
   }
 
   const sel = collectSelection(body, owner);
@@ -243,26 +253,36 @@ export function startShareExport(body = {}, owner = null) {
     canceled: false,
     createdAt: now(),
     finishedAt: null,
+    /** 2026-11-18 D-524：直传云端相关 */
+    cloudMode,
+    coverMediaId: typeof body.coverMediaId === 'string' ? body.coverMediaId : '',
+    expiresIn: String(body.expiresIn || '24h'),
+    phase: cloudMode ? 'pack' : 'export',
+    cloudUrl: null,
+    cloudId: null,
     sel,
   };
   jobs.set(jobId, job);
   pruneJobs();
 
   // 先检查磁盘余量（估算：每张 200 KB + 20 MB 余量；实际 1280/q75 中位 99 KB）
-  try {
-    const st = statfsSync(dir);
-    const available = Number(st.bavail) * Number(st.bsize);
-    const need = sel.media.length * 200 * 1024 + 20 * 1024 * 1024;
-    if (Number.isFinite(available) && available < need) {
-      job.state = 'error';
-      job.error = `导出目录空间不足：约需 ${(need / 1024 ** 2).toFixed(0)} MB，当前可用 ${(
-        available / 1024 ** 2
-      ).toFixed(0)} MB`;
-      job.finishedAt = now();
-      return { jobId, total: job.total };
+  // 直传模式写到系统临时目录，不做用户目录的空间检查（失败由写入兜底）
+  if (!cloudMode) {
+    try {
+      const st = statfsSync(dir);
+      const available = Number(st.bavail) * Number(st.bsize);
+      const need = sel.media.length * 200 * 1024 + 20 * 1024 * 1024;
+      if (Number.isFinite(available) && available < need) {
+        job.state = 'error';
+        job.error = `导出目录空间不足：约需 ${(need / 1024 ** 2).toFixed(0)} MB，当前可用 ${(
+          available / 1024 ** 2
+        ).toFixed(0)} MB`;
+        job.finishedAt = now();
+        return { jobId, total: job.total };
+      }
+    } catch {
+      /* statfs 不可用就交给写入失败兜底 */
     }
-  } catch {
-    /* statfs 不可用就交给写入失败兜底 */
   }
 
   // 后台执行，不阻塞 HTTP
@@ -423,6 +443,10 @@ async function runExportJob(job) {
       media: outMedia.map(({ _media, ...m }) => m),
     };
     if (minDate || maxDate) manifest.range = { from: minDate || maxDate, to: maxDate || minDate };
+    // 2026-11-18 D-524：用户自己选的封面（选中媒体 id；云端导入时落 share.cover）
+    if (job.coverMediaId && mediaById.has(job.coverMediaId)) {
+      manifest.coverId = job.coverMediaId;
+    }
 
     writeFileSync(join(jobTmp, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
 
@@ -445,6 +469,29 @@ async function runExportJob(job) {
     job.savedPath = finalPath;
     job.savedName = finalPath.split(/[\\/]/).pop();
     job.bytes = fileSize(finalPath);
+    // 2026-11-18 D-524：直传模式 —— zip 生成后立刻传到云端，然后删掉本地临时文件
+    if (job.cloudMode) {
+      job.phase = 'upload';
+      const { uploadSharePackage } = await import('./cloud.mjs');
+      const r = await uploadSharePackage(finalPath, {
+        expiresIn: job.expiresIn,
+        title: job.title,
+      });
+      job.cloudUrl = r?.url || null;
+      job.cloudId = r?.id || null;
+      job.savedPath = null;
+      job.savedName = null;
+      try {
+        unlinkSync(finalPath);
+      } catch {
+        /* ignore */
+      }
+      try {
+        rmSync(job.dir, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
+    }
     job.state = 'done';
   } catch (e) {
     if (e instanceof Canceled) {
@@ -464,7 +511,7 @@ async function runExportJob(job) {
   }
 }
 
-function appVersion() {
+export function appVersion() {
   try {
     return JSON.parse(readFileSync(join(CONFIG.root, 'package.json'), 'utf8')).version || '';
   } catch {
@@ -486,12 +533,15 @@ export function getShareExportStatus(jobId) {
   return {
     jobId: j.jobId,
     state: j.state,
+    phase: j.phase,
     total: j.total,
     done: j.done,
     skipped: j.skipped,
     bytes: j.bytes,
     savedPath: j.savedPath,
     savedName: j.savedName,
+    cloudUrl: j.cloudUrl,
+    cloudId: j.cloudId,
     error: j.error,
   };
 }

@@ -280,6 +280,10 @@ export function normalizeManifest(raw) {
     places,
     media,
   };
+  // 2026-11-18 D-524：分享封面（用户自己选的一张）；没传就由云端取第一张
+  if (typeof raw.coverId === 'string' && mediaById.has(raw.coverId)) {
+    manifest.coverId = raw.coverId;
+  }
   if (range) manifest.range = range;
   return { manifest, hasSecret, mediaCount: photos, visitCount: visits, placeCount: places.length };
 }

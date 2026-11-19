@@ -522,6 +522,8 @@ export const api = {
 
   /** 当前账号头像 URL（v = avatarUpdatedAt，用于破缓存）；没有头像时服务端 404 */
   avatarUrl: (v?: number) => `/api/account/avatar${v ? `?v=${v}` : ''}`,
+  /** 云端账号头像的本地代理（2026-11-18 D-528；跨域 + 登录态，必须走本地服务） */
+  cloudAvatarUrl: (v?: number) => `/api/cloud/avatar${v ? `?v=${v}` : ''}`,
 
   /** 上传 / 替换自己的头像（服务端统一转 128×128 webp，10MB 上限） */
   uploadAvatar: async (file: File) => {
@@ -923,10 +925,93 @@ export const api = {
   /** 我的分享列表 */
   myShares: () => fetch('/api/shares').then((r) => json<{ items: MyShareRow[] }>(r)),
 
-  /** 撤销一份分享 */
+  /** 分享回收站列表（2026-11-18 D-524） */
+  sharesTrash: () =>
+    fetch('/api/shares?trash=1').then((r) => json<{ items: MyShareRow[] }>(r)),
+
+  /** 撤销一份分享（只下线，媒体保留；可重新上线） */
   revokeShare: (id: string) =>
+    fetch(`/api/shares/${encodeURIComponent(id)}/revoke`, { method: 'POST' }).then((r) =>
+      json<{ ok: boolean; id: string; status: string }>(r)
+    ),
+
+  /** 重新上线（撤销 / 过期未删的分享） */
+  onlineShare: (id: string) =>
+    fetch(`/api/shares/${encodeURIComponent(id)}/online`, { method: 'POST' }).then((r) =>
+      json<{ ok: boolean; id: string; status: string }>(r)
+    ),
+
+  /** 删除 = 移进分享回收站（可恢复） */
+  trashShare: (id: string) =>
     fetch(`/api/shares/${encodeURIComponent(id)}`, { method: 'DELETE' }).then((r) =>
-      json<{ ok: boolean; id: string }>(r)
+      json<{ ok: boolean; id: string; trashed: boolean }>(r)
+    ),
+
+  /** 从回收站恢复（恢复成「已撤销」，要上线再调 onlineShare） */
+  restoreShare: (id: string) =>
+    fetch(`/api/shares/${encodeURIComponent(id)}/restore`, { method: 'POST' }).then((r) =>
+      json<{ ok: boolean; id: string; status: string }>(r)
+    ),
+
+  /** 彻底删除（不可恢复，释放空间） */
+  purgeShare: (id: string) =>
+    fetch(`/api/shares/${encodeURIComponent(id)}/purge`, { method: 'DELETE' }).then((r) =>
+      json<{ ok: boolean; id: string; purged: boolean }>(r)
+    ),
+
+  /** 设置 / 清空分享访问密码（空串 = 公开） */
+  setSharePassword: (id: string, password: string) =>
+    fetch(`/api/shares/${encodeURIComponent(id)}/password`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password }),
+    }).then((r) => json<{ ok: boolean; hasPassword: boolean }>(r)),
+
+  /** 账号看自己分享的封面（带登录态，密码分享也能看） */
+  shareCoverUrl: (id: string, v?: number | null) =>
+    `/api/shares/${encodeURIComponent(id)}/cover${v ? `?v=${v}` : ''}`,
+
+  /** 主页快照元信息（云端「我的分享」里显示一行；不存在返回 {exists:false}） */
+  snapshotInfo: () =>
+    fetch('/api/snapshot', { cache: 'no-store' }).then((r) =>
+      json<{
+        exists: boolean;
+        syncedAt?: number | null;
+        bytes?: number;
+        places?: number;
+        visits?: number;
+        photos?: number;
+        appVersion?: string;
+      }>(r)
+    ),
+
+  /* ───────── 2026-11-18 D-523/D-525：本地客户端 ↔ 云端账号 ───────── */
+
+  cloudStatus: () => fetch('/api/cloud/status', { cache: 'no-store' }).then((r) => json<CloudStatus>(r)),
+
+  cloudLogin: (baseUrl: string, username: string, password: string) =>
+    fetch('/api/cloud/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ baseUrl, username, password }),
+    }).then((r) => json<CloudStatus>(r)),
+
+  cloudLogout: () =>
+    fetch('/api/cloud/logout', { method: 'POST' }).then((r) => json<{ ok: boolean }>(r)),
+
+  cloudSyncStart: (displayName?: string) =>
+    fetch('/api/cloud/sync', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ displayName: displayName || '' }),
+    }).then((r) => json<{ jobId: string }>(r)),
+
+  cloudSyncStatus: (jobId: string) =>
+    fetch(`/api/cloud/sync/${encodeURIComponent(jobId)}`).then((r) => json<CloudSyncJob>(r)),
+
+  cloudSyncCancel: (jobId: string) =>
+    fetch(`/api/cloud/sync/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' }).then((r) =>
+      json<{ ok: boolean }>(r)
     ),
 
   /** 分享用量 + 统计汇总 */
@@ -957,15 +1042,54 @@ export interface MyShareRow {
   createdAt: number;
   expiresAt: number | null;
   revokedAt: number | null;
-  status: 'ok' | 'revoked' | 'expired' | 'missing';
+  /** 2026-11-18 D-524：非空 = 已删进回收站 */
+  deletedAt?: number | null;
+  status: 'ok' | 'revoked' | 'expired' | 'missing' | 'deleted';
   hasSecret: boolean;
   hasPassword: boolean;
+  /** 有没有封面（取图走 shareCoverUrl(id)） */
+  hasCover?: boolean;
   bytes: number;
   itemCount: number;
   mediaCount: number;
   viewCount: number;
   visitorCount: number;
   lastViewAt: number | null;
+}
+
+/** 本地客户端看云端账号的状态（2026-11-18 D-523） */
+export interface CloudStatus {
+  configured: boolean;
+  baseUrl?: string;
+  /** avatarUpdatedAt 来自云端 /api/auth/me（0 = 没设头像，用显示名首字母） */
+  user?: { username: string; displayName: string; avatarUpdatedAt?: number } | null;
+  lastSync?: { at: number; places: number; visits: number; photos: number; bytes: number } | null;
+  fingerprint?: { places: number; visits: number; photos: number; maxUpdated: number };
+  reachable?: boolean;
+  usage?: {
+    sharesBytes: number;
+    shareCount: number;
+    quotaBytes: number;
+    mediaBytes: number;
+    views: number;
+    visitors: number;
+  } | null;
+  relogin?: boolean;
+  error?: string;
+}
+
+/** 本地同步任务状态（2026-11-18 D-525） */
+export interface CloudSyncJob {
+  jobId: string;
+  state: 'running' | 'done' | 'error' | 'canceled';
+  phase: 'pack' | 'upload';
+  total: number;
+  done: number;
+  bytes: number;
+  photos: number;
+  places: number;
+  visits: number;
+  error: string | null;
 }
 
 export interface ShareExportStartInput {
@@ -976,16 +1100,27 @@ export interface ShareExportStartInput {
   title: string;
   dir: string;
   displayName?: string;
+  /** 2026-11-18 D-524：直传云端（不写本地目录，zip 生成后立刻上传，成功后删临时文件） */
+  cloud?: boolean;
+  /** 用户选的封面（选中照片的 id；不传则取第一张） */
+  coverMediaId?: string;
+  /** 直传时的有效期：1h / 24h / 7d / forever / custom */
+  expiresIn?: string;
+  expiresHours?: number;
 }
 
 export interface ShareExportStatus {
   jobId: string;
   state: 'running' | 'done' | 'error' | 'canceled';
+  phase?: 'export' | 'pack' | 'upload';
   total: number;
   done: number;
   skipped: number;
   bytes: number;
   savedPath: string | null;
   savedName: string | null;
+  /** 直传云端成功后的分享链接 / id */
+  cloudUrl?: string | null;
+  cloudId?: string | null;
   error: string | null;
 }

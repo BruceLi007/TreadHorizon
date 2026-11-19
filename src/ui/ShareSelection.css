@@ -239,7 +239,7 @@
 
 .share-sidebar-head h2 {
   margin: 0;
-  font-size: var(--fs-display);
+  font-size: var(--fs-h1);
   overflow-wrap: anywhere;
 }
 
@@ -454,9 +454,14 @@
   padding: 26px 26px 22px;
 }
 
+/* 2026-11-19 D-532（用户：「字体、按钮大小都没统一」）：
+   弹窗标题按字号分级降到 --fs-h1（与设置窗口标题同档，比确认框的 --fs-h2 大一档），
+   不再用 --fs-display（那是欢迎页 / 品牌区的档）。 */
 .share-modal h2 {
-  margin: 0 0 16px;
-  font-size: var(--fs-display);
+  margin: 0 0 14px;
+  font-size: var(--fs-h1);
+  font-weight: 600;
+  line-height: 1.5;
 }
 
 .share-modal-x {
@@ -492,27 +497,31 @@
   font-size: var(--fs-meta);
 }
 
+/* 数值不用跳两级（原来 --fs-h2 比正文大两档），正文档 + 加粗就够突出 */
 .share-confirm-stats dd {
   margin: 0;
-  font-size: var(--fs-h2);
+  font-size: var(--fs-body);
+  font-weight: 600;
 }
 
+/* 字段与设置页同档：标签 --fs-meta、输入框 --fs-body + 36px 高（原来是 body / h2） */
 .share-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
   margin-bottom: 12px;
-  font-size: var(--fs-body);
+  font-size: var(--fs-meta);
   color: var(--text-2);
 }
 
 .share-field input {
+  height: 36px;
   border: 1px solid var(--line);
   border-radius: 9px;
   background: var(--bg-raised);
   color: var(--text-1);
-  padding: 9px 11px;
-  font-size: var(--fs-h2);
+  padding: 0 11px;
+  font-size: var(--fs-body);
 }
 
 .share-checks {
@@ -561,11 +570,12 @@
   justify-content: flex-start;
 }
 
-/* D-428（用户拍板）：弹窗动作按钮也抬到 38px，与字段 / 下拉 /「自动生成」同一档 */
+/* 2026-11-19 D-532：弹窗按钮回到全站统一档（ghost / primary / danger-btn 都是 34px 高、0 14px），
+   原来的 38px 只在这个弹窗里，和同排的 .share-site-btn（34px）对不齐。 */
 .share-modal-actions .ghost,
 .share-modal-actions .primary {
-  height: 38px;
-  padding: 0 16px;
+  height: 34px;
+  padding: 0 14px;
   border-radius: 999px;
   font-size: var(--fs-body);
   cursor: pointer;
@@ -609,7 +619,7 @@
   justify-content: space-between;
   gap: 12px;
   margin: 0 0 8px;
-  font-size: var(--fs-h2);
+  font-size: var(--fs-body);
 }
 
 .share-file-line span {
@@ -646,7 +656,7 @@
   align-items: center;
   justify-content: center;
   height: 34px;
-  padding: 0 16px;
+  padding: 0 14px;
   border-radius: 999px;
   background: var(--accent);
   color: var(--accent-ink);
@@ -1028,17 +1038,18 @@
 }
 
 /* D-424：分享弹窗里的 <select> 没有继承界面字体（浏览器 UA 样式只给了 font-size），
-   导致「有效期」和下拉选项是系统默认字体；统一跟随主题字体与字号 */
+   导致「有效期」和下拉选项是系统默认字体；统一跟随主题字体与字号。
+   2026-11-19 D-532：字号降到 --fs-body、内边距跟输入框一致（36px 高，和设置页字段同档）。 */
 .share-field select,
 .share-upload-row select {
   font: inherit;
-  font-size: var(--fs-h2);
+  font-size: var(--fs-body);
   line-height: 1.4;
   color: var(--text-1);
   background: var(--bg-raised);
   border: 1px solid var(--line);
   border-radius: 9px;
-  padding: 9px 11px;
+  padding: 0 11px;
 }
 
 .share-field select:focus,
@@ -1067,19 +1078,20 @@
   font-size: var(--fs-body);
 }
 
-/* D-424：分享弹窗里输入框 / 下拉框 / 自动生成按钮统一高度（之前 select 比 input 高几像素） */
+/* D-424：分享弹窗里输入框 / 下拉框 / 自动生成按钮统一高度（之前 select 比 input 高几像素）
+   2026-11-19 D-532：整体回到全站字段档（36px 高 / --fs-body），不再用 38px + --fs-h2 */
 .share-field input:not([type='file']),
 .share-field select,
 .share-upload-row select {
-  height: 38px;
+  height: 36px;
   box-sizing: border-box;
   padding: 0 11px;
-  font-size: var(--fs-h2);
+  font-size: var(--fs-body);
   line-height: 1.35;
 }
 
 .share-password-row .ghost {
-  height: 38px;
+  height: 34px;
 }
 
 .share-custom-expiry input {
@@ -1176,4 +1188,154 @@
     justify-content: flex-start;
     row-gap: 6px;
   }
+}
+
+/* ── 2026-11-18 D-524：分享确认里的封面 + 封面选择器 ── */
+.share-field-row {
+  display: flex;
+  gap: 10px;
+}
+.share-field-row .share-field {
+  flex: 1;
+}
+.share-cover-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--fs-meta);
+  color: var(--text-2);
+}
+.share-cover-label {
+  flex: none;
+}
+.share-cover-thumb {
+  width: 72px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+}
+.share-cover-empty {
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+}
+.cover-picker-mask {
+  z-index: 70;
+}
+.cover-picker {
+  width: min(920px, 92vw);
+  max-height: 84vh;
+  overflow: auto;
+}
+.cover-cols {
+  display: flex;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+/* 2026-11-19 D-532：和照片墙同一排的「每行张数」筛选控件同档（26px / 正文字号），
+   原来这里是 28px + --fs-caption，和照片墙的 chips 对不上。 */
+.cover-cols button {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  font-size: var(--fs-body);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.cover-cols button.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+.cover-grid {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.cover-cell {
+  position: relative;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  background: var(--accent-soft);
+  cursor: pointer;
+}
+.cover-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cover-cell.on {
+  border-color: #2f7d55;
+}
+.cover-cell-badge {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #2f7d55;
+  color: #fff;
+  font-size: var(--fs-caption);
+  display: inline-flex;
+  align-items: center;
+}
+.cover-preview-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 12, 20, 0.66);
+  display: grid;
+  place-items: center;
+  z-index: 80;
+}
+.cover-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: min(860px, 92vw);
+}
+.cover-preview img {
+  max-height: 70vh;
+  max-width: 100%;
+  border-radius: 12px;
+  object-fit: contain;
+  background: #000;
+}
+.cover-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #e6edf5;
+  font-size: var(--fs-meta);
+}
+
+/* ── 2026-11-18 D-524：我的分享（封面 / 密码标记 / 行内点击数） ── */
+.myshare-cover {
+  width: 56px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  flex: none;
+}
+.myshare-pw {
+  font-size: var(--fs-caption);
+  color: #33518c;
+  background: #eef3ff;
+  border: 1px solid #cfdcf7;
+  border-radius: 999px;
+  padding: 1px 7px;
+  margin-left: 6px;
+  font-weight: 400;
+}
+.myshare-stat {
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+  margin-top: 2px;
 }

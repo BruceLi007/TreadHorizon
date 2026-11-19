@@ -19,6 +19,8 @@ import UserManagementSettings from './UserManagementSettings';
 import TasksSettings from './TasksSettings';
 import SharesSettings from './SharesSettings';
 import AboutSettings from './AboutSettings';
+import CloudAccountSection from './CloudAccountSection';
+import type { CloudStatus } from '../../lib/api';
 import './SettingsModal.css';
 
 export type { AppFont, Theme, ThemeLevel } from './types';
@@ -115,6 +117,9 @@ interface Props {
   shareUploads?: ShareUploadTask[];
   onCancelShareUpload?: (id: string) => void;
   onRetryShareUpload?: (id: string) => void;
+  /** 2026-11-18 D-523：本地版「云端账号」（登录态 / 同步），由 App 持有并刷新 */
+  cloudStatus?: CloudStatus | null;
+  onCloudChanged?: () => void;
 }
 
 export type TabId =
@@ -127,6 +132,7 @@ export type TabId =
   | 'tdt'
   | 'security'
   | 'account'
+  | 'cloud'
   | 'users'
   | 'about';
 
@@ -177,6 +183,13 @@ const MYSHARES_TAB: { id: TabId; label: string; desc: string } = {
   id: 'myshares',
   label: '我的分享',
   desc: '已上传的分享链接、访问统计与撤销',
+};
+
+/** 云端账号（2026-11-18 D-523）：只在**本地版**出现；登录云端 + 同步主页快照 */
+const CLOUD_TAB: { id: TabId; label: string; desc: string } = {
+  id: 'cloud',
+  label: '云端账号',
+  desc: '登录云端账号、同步主页快照',
 };
 
 /** 窗口默认大小与拖拽下限（实际还会被视口大小限制） */
@@ -356,6 +369,8 @@ export default function SettingsModal({
   shareUploads = [],
   onCancelShareUpload = () => {},
   onRetryShareUpload = () => {},
+  cloudStatus = null,
+  onCloudChanged,
 }: Props) {
   const t = useT();
   const [tab, setTab] = useState<TabId>(initialTab ?? 'general');
@@ -389,7 +404,7 @@ export default function SettingsModal({
           TRASH_TAB,
           ABOUT_TAB,
         ]
-      : [...mainTabs, TRASH_TAB, ABOUT_TAB];
+      : [...mainTabs, CLOUD_TAB, TRASH_TAB, ABOUT_TAB];
   // 2026-11-15 D-424：云端多用户多一栏「我的分享」，紧跟「素材库」后面
   const tabs =
     multi && !readOnly
@@ -548,8 +563,7 @@ export default function SettingsModal({
           </header>
 
           <div className="set-body">
-            {activeTab === 'general' && (
-              <GeneralSettings
+            {activeTab === 'general' && (              <GeneralSettings
                 theme={theme}
                 effectiveTheme={effectiveTheme}
                 onTheme={onTheme}
@@ -570,6 +584,9 @@ export default function SettingsModal({
                 markerColors={markerColors}
                 onMarkerColors={onMarkerColors}
               />
+            )}
+            {activeTab === 'cloud' && (
+              <CloudAccountSection status={cloudStatus} onChanged={() => onCloudChanged?.()} />
             )}
             {activeTab === 'backup' && (
               <BackupSettings onRestored={onRestored} onBackupStatus={onBackupStatus} />

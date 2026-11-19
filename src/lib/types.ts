@@ -265,9 +265,29 @@ export interface TrashMediaItem extends TrashSizeInfo {
 
 export type TrashItem = TrashPlaceItem | TrashVisitItem | TrashMediaItem;
 
+/**
+ * 回收站里的「分享」（2026-11-18 D-527）：
+ * 分享删除后直接进这个回收站（不再在「我的分享」里单开一份）。
+ * 恢复后状态是「已撤销」，要重新上线到 /api/shares/:id/online。
+ */
+export interface TrashShareRow {
+  kind: 'share';
+  id: string;
+  title: string;
+  token: string;
+  bytes: number;
+  mediaCount: number;
+  itemCount: number;
+  hasPassword: boolean;
+  createdAt: number;
+  deletedAt: number | null;
+  expiresAt: number | null;
+  revokedAt: number | null;
+}
+
 export interface TrashData extends TrashSizeInfo {
   items: TrashItem[];
-  /** 行数 = placeCount + visitCount + mediaCount */
+  /** 行数（内容）= placeCount + visitCount + mediaCount；分享另外算在 shares 里 */
   total: number;
   placeCount: number;
   visitCount: number;
@@ -275,6 +295,9 @@ export interface TrashData extends TrashSizeInfo {
   mediaCount: number;
   /** 回收站里的全部媒体数（含随父级删除的） */
   mediaTotal: number;
+  /** 回收站里的分享（D-527） */
+  shares?: TrashShareRow[];
+  shareCount?: number;
 }
 
 export interface TrashCount {
@@ -282,6 +305,8 @@ export interface TrashCount {
   places: number;
   visits: number;
   media: number;
+  /** 回收站里的分享条数（D-527） */
+  shares?: number;
 }
 
 export interface TrashSelection {
@@ -628,6 +653,11 @@ export interface AuthMe {
    * 「浏览样板展示（只读）」按钮；未开放为 undefined。
    */
   demo?: { enabled: boolean; displayName?: string };
+  /**
+   * 2026-11-18 D-522（云端只读展示）：`CLOUD_DISPLAY_ONLY=1` 时为 true。
+   * 前端把新增 / 编辑类入口变灰（不删除），评论区仍可浏览；服务端也会拒绝写请求。
+   */
+  displayOnly?: boolean;
 }
 
 /** 登录 / 邀请码注册成功后的返回 */

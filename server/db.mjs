@@ -172,6 +172,22 @@ CREATE INDEX IF NOT EXISTS idx_share_visitor ON share_visitor(share_id);
 `);
 
 /**
+ * 主页快照（2026-11-18 D-524）：云端只读展示模式下，本地「同步」把全部足迹的缩略图 +
+ * 元数据导入账号库；每个账号只保留一份，重新同步整批替换。这张表只记元信息。
+ */
+db.exec(`
+CREATE TABLE IF NOT EXISTS snapshot (
+  user_id     TEXT PRIMARY KEY REFERENCES user(id) ON DELETE CASCADE,
+  synced_at   INTEGER NOT NULL,
+  bytes       INTEGER NOT NULL DEFAULT 0,
+  places      INTEGER NOT NULL DEFAULT 0,
+  visits      INTEGER NOT NULL DEFAULT 0,
+  photos      INTEGER NOT NULL DEFAULT 0,
+  app_version TEXT
+);
+`);
+
+/**
  * 扩容申请（2026-11-08 D-310，用户要求：云端版每账号默认 1 GiB，可以申请扩容）。
  * 每个账号同一时间最多一条 pending；管理员批准后把 user.quota_bytes 改成批准额度；
  * 历史申请保留（用户可以在设置 → 账号里看到状态与结果）。
@@ -236,6 +252,13 @@ addColumnIfMissing('user', 'avatar_updated_at', 'avatar_updated_at INTEGER');
 // 2026-11-09 D-335：只读样板会话（登录页「浏览样板展示」入口）——旧库补列，local 模式不使用
 addColumnIfMissing('session', 'readonly', 'readonly INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('session', 'tdt_key', 'tdt_key TEXT');
+// 2026-11-18 D-522/D-523/D-524：云端「主页快照」导入的行打标记（重新同步时按标记整批替换），
+// 以及分享管理新增：封面、回收站（软删）。
+addColumnIfMissing('place', 'snapshot', 'snapshot INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('visit', 'snapshot', 'snapshot INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('media', 'snapshot', 'snapshot INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('share', 'cover', 'cover TEXT');
+addColumnIfMissing('share', 'deleted_at', 'deleted_at INTEGER');
 
 // 上面补列之后才能建索引（老库的建表语句里没有 user_id 列）
 db.exec(`

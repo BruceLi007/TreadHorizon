@@ -73,6 +73,14 @@ interface Props {
    * 服务端对只读会话的写请求一律 403，这里只是不展示入口。
    */
   readOnly?: boolean;
+  /**
+   * 2026-11-18 D-522（云端只读展示）：入口**保留但变灰**（与 readOnly 的“隐藏”不同）。
+   * 目前用于「添加素材」格；服务端也会拒绝上传。
+   * 2026-11-19 D-533：手机版只读展示复用同一套（文案由 `displayOnlyTitle` 传进来）。
+   */
+  displayOnly?: boolean;
+  /** 变灰格子的悬停提示（不传时用云端文案） */
+  displayOnlyTitle?: string;
 }
 
 const fmtDuration = (s?: number | null) => {
@@ -335,6 +343,8 @@ export default function Sidebar({
   onMediaColsChange,
   homeDistanceKm = null,
   readOnly = false,
+  displayOnly = false,
+  displayOnlyTitle,
 }: Props) {
   const t = useT();
   const tp = useTp();
@@ -1666,12 +1676,18 @@ export default function Sidebar({
                         <div className="tile-wrap">
                           <button
                             type="button"
-                            className="tile tile-add"
+                            className={'tile tile-add' + (displayOnly ? ' cloud-locked' : '')}
+                            disabled={displayOnly}
                             onClick={(e) => {
                               e.stopPropagation();
                               startPickForVisit(v.id);
                             }}
-                            title={t('给这次到访（{date}）添加素材（图片 / 视频）', { date: v.date })}
+                            title={
+                              displayOnly
+                                ? (displayOnlyTitle ??
+                                  t('云端为只读展示：请在本地客户端添加照片 / 视频'))
+                                : t('给这次到访（{date}）添加素材（图片 / 视频）', { date: v.date })
+                            }
                           >
                             <span className="tile-add-plus" aria-hidden="true">
                               +

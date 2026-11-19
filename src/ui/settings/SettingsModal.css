@@ -1649,3 +1649,98 @@ html:is([data-theme='light'], [data-theme='white']) .set-dup-row:hover {
 .tasks-more:hover {
   color: var(--text-1);
 }
+/* ── 2026-11-18 D-523：设置 → 云端账号（本地版） ── */
+.set-pane-desc {
+  font-size: var(--fs-meta);
+  color: var(--text-2);
+  line-height: 1.6;
+  margin: 2px 0 10px;
+}
+.set-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--fs-meta);
+  color: var(--text-2);
+  margin-bottom: 10px;
+}
+.set-field input {
+  height: 36px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+  color: var(--text-1);
+  padding: 0 11px;
+  font: inherit;
+  font-size: var(--fs-body);
+}
+.set-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+.set-hint {
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+  line-height: 1.55;
+}
+.cloud-account-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+/* 2026-11-18 D-528：云端账号头像（顶栏与账号卡共用同一张，由 /api/cloud/avatar 代理缓存） */
+.cloud-account-avatar {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #6ee7a8, #2f7d55);
+  border: 2px solid var(--bg-panel);
+  box-shadow:
+    0 0 0 2px rgba(47, 125, 85, 0.45),
+    0 0 10px rgba(47, 125, 85, 0.4);
+  font-size: var(--fs-body);
+}
+.cloud-account-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cloud-ok {
+  font-size: var(--fs-caption);
+  color: #2f7d55;
+}
+.cloud-bad {
+  font-size: var(--fs-caption);
+  color: #b25b1d;
+}
+.cloud-progress {
+  height: 6px;
+  border-radius: 99px;
+  background: var(--accent-soft);
+  overflow: hidden;
+  margin: 8px 0 10px;
+}
+.cloud-progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 200ms ease;
+}
+.cloud-sync-line {
+  font-size: var(--fs-meta);
+  color: var(--text-2);
+  margin: 2px 0 6px;
+}
+.cloud-dirty {
+  font-size: var(--fs-meta);
+  color: #b25b1d;
+  margin-bottom: 6px;
+}

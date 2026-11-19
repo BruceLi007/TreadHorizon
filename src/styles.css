@@ -2098,6 +2098,37 @@ html:is([data-theme='light'], [data-theme='white']) .visit.picked {
   pointer-events: auto;
 }
 
+/* 2026-11-18 D-522：云端只读展示 —— 空库时只留一行指路提示（不是按钮卡片）。
+   和「添加第一个地方」同一套定位，但做成浅底胶囊，点击穿透到地图。 */
+.map-empty-line {
+  pointer-events: none;
+  max-width: min(560px, calc(100vw - 40px));
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg-panel) 92%, transparent);
+  box-shadow: 0 10px 30px rgba(10, 18, 30, 0.12);
+  color: var(--text-2);
+  font-size: var(--fs-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 2026-11-18 D-522：云端只读模式下「保留但禁用」的入口（新增足迹 / 分享 / 上传…）。
+   视觉沿用只读会话的灰化口径：降透明度 + 灰度 + 不可点。 */
+.cloud-locked,
+.cloud-locked:hover {
+  opacity: 0.45 !important;
+  filter: grayscale(1);
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+}
+
+.cloud-locked:disabled {
+  pointer-events: auto; /* 允许悬停看 title 提示 */
+}
+
 .loading,
 .fatal {
   position: absolute;
@@ -4370,6 +4401,37 @@ html:is([data-theme='light'], [data-theme='white']) .trash-group-head {
   background: rgba(106, 169, 216, 0.12);
 }
 
+/* 2026-11-18 D-527 / D-531：回收站里的「分享」（分享删除进原有回收站；做成和 地点/到访/照片视频 平级的一个标签） */
+.trash-shares-note {
+  font-weight: 400;
+}
+
+/* 「全部」标签里分享那一组的标题不可点（分享只在「分享」标签里操作） */
+.trash-group-head.trash-group-head-static {
+  cursor: default;
+}
+
+.trash-group-head.trash-group-head-static:hover {
+  color: var(--text-2);
+  border-color: var(--line);
+}
+
+.trash-type.share {
+  color: var(--text-1);
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.trash-row.trash-share-row {
+  cursor: default;
+  align-items: center;
+}
+
+.trash-row.trash-share-row:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
 .trash-meta {
   font-size: var(--fs-meta);
   color: var(--text-3);
@@ -4678,6 +4740,53 @@ html:is([data-theme='dark'], [data-theme='black']) .hud-search-panel .searchbox 
   align-items: center;
   gap: 12px;
   flex: none;
+}
+
+/* 2026-11-18 D-523：本地版「云端已登录」标签（与云端多用户头像同位置）。
+   头像内边界一圈绿光晕表示在线 / 已登录。 */
+.hud-cloud-avatar {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 2px solid var(--bg-panel);
+  border-radius: 999px;
+  background: linear-gradient(135deg, #6ee7a8, #2f7d55);
+  color: #fff;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow:
+    0 0 0 2px rgba(47, 125, 85, 0.55),
+    0 0 12px rgba(47, 125, 85, 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  transition: box-shadow 160ms ease, transform 160ms ease;
+}
+
+.hud-cloud-avatar:hover,
+.hud-cloud-avatar:focus-visible {
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 2px rgba(47, 125, 85, 0.8),
+    0 0 16px rgba(47, 125, 85, 0.7),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+}
+
+/* 2026-11-18 D-528：云端账号头像（有头像时替换显示名首字母） */
+.hud-cloud-avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  display: block;
+}
+
+.hud-cloud-user .hud-username {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hud-avatar-wrap {
@@ -5535,6 +5644,14 @@ button:focus-visible {
     max-width: calc(100vw - 24px);
     text-align: center;
     white-space: normal;
+  }
+
+  /* 2026-11-19 D-532（手机端审计）：分享选择态下，toast 原来正好落在分享底栏
+     「已选 N 地点 / 确认分享」上，看起来像底栏的一部分；挪到屏幕最下方的时间轴区域
+     （选择态下时间轴不可操作），既不压底栏按钮，也不会盖住顶栏那一排按钮。 */
+  html:root .app-share-mode .toast {
+    bottom: 14px;
+    top: auto;
   }
 
   /* 2026-11-16 D-495（用户要求）：时间轴也和大按钮组同宽（顶栏左右内边距 12px），

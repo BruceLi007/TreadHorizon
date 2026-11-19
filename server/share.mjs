@@ -95,6 +95,8 @@ function findShareByToken(token) {
 
 function shareStatus(row) {
   if (!row) return 'missing';
+  // 2026-11-18 D-524：删除 = 进回收站（链接立即失效，媒体保留，可恢复）
+  if (row.deleted_at) return 'deleted';
   if (row.revoked_at) return 'revoked';
   if (row.expires_at != null && Number(row.expires_at) <= now()) return 'expired';
   return 'ok';
@@ -151,46 +153,43 @@ function purgeShareMedia(row) {
   ).run(now(), row.id);
 }
 
+/**
+ * 2026-11-18 D-524：撤销 / 过期**不再自动删媒体**（媒体留给用户手动「删除」进回收站，
+ * 回收站里再「彻底删除」才真正释放空间）。这里只做墓碑行清理。
+ */
 function revokeShareRow(row) {
   if (!row.revoked_at) {
     db.prepare('UPDATE share SET revoked_at = ? WHERE id = ?').run(now(), row.id);
   }
+}
+
+/** 彻底删除一份分享：媒体目录 + 访客行 + 数据库行（不可恢复） */
+function purgeShareRow(row) {
   purgeShareMedia(row);
+  db.prepare('DELETE FROM share_visitor WHERE share_id = ?').run(row.id);
+  db.prepare('DELETE FROM share WHERE id = ?').run(row.id);
 }
 
 /** 到期 / 撤销清理 + 7 天墓碑删除（启动扫一次、每 5 分钟扫一次、访问兜底也会调用） */
 export function pruneShares() {
   const t = now();
-  const rows = db
-    .prepare(
-      `SELECT * FROM share
-        WHERE purged_at IS NULL
-          AND ((expires_at IS NOT NULL AND expires_at <= ?) OR revoked_at IS NOT NULL)`
-    )
-    .all(t);
-  for (const row of rows) {
-    try {
-      purgeShareMedia(row);
-    } catch (e) {
-      console.warn('[share] 清理分享失败：', e?.message || e);
-    }
-  }
+  // 2026-11-18 D-524：撤销 / 过期不再自动清媒体（改为手动删除），只清墓碑行
   const old = db
     .prepare('SELECT id FROM share WHERE purged_at IS NOT NULL AND purged_at <= ?')
     .all(t - TOMBSTONE_MS);
   for (const row of old) {
     db.prepare('DELETE FROM share WHERE id = ?').run(row.id);
   }
-  return rows.length + old.length;
+  return old.length;
 }
 
-/** 管理员禁用 / 删除账号时调用：撤销并删掉其全部分享 */
+/** 管理员禁用 / 删除账号时调用：彻底删掉其全部分享（媒体 + 行） */
 export function revokeAllSharesForUser(userId) {
   if (!userId) return 0;
   const rows = db.prepare('SELECT * FROM share WHERE user_id = ?').all(userId);
   for (const row of rows) {
     try {
-      revokeShareRow(row);
+      purgeShareRow(row);
     } catch (e) {
       console.warn('[share] 撤销账号分享失败：', e?.message || e);
     }
@@ -376,6 +375,46 @@ function unlockFailed(ip) {
   else rec.count += 1;
 }
 
+// ───────────── 回收站（2026-11-18 D-527：分享删除并入既有「回收站」页） ─────────────
+
+/**
+ * 回收站里的分享（只列 deleted_at 非空的行）。
+ * 用户在「设置 → 回收站」里看到、恢复 / 彻底删除；「我的分享」不再单开一份回收站。
+ */
+export function listTrashShares(ownerId) {
+  if (!ownerId) return [];
+  const rows = db
+    .prepare(
+      `SELECT * FROM share WHERE user_id = ? AND deleted_at IS NOT NULL
+        ORDER BY deleted_at DESC LIMIT 200`
+    )
+    .all(ownerId);
+  return rows.map((row) => ({
+    kind: 'share',
+    id: row.id,
+    title: row.title || '',
+    token: row.token,
+    bytes: Number(row.bytes) || 0,
+    mediaCount: Number(row.media_count) || 0,
+    itemCount: Number(row.item_count) || 0,
+    hasPassword: Boolean(row.password_hash),
+    createdAt: row.created_at,
+    deletedAt: row.deleted_at ?? null,
+    expiresAt: row.expires_at ?? null,
+    // 删除时一并写 revoked_at；恢复后是「已撤销」，要重新上线再调 /online
+    revokedAt: row.revoked_at ?? null,
+  }));
+}
+
+/** 回收站里分享的条数（顶部角标 / 清空提示用） */
+export function countTrashShares(ownerId) {
+  if (!ownerId) return 0;
+  const row = db
+    .prepare('SELECT COUNT(*) AS n FROM share WHERE user_id = ? AND deleted_at IS NOT NULL')
+    .get(ownerId);
+  return Number(row?.n) || 0;
+}
+
 // ───────────── 路由 ─────────────
 
 /** @param {import('fastify').FastifyInstance} app */
@@ -504,6 +543,11 @@ export async function registerShareRoutes(app) {
         title = title.slice(0, 200);
         const salt = password ? randomBytes(16).toString('hex') : null;
         const hash = password ? hashSharePassword(password, salt) : null;
+        // 2026-11-18 D-524：封面 = 本地选的那张（manifest.coverId），没选就取第一张
+        const coverEntry = pkg.manifest.coverId
+          ? pkg.manifest.media.find((m) => m.id === pkg.manifest.coverId)
+          : null;
+        const coverFile = coverEntry?.file || pkg.manifest.media[0]?.file || null;
 
         const userDir = join(sharesRoot(), owner);
         mkdirSync(userDir, { recursive: true });
@@ -533,8 +577,8 @@ export async function registerShareRoutes(app) {
         db.prepare(
           `INSERT INTO share (
              id, user_id, token, title, created_at, expires_at, password_hash, password_salt,
-             has_secret, bytes, item_count, media_count, app_version
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             has_secret, bytes, item_count, media_count, app_version, cover
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).run(
           shareId,
           owner,
@@ -548,7 +592,8 @@ export async function registerShareRoutes(app) {
           pkg.bytes,
           pkg.placeCount + pkg.visitCount + pkg.mediaCount,
           pkg.mediaCount,
-          String(pkg.manifest.appVersion || '').slice(0, 30)
+          String(pkg.manifest.appVersion || '').slice(0, 30),
+          coverFile
         );
 
         return {
@@ -577,12 +622,16 @@ export async function registerShareRoutes(app) {
     }
   });
 
-  // 账号：我的分享列表
+  // 账号：我的分享列表（默认不含回收站里的；?trash=1 只列回收站）
   app.get('/api/shares', async (req, reply) => {
     const owner = req.authUser?.id;
     if (!owner) return { items: [] };
+    const trash = String(req.query?.trash || '') === '1';
     const rows = db
-      .prepare('SELECT * FROM share WHERE user_id = ? ORDER BY created_at DESC LIMIT 200')
+      .prepare(
+        `SELECT * FROM share WHERE user_id = ? AND deleted_at IS ${trash ? 'NOT NULL' : 'NULL'}
+          ORDER BY created_at DESC LIMIT 200`
+      )
       .all(owner);
     return {
       items: rows.map((row) => ({
@@ -593,9 +642,12 @@ export async function registerShareRoutes(app) {
         createdAt: row.created_at,
         expiresAt: row.expires_at,
         revokedAt: row.revoked_at ?? null,
+        deletedAt: row.deleted_at ?? null,
         status: shareStatus(row),
         hasSecret: Number(row.has_secret) === 1,
         hasPassword: Boolean(row.password_hash),
+        // 2026-11-18 D-524：封面（分享包里选的那张）；前端走 /api/shares/:id/cover 取图
+        hasCover: Boolean(row.cover),
         bytes: Number(row.bytes) || 0,
         itemCount: Number(row.item_count) || 0,
         mediaCount: Number(row.media_count) || 0,
@@ -606,16 +658,110 @@ export async function registerShareRoutes(app) {
     };
   });
 
-  // 账号：撤销（立刻删媒体 + 访客行；行留 7 天墓碑）
+  /** 账号自己看某份分享的封面（密码分享也能看，因为鉴权走登录态而不是分享密码） */
+  app.get('/api/shares/:id/cover', async (req, reply) => {
+    const owner = req.authUser?.id;
+    if (!owner) return reply.code(401).send({ error: '请先登录' });
+    const row = findShareById(req.params.id);
+    if (!row || row.user_id !== owner || !row.cover) {
+      return reply.code(404).send({ error: '没有封面' });
+    }
+    const dir = shareDirOf(row);
+    if (!dir) return reply.code(404).send({ error: '没有封面' });
+    // 封面文件在分享目录的 media/ 下（manifest 里只存文件名）
+    const abs = safeResolve(join(dir, 'media'), String(row.cover));
+    if (!abs || !existsSync(abs)) return reply.code(404).send({ error: '没有封面' });
+    reply.header('cache-control', 'private, max-age=3600');
+    // 2026-11-18 D-530：补 content-type（测试发现流式返回没带，浏览器靠嗅探才显示）
+    reply.header('content-type', 'image/webp');
+    return reply.send(createReadStream(abs));
+  });
+
+  /** 账号：设置 / 修改 / 清空分享访问密码（2026-11-18 D-524：密码从本地移到云端管理） */
+  app.post('/api/shares/:id/password', async (req, reply) => {
+    const owner = req.authUser?.id;
+    if (!owner) return reply.code(401).send({ error: '请先登录' });
+    const row = findShareById(req.params.id);
+    if (!row || row.user_id !== owner) return reply.code(404).send({ error: '分享不存在' });
+    const password = String(req.body?.password ?? '');
+    if (password.length > 128) return reply.code(400).send({ error: '分享密码不能超过 128 位' });
+    if (shareStatus(row) === 'deleted') {
+      return reply.code(400).send({ error: '回收站里的分享不能设密码' });
+    }
+    if (!password) {
+      db.prepare('UPDATE share SET password_hash = NULL, password_salt = NULL WHERE id = ?').run(row.id);
+      return { ok: true, hasPassword: false };
+    }
+    const salt = randomBytes(16).toString('hex');
+    db.prepare('UPDATE share SET password_hash = ?, password_salt = ? WHERE id = ?').run(
+      hashSharePassword(password, salt),
+      salt,
+      row.id
+    );
+    return { ok: true, hasPassword: true };
+  });
+
+  /** 账号：撤销（只下线，媒体保留，可重新上线） */
+  app.post('/api/shares/:id/revoke', async (req, reply) => {
+    const owner = req.authUser?.id;
+    if (!owner) return reply.code(401).send({ error: '请先登录' });
+    const row = findShareById(req.params.id);
+    if (!row || row.user_id !== owner) return reply.code(404).send({ error: '分享不存在' });
+    if (row.deleted_at) return reply.code(400).send({ error: '回收站里的分享请先恢复' });
+    revokeShareRow(row);
+    return { ok: true, id: row.id, status: 'revoked' };
+  });
+
+  /** 账号：重新上线（撤销 / 过期未删的都可以；过期时间不动） */
+  app.post('/api/shares/:id/online', async (req, reply) => {
+    const owner = req.authUser?.id;
+    if (!owner) return reply.code(401).send({ error: '请先登录' });
+    const row = findShareById(req.params.id);
+    if (!row || row.user_id !== owner) return reply.code(404).send({ error: '分享不存在' });
+    if (row.deleted_at) return reply.code(400).send({ error: '回收站里的分享请先恢复' });
+    if (row.expires_at != null && Number(row.expires_at) <= now()) {
+      return reply.code(400).send({ error: '这份分享已经过期，不能重新上线' });
+    }
+    db.prepare('UPDATE share SET revoked_at = NULL WHERE id = ?').run(row.id);
+    return { ok: true, id: row.id, status: 'ok' };
+  });
+
+  /** 账号：删除 = 移进分享回收站（链接立即失效，媒体保留，可恢复） */
   app.delete('/api/shares/:id', async (req, reply) => {
     const owner = req.authUser?.id;
     if (!owner) return reply.code(401).send({ error: '请先登录' });
     const row = findShareById(req.params.id);
-    if (!row || row.user_id !== owner) {
-      return reply.code(404).send({ error: '分享不存在' });
-    }
-    revokeShareRow(row);
-    return { ok: true, id: row.id };
+    if (!row || row.user_id !== owner) return reply.code(404).send({ error: '分享不存在' });
+    db.prepare('UPDATE share SET deleted_at = ?, revoked_at = COALESCE(revoked_at, ?) WHERE id = ?').run(
+      now(),
+      now(),
+      row.id
+    );
+    return { ok: true, id: row.id, trashed: true };
+  });
+
+  /** 账号：从回收站恢复（恢复成「已撤销」，要上线再调 /online） */
+  app.post('/api/shares/:id/restore', async (req, reply) => {
+    const owner = req.authUser?.id;
+    if (!owner) return reply.code(401).send({ error: '请先登录' });
+    const row = findShareById(req.params.id);
+    if (!row || row.user_id !== owner) return reply.code(404).send({ error: '分享不存在' });
+    if (!row.deleted_at) return { ok: true, id: row.id, status: shareStatus(row) };
+    db.prepare('UPDATE share SET deleted_at = NULL, revoked_at = COALESCE(revoked_at, ?) WHERE id = ?').run(
+      now(),
+      row.id
+    );
+    return { ok: true, id: row.id, status: 'revoked' };
+  });
+
+  /** 账号：彻底删除（回收站里清空 / 单条删除；不可恢复） */
+  app.delete('/api/shares/:id/purge', async (req, reply) => {
+    const owner = req.authUser?.id;
+    if (!owner) return reply.code(401).send({ error: '请先登录' });
+    const row = findShareById(req.params.id);
+    if (!row || row.user_id !== owner) return reply.code(404).send({ error: '分享不存在' });
+    purgeShareRow(row);
+    return { ok: true, id: row.id, purged: true };
   });
 
   // 账号：用量（分享占用 + 统计汇总）
@@ -641,11 +787,10 @@ export async function registerShareRoutes(app) {
     const row = findShareByToken(req.params.token);
     const status = shareStatus(row);
     if (status === 'missing') return reply.code(404).send({ error: 'not_found' });
-    if (status === 'revoked') return reply.code(410).send({ error: 'revoked' });
-    if (status === 'expired') {
-      purgeShareMedia(row);
-      return reply.code(410).send({ error: 'expired' });
+    if (status === 'deleted' || status === 'revoked') {
+      return reply.code(410).send({ error: 'revoked' });
     }
+    if (status === 'expired') return reply.code(410).send({ error: 'expired' });
     if (!isUnlocked(req, row)) {
       return reply.code(401).send({
         error: 'password_required',
@@ -674,11 +819,10 @@ export async function registerShareRoutes(app) {
     const row = findShareByToken(req.params.token);
     const status = shareStatus(row);
     if (status === 'missing') return reply.code(404).send({ error: 'not_found' });
-    if (status === 'revoked') return reply.code(410).send({ error: 'revoked' });
-    if (status === 'expired') {
-      purgeShareMedia(row);
-      return reply.code(410).send({ error: 'expired' });
+    if (status === 'deleted' || status === 'revoked') {
+      return reply.code(410).send({ error: 'revoked' });
     }
+    if (status === 'expired') return reply.code(410).send({ error: 'expired' });
     if (!row.password_hash) return { ok: true, hasPassword: false, expiresAt: row.expires_at };
 
     const ip = unlockIp(req);
@@ -703,11 +847,10 @@ export async function registerShareRoutes(app) {
     const row = findShareByToken(req.params.token);
     const status = shareStatus(row);
     if (status === 'missing') return reply.code(404).send({ error: 'not_found' });
-    if (status === 'revoked') return reply.code(410).send({ error: 'revoked' });
-    if (status === 'expired') {
-      purgeShareMedia(row);
-      return reply.code(410).send({ error: 'expired' });
+    if (status === 'deleted' || status === 'revoked') {
+      return reply.code(410).send({ error: 'revoked' });
     }
+    if (status === 'expired') return reply.code(410).send({ error: 'expired' });
     if (!isUnlocked(req, row)) return reply.code(401).send({ error: 'password_required' });
     const dir = shareDirOf(row);
     if (!dir) return reply.code(404).send({ error: 'not_found' });
@@ -731,11 +874,10 @@ export async function registerShareRoutes(app) {
     const row = findShareByToken(req.params.token);
     const status = shareStatus(row);
     if (status === 'missing') return reply.code(404).send({ error: 'not_found' });
-    if (status === 'revoked') return reply.code(410).send({ error: 'revoked' });
-    if (status === 'expired') {
-      purgeShareMedia(row);
-      return reply.code(410).send({ error: 'expired' });
+    if (status === 'deleted' || status === 'revoked') {
+      return reply.code(410).send({ error: 'revoked' });
     }
+    if (status === 'expired') return reply.code(410).send({ error: 'expired' });
     if (!isUnlocked(req, row)) return reply.code(401).send({ error: 'password_required' });
 
     const file = String(req.params.file || '');

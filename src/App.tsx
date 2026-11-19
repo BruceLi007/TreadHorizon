@@ -7,6 +7,7 @@ type DetailSource = 'map' | 'trail' | 'cluster';
 import Sidebar from './ui/Sidebar';
 import { BrandLogo } from './ui/BrandLogo';
 import { haversineKm } from './lib/geo';
+import { usePhoneReadOnly } from './lib/phoneLock';
 import SettingsModal, { type Theme, type ThemeLevel, type TabId } from './ui/settings/SettingsModal';
 import {
   DEFAULT_FONT,
@@ -43,7 +44,7 @@ import { readSkyPref, SKY_PREF_KEY, type SkyMode } from './ui/skyTime';
 import SecretPrompt from './ui/SecretPrompt';
 import ShareConfirmDialog from './ui/ShareConfirmDialog';
 import ShareUploadDialog from './ui/ShareUploadDialog';
-import { api } from './lib/api';
+import { api, type CloudStatus } from './lib/api';
 import { isGuestMode } from './share/guestFlag';
 import {
   loadUploadQueue,
@@ -421,6 +422,38 @@ export default function App() {
    * 服务端对写请求一律 403，前端据此隐藏所有写入口（添加足迹 / 编辑 / 上传 / 删除 / 批量 / 备份恢复等）。
    */
   const readOnly = authMe?.user?.readOnly === true;
+  /**
+   * 2026-11-18 D-522（云端只读展示）：服务端 `CLOUD_DISPLAY_ONLY=1` 时下发 true。
+   * 与 readOnly（样板会话，入口**隐藏**）不同：这里入口**保留但变灰**（用户要求），
+   * 真正的写保护在服务端（非 GET 一律 403）。
+   */
+  const displayOnly = authMe?.displayOnly === true;
+  /**
+   * 2026-11-19 D-533（手机版只读展示，用户要求「手机版其实是云端的缩影…和云端一样」）：
+   * 视口 ≤820px 时前端写 `th_phone` Cookie，服务端按云端同一套白名单拒写（其余写接口 403）；
+   * 界面按云端口径把「+ 添加足迹 / + 添加素材」变灰（**分享例外**，手机上仍可用）。
+   * 电脑端（>820px）Cookie 会被清掉，行为与以前完全一致。
+   */
+  const phoneReadOnly = usePhoneReadOnly();
+  /** 当前会话是否「写锁定」（云端只读展示 或 手机版只读展示） */
+  const writeLocked = displayOnly || phoneReadOnly;
+  /** 锁定来源：云端优先（云端本来就是手机访问的场景），只影响提示文案 */
+  const lockScope: 'cloud' | 'phone' = displayOnly ? 'cloud' : 'phone';
+  /**
+   * 2026-11-18 D-523（本地版云端账号）：登录态 / 上次同步时间都由本地服务持有，
+   * App 只缓存一份给设置页和顶栏用；登录、退出、同步完成后调 refreshCloudStatus()。
+   */
+  const [cloudStatus, setCloudStatus] = useState<CloudStatus | null>(null);
+  const refreshCloudStatus = useCallback(async () => {
+    try {
+      setCloudStatus(await api.cloudStatus());
+    } catch {
+      /* 没登录 / 本地服务暂时不可用都当未登录 */
+    }
+  }, []);
+  useEffect(() => {
+    if (authMe?.mode === 'local') void refreshCloudStatus();
+  }, [authMe?.mode, refreshCloudStatus]);
   /** 2026-11-15 D-423：分享页以只读访客身份复用本组件——顶栏入口全部保留，但不可用时挂只读提示 */
   const guest = isGuestMode();
   /**
@@ -1609,6 +1642,16 @@ export default function App() {
    */
   const openAdd = useCallback(() => {
     if (readOnly) return; // 2026-11-09 D-335：只读样板会话不能添加足迹
+    if (writeLocked) {
+      // 2026-11-18 D-522：云端只读展示，按钮已变灰，这里兜底
+      // 2026-11-19 D-533：手机版只读展示同样走这里（分享例外，不经过本函数）
+      say(
+        lockScope === 'cloud'
+          ? t('云端为只读展示：请在本地客户端添加足迹')
+          : t('手机版为只读展示：请在电脑端添加足迹')
+      );
+      return;
+    }
     if (adding || pinMode) {
       exitAdd();
       return;
@@ -1651,7 +1694,7 @@ export default function App() {
     setDraft(null);
     // 预取省界数据（约 40KB）：第一次在地图上打点时立刻能判断「国内 / 国外」
     void loadChinaBounds();
-  }, [adding, pinMode, closePanels, exitAdd, readOnly, refreshAddr]);
+  }, [adding, pinMode, closePanels, exitAdd, readOnly, refreshAddr, writeLocked, lockScope, say, t]);
 
   /**
    * 补全「未标注」地区（2026-11-04）：找出没有省/市（或 city 为空）的活地点，
@@ -2369,6 +2412,15 @@ export default function App() {
     void refreshTrashCount();
   };
 
+  /** 2026-11-18 D-523：顶栏「云端已登录」标签 → 设置 → 云端账号 */
+  const openCloudSettings = () => {
+    setTopAction(null);
+    closePanels();
+    exitAdd();
+    setSettingsInitialTab('cloud');
+    setSettingsOpen(true);
+  };
+
   /** 只读样板会话「退出」：清会话 Cookie 后整页 reload 回登录页（2026-11-09 D-335） */
   const exitReadOnly = async () => {
     if (readonlyExitBusy) return;
@@ -2440,7 +2492,15 @@ export default function App() {
 
   return (
     <I18nContext.Provider value={i18n}>
-      <div className={topbarPanelOpen ? 'app app-panel-open' : 'app'}>
+      {/* 2026-11-19 D-532：shareMode 时多一个 app-share-mode，手机端把 toast 挪到顶部，
+          避免正好压在分享底栏（已选 N 地点 / 确认分享）上 */}
+      <div
+        className={
+          'app' +
+          (topbarPanelOpen ? ' app-panel-open' : '') +
+          (shareMode ? ' app-share-mode' : '')
+        }
+      >
       {boot === 'ready' && (
         <MapView
           tk={tk}
@@ -2662,6 +2722,38 @@ export default function App() {
               </div>
             )}
 
+            {/* 2026-11-18 D-523：本地版登录云端后，右上角显示账号（头像 + 名称，绿光晕） */}
+            {!readOnly && authMe?.mode === 'local' && cloudStatus?.configured && (
+              <div className="hud-user hud-cloud-user">
+                <button
+                  type="button"
+                  className="hud-cloud-avatar"
+                  onClick={openCloudSettings}
+                  title={t('云端账号')}
+                  aria-label={t('云端账号')}
+                >
+                  {/* 2026-11-18 D-528：有云端头像就显示头像（本地服务代理），没有就显示名首字母 */}
+                  {cloudStatus.user?.avatarUpdatedAt ? (
+                    <img
+                      className="hud-cloud-avatar-img"
+                      src={api.cloudAvatarUrl(cloudStatus.user.avatarUpdatedAt)}
+                      alt=""
+                      onError={(e) => {
+                        e.currentTarget.style.visibility = 'hidden';
+                      }}
+                    />
+                  ) : (
+                    <span aria-hidden="true">
+                      {(cloudStatus.user?.displayName || cloudStatus.user?.username || '?').slice(0, 1)}
+                    </span>
+                  )}
+                </button>
+                <button type="button" className="hud-username" onClick={openCloudSettings} title={t('云端账号')}>
+                  {cloudStatus.user?.displayName || cloudStatus.user?.username || ''}
+                </button>
+              </div>
+            )}
+
             {/* 左侧：搜索图标（点开向左展开搜索）+ 独立的「+ 添加足迹」按钮（和大按钮组反色，D-130） */}
             <div className="hud-tools">
               <div className="hud-search" ref={hudSearchRef}>
@@ -2702,15 +2794,22 @@ export default function App() {
                 <div className="hud-add-wrap">
                   <button
                     type="button"
-                    className={pinMode ? 'hud-add on' : 'hud-add'}
+                    className={
+                      (pinMode ? 'hud-add on' : 'hud-add') + (writeLocked ? ' cloud-locked' : '')
+                    }
                     onClick={() => {
                       setHudSearch(false);
                       openAdd();
                     }}
+                    disabled={writeLocked}
                     title={
-                      pinMode
-                        ? t('退出添加足迹（Esc）')
-                        : t('添加足迹（搜地名定位，或直接在地图上点选）')
+                      writeLocked
+                        ? lockScope === 'cloud'
+                          ? t('云端为只读展示：请在本地客户端添加足迹')
+                          : t('手机版为只读展示：请在电脑端添加足迹')
+                        : pinMode
+                          ? t('退出添加足迹（Esc）')
+                          : t('添加足迹（搜地名定位，或直接在地图上点选）')
                     }
                     aria-pressed={pinMode}
                   >
@@ -2721,15 +2820,21 @@ export default function App() {
               {(!readOnly || guest) && (
                 <button
                   type="button"
-                  className={shareMode ? 'hud-share-btn on' : 'hud-share-btn'}
+                  className={
+                    (shareMode ? 'hud-share-btn on' : 'hud-share-btn') +
+                    (displayOnly ? ' cloud-locked' : '')
+                  }
                   onClick={() => {
                     if (shareMode) exitShareMode();
                     else void enterShareMode();
                   }}
+                  disabled={displayOnly}
                   title={
-                    shareMode
-                      ? t('退出分享选择')
-                      : t('分享（选择地点 / 到访 / 照片导出分享包）')
+                    displayOnly
+                      ? t('云端为只读展示：分享请从本地客户端发起')
+                      : shareMode
+                        ? t('退出分享选择')
+                        : t('分享（选择地点 / 到访 / 照片导出分享包）')
                   }
                   aria-pressed={shareMode}
                 >
@@ -2906,11 +3011,21 @@ export default function App() {
         // 空地图引导（2026-11-07 P2 验收反馈）：只保留一个按钮，
         // 不再有「你还没有留下任何足迹」小字、也不再有长方形底色。
         // 2026-11-09 D-335：只读样板会话没有「添加第一个地方」
-        <div className="map-empty">
-          <button className="primary" onClick={openAdd}>
-            {t('添加第一个地方')}
-          </button>
-        </div>
+        // 2026-11-18 D-522：云端只读展示模式 → 不显示添加按钮，只留一行指路提示
+        // 2026-11-19 D-533：手机版只读展示同理（提示改指向电脑端）
+        writeLocked ? (
+          <div className="map-empty map-empty-line" role="status">
+            {lockScope === 'cloud'
+              ? t('还没有内容 · 去本地客户端 设置 → 云端账号 → 立即同步')
+              : t('还没有内容 · 请在电脑端添加足迹')}
+          </div>
+        ) : (
+          <div className="map-empty">
+            <button className="primary" onClick={openAdd}>
+              {t('添加第一个地方')}
+            </button>
+          </div>
+        )
       )}
 
       {adding && (
@@ -2933,6 +3048,12 @@ export default function App() {
           detail={detail}
           entry={detailSource}
           readOnly={readOnly}
+          displayOnly={writeLocked}
+          displayOnlyTitle={
+            lockScope === 'cloud'
+              ? t('云端为只读展示：请在本地客户端添加照片 / 视频')
+              : t('手机版为只读展示：请在电脑端添加照片 / 视频')
+          }
           onBack={closeDetail}
           onLocateInMyTrail={locateInMyTrail}
           onClose={closeDetail}
@@ -3075,8 +3196,21 @@ export default function App() {
           counts={shareCounts}
           range={shareCounts.range}
           displayName={topbarUser?.displayName || topbarUser?.username || ''}
+          cloudReady={Boolean(cloudStatus?.configured)}
+          cloudName={cloudStatus?.user?.displayName}
           onClose={() => setShareConfirmOpen(false)}
-          onExported={clearShareSelection}
+          onNeedLogin={() => {
+            setShareConfirmOpen(false);
+            setSettingsInitialTab('cloud');
+            setSettingsOpen(true);
+          }}
+          onShared={() => {
+            // 2026-11-18 D-526：上传成功后**不要**立刻清空选择（会触发弹窗重置、也把结果页顶掉），
+            // 只刷新云端状态 + 给一条成功提示；选择等用户关掉结果页时再清（onDone）。
+            void refreshCloudStatus();
+            say(tr('分享已上传到云端'));
+          }}
+          onDone={() => clearShareSelection()}
         />
       )}
 
@@ -3095,6 +3229,8 @@ export default function App() {
         <SettingsModal
           initialTab={settingsInitialTab}
           readOnly={readOnly}
+          cloudStatus={cloudStatus}
+          onCloudChanged={() => void refreshCloudStatus()}
           onClose={() => {
             setSettingsOpen(false);
             setSettingsInitialTab(undefined);

@@ -105,7 +105,9 @@ import {
 import { UserExportError, buildUserExportZip, userExportFileName } from './user-export.mjs';
 import { ZipError } from './zip.mjs';
 // 2026-11-14 D-416：分享（F-SHR-01）—— 公开只读接口 + 账号导入/列表/撤销 + 到期清理
-import { pruneShares, registerShareRoutes, revokeAllSharesForUser } from './share.mjs';
+import { countTrashShares, listTrashShares, pruneShares, registerShareRoutes, revokeAllSharesForUser } from './share.mjs';
+import { registerCloudRoutes } from './cloud.mjs';
+import { registerSnapshotRoutes } from './snapshot.mjs';
 import {
   cancelShareExport,
   getShareExportStatus,
@@ -130,6 +132,47 @@ const VIDEO_FORMATS = [...VIDEO_EXT].sort();
 const app = Fastify({ logger: false, bodyLimit: 4 * 1024 * 1024, trustProxy: true });
 
 // ───────────── M6 P2-2（D-202）：登录守卫 + 数据归属 ─────────────
+
+/**
+ * 只读展示模式（云端 `CLOUD_DISPLAY_ONLY=1` / 手机版 ≤820px）允许的写接口白名单。
+ *
+ * 2026-11-18 D-522 定：白名单 = 登录会话 / 账号自助 / 分享导入与管理 / 快照导入 / 秘密基地验证
+ * —— 「本地客户端把内容推到云端」与「管理已上传分享」必需的通道。
+ * 2026-11-19 D-533 抽成模块级常量：云端与手机版**共用同一份**，避免两处规则漂移。
+ */
+const DISPLAY_ONLY_ALLOW_PREFIX = [
+  '/api/auth/',
+  '/api/account/',
+  '/api/admin/',
+  '/api/shares',
+  '/api/snapshot',
+];
+const DISPLAY_ONLY_ALLOW_EXACT = new Set([
+  '/api/config/tdt-key',
+  '/api/secret/unlock',
+  '/api/secret/verify',
+]);
+const displayOnlyWriteAllowed = (path) =>
+  DISPLAY_ONLY_ALLOW_EXACT.has(path) ||
+  DISPLAY_ONLY_ALLOW_PREFIX.some((p) => path === p || path.startsWith(p));
+
+/**
+ * 手机版**额外**放行的写接口（2026-11-19 D-533，用户要求「分享保留可用」）。
+ *
+ * 本地「分享」= 服务端打包（`POST /api/share/export/start`）→ 再推到云端 `/api/shares/import`。
+ * 打包这一步在云端是**不该有**的（displayOnly 继续禁止，服务器上不做本地导出），
+ * 但手机上要能发起分享，所以只在手机版放开这一条前缀。
+ */
+const PHONE_ONLY_ALLOW_PREFIX = ['/api/share/export'];
+const phoneOnlyWriteAllowed = (path) =>
+  PHONE_ONLY_ALLOW_PREFIX.some((p) => path === p || path.startsWith(p));
+
+/**
+ * 手机布局标记 Cookie（2026-11-19 D-533）：
+ * 前端 `src/lib/phoneLock.ts` 在视口 ≤820px 时写 `th_phone=1`、>820px 时删掉；
+ * 这里据此把手机版当只读展示（与云端同一套白名单）。电脑端不会有这个 Cookie。
+ */
+const PHONE_LOCK_COOKIE = 'th_phone';
 
 /**
  * 全局登录守卫（只在 AUTH_MODE=multi 生效）：
@@ -164,7 +207,23 @@ app.addHook('preHandler', async (req, reply) => {
 
   const user = userFromRequest(req); // local 模式直接返回 null，不查库
   req.authUser = user;
-  if (CONFIG.authMode !== 'multi') return;
+  if (CONFIG.authMode !== 'multi') {
+    /**
+     * 2026-11-19 D-533：单机本地版也要认「手机只读」。
+     * 手机在家连局域网打开本地版时，与公网云端逐条一致（写接口除白名单外全 403）；
+     * 电脑端（>820px）不会有 `th_phone` Cookie，行为与以前逐字不变。
+     */
+    if (
+      req.method !== 'GET' &&
+      req.method !== 'HEAD' &&
+      readCookie(req, PHONE_LOCK_COOKIE) === '1' &&
+      !displayOnlyWriteAllowed(path) &&
+      !phoneOnlyWriteAllowed(path)
+    ) {
+      return reply.code(403).send({ error: '手机版为只读展示，请在电脑端操作' });
+    }
+    return;
+  }
 
   // 2026-11-09 D-335（用户要求：云端版当「只读样板展示窗口」）：只读样板会话在服务端强制只读。
   // 除「退出登录 / 登录切换账号 / 会话级天地图 Key」外，所有非 GET/HEAD 请求一律 403；
@@ -193,6 +252,35 @@ app.addHook('preHandler', async (req, reply) => {
 
   if (path === '/api/health' || path.startsWith('/api/auth/')) return;
   if (!user) return reply.code(401).send({ error: '请先登录' });
+
+  /**
+   * 2026-11-18 D-522（用户要求「云端只做展示」）：
+   * `CLOUD_DISPLAY_ONLY=1` 时，除白名单外**所有非 GET 请求**一律 403。
+   * 白名单 = 登录会话 / 账号自助 / 分享导入与管理 / 快照导入 / 秘密基地验证 —— 这些是
+   * 「本地客户端把内容推到云端」和「管理已上传分享」必需的通道，其余（地点、到访、媒体、
+   * 回收站、备份恢复、素材库路径、秘密基地设置…）全部禁止。
+   * 前端会把对应入口变灰；这里是绕过前端时的兜底。
+   *
+   * 2026-11-19 D-533（手机版只读展示）：前端在 ≤820px 布局时写 `th_phone=1` Cookie，
+   * 这里套用**完全相同**的白名单 —— 即「云端能做的手机也能做（分享 / 账号 / 快照 / 验证），
+   * 云端不能做的手机也不能做」，把写保护落到服务端，而不是只灰掉按钮。
+   */
+  const cloudLocked = CONFIG.displayOnly;
+  const phoneLocked = readCookie(req, PHONE_LOCK_COOKIE) === '1';
+  const lockedWrite = req.method !== 'GET' && req.method !== 'HEAD';
+  if (
+    lockedWrite &&
+    (cloudLocked || phoneLocked) &&
+    !displayOnlyWriteAllowed(path) &&
+    !(!cloudLocked && phoneOnlyWriteAllowed(path))
+  ) {
+    return reply.code(403).send({
+      error: cloudLocked
+        ? '云端为只读展示：不能新增或修改内容'
+        : '手机版为只读展示，请在电脑端操作',
+    });
+  }
+
   if (req.method !== 'GET' && req.method !== 'HEAD' && !sameOrigin(req)) {
     return reply.code(403).send({ error: '请求来源不合法' });
   }
@@ -842,6 +930,8 @@ app.get('/api/auth/me', async (req) => ({
   mode: CONFIG.authMode,
   user: userFromRequest(req),
   demo: demoShowcaseInfo(),
+  /** 2026-11-18 D-522：云端只读展示模式（前端据此把新增类入口变灰） */
+  displayOnly: CONFIG.authMode === 'multi' && CONFIG.displayOnly,
 }));
 
 /**
@@ -2058,7 +2148,7 @@ function restoreTrashBatch(owner, items) {
     throw trashErr(500, '恢复失败：' + e.message);
   }
 
-  out.remaining = trashCount(owner);
+  out.remaining = trashCountWithShares(owner);
   return out;
 }
 
@@ -2115,7 +2205,7 @@ function purgeTrashBatch(owner, items) {
     purgedVisits: visits.length,
     purgedMedia: media.length,
     files,
-    remaining: trashCount(owner),
+    remaining: trashCountWithShares(owner),
   };
 }
 
@@ -2221,15 +2311,36 @@ const EMPTY_TRASH = {
   bytes: 0,
   cache_bytes: 0,
   size: 0,
+  shares: [],
+  shareCount: 0,
 };
-app.get('/api/trash', async (req) =>
-  req.authUser?.readOnly ? EMPTY_TRASH : listTrash(ownerOf(req))
-);
+
+/**
+ * 回收站计数（内容 + 分享）。
+ * 2026-11-18 D-527（用户要求）：分享删除直接进**这个**回收站，「我的分享」里不再单开一份；
+ * 顶部角标 / 清空提示都要把分享算进去。
+ */
+function trashCountWithShares(owner) {
+  const base = trashCount(owner);
+  const shares = countTrashShares(owner);
+  return { ...base, shares, total: Number(base.total || 0) + shares };
+}
+
+app.get('/api/trash', async (req) => {
+  if (req.authUser?.readOnly) return EMPTY_TRASH;
+  const owner = ownerOf(req);
+  const base = listTrash(owner);
+  const shares = listTrashShares(owner);
+  return {
+    ...base,
+    shares,
+    shareCount: shares.length,
+    total: Number(base.total || 0) + shares.length,
+  };
+});
 
 app.get('/api/trash/count', async (req) =>
-  req.authUser?.readOnly
-    ? { total: 0, places: 0, visits: 0, media: 0 }
-    : trashCount(ownerOf(req))
+  req.authUser?.readOnly ? { total: 0, places: 0, visits: 0, media: 0, shares: 0 } : trashCountWithShares(ownerOf(req))
 );
 
 app.post('/api/trash/restore', async (req, reply) => {
@@ -3979,6 +4090,11 @@ app.post('/api/share/export/reveal', async (req, reply) => {
 // 账号侧 /api/shares/import、/api/shares、/api/shares/:id、/api/shares/usage。
 await registerShareRoutes(app);
 
+// ───────────── 云端只读展示 / 本地客户端（2026-11-18 D-522 ~ D-525）─────────────
+// 本地：/api/cloud/*（登录、状态、同步）；云端：/api/snapshot（快照元信息 + 导入）。
+await registerCloudRoutes(app);
+await registerSnapshotRoutes(app);
+
 // ───────────── 静态资源 ─────────────
 
 if (existsSync(CONFIG.distDir)) {
@@ -4053,9 +4169,12 @@ const sharePruneTimer = setInterval(() => {
 }, Number(process.env.SHARE_PRUNE_MS) > 0 ? Number(process.env.SHARE_PRUNE_MS) : 5 * 60 * 1000);
 sharePruneTimer.unref?.();
 
-app.listen({ port: CONFIG.port, host: '127.0.0.1' })
+app.listen({ port: CONFIG.port, host: CONFIG.host })
   .then(async () => {
-    console.log(`[api] http://127.0.0.1:${CONFIG.port}`);
+    const lan = CONFIG.host === '0.0.0.0';
+    console.log(
+      `[api] http://127.0.0.1:${CONFIG.port}${lan ? `（已监听 0.0.0.0:${CONFIG.port}，手机 / 局域网可用本机 IP 访问）` : ''}`
+    );
     const ok = await hasFfmpeg();
     console.log(
       ok

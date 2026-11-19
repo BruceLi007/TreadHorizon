@@ -569,15 +569,21 @@ try {
   const beforeRevoke = await req('/api/shares', { jar: u1 });
   const curA = beforeRevoke.body.items.find((x) => x.token === tokenA);
   eq('撤销前 A 有效', curA?.status, 'ok');
-  eq('越权撤销（u2 删 u1）→ 404', (await del('/api/shares/' + impA.body.id, { jar: u2 })).status, 404);
-  eq('撤销 A → 200', (await del('/api/shares/' + impA.body.id, { jar: u1 })).status, 200);
+  eq('越权撤销（u2 撤 u1）→ 404', (await postJson('/api/shares/' + impA.body.id + '/revoke', {}, { jar: u2 })).status, 404);
+  // 2026-11-18 D-524：撤销 = 只下线（媒体保留，可在「我的分享」重新上线）；
+  // 删除（DELETE）才是进回收站，彻底删除才删媒体。
+  eq('撤销 A → 200', (await postJson('/api/shares/' + impA.body.id + '/revoke', {}, { jar: u1 })).status, 200);
   eq('撤销后 GET → 410', (await req('/api/share/' + tokenA)).status, 410);
-  eq('撤销后目录已删', existsSync(dirA), false);
+  eq('撤销后目录保留', existsSync(dirA), true);
   const afterRevoke = await req('/api/shares', { jar: u1 });
   const revA = afterRevoke.body.items.find((x) => x.token === tokenA);
   eq('撤销后状态 revoked', revA?.status, 'revoked');
-  eq('撤销后 bytes = 0', revA?.bytes, 0);
+  eq('撤销后 bytes 保留（要手动彻底删除才释放）', (revA?.bytes ?? 0) > 0, true);
   eq('撤销后打开次数保留', revA?.viewCount, curA?.viewCount);
+  eq('重新上线 → 200', (await postJson('/api/shares/' + impA.body.id + '/online', {}, { jar: u1 })).status, 200);
+  eq('上线后 GET → 200', (await req('/api/share/' + tokenA)).status, 200);
+  // 再撤销一次，供后面「9) 解锁 cookie」断言使用
+  eq('再次撤销 → 200', (await postJson('/api/shares/' + impA.body.id + '/revoke', {}, { jar: u1 })).status, 200);
 
   section('8) 密码分享统计 / 限速');
   const pL = await makePhoto('mL');
@@ -638,9 +644,10 @@ try {
   const dirE = join(sharesRoot, reg1.body.user.id, impE.body.id);
   withDb((db) => db.prepare('UPDATE share SET expires_at = ? WHERE id = ?').run(Date.now() - 1000, impE.body.id));
   eq('过期后 GET → 410', (await req('/api/share/' + tokenE)).status, 410);
-  eq('过期后目录已删', existsSync(dirE), false);
+  // 2026-11-18 D-524：过期不再自动删媒体（空间要手动彻底删除才释放）
+  eq('过期后目录保留', existsSync(dirE), true);
   const usageAfterExpire = await req('/api/shares/usage', { jar: u1 });
-  check('过期后 sharesBytes 回落（不含该份）', usageAfterExpire.body.sharesBytes >= 0);
+  check('过期后 sharesBytes 仍计入该份', usageAfterExpire.body.sharesBytes >= 0);
   withDb((db) => db.prepare('UPDATE share SET purged_at = ? WHERE id = ?').run(Date.now() - 8 * 24 * 3600 * 1000, impE.body.id));
   await sleep(PRUNE_MS * 3);
   eq('墓碑 7 天后行被删 → 404', (await req('/api/share/' + tokenE)).status, 404);
@@ -707,7 +714,7 @@ try {
   await zipfile.close();
   eq('备份包没有 shares/ 条目', names.some((n) => n.startsWith('shares/')), false);
 
-  section('13) 禁用账号 → 分享立即 410');
+  section('13) 禁用账号 → 分享立即失效（彻底删除）');
   const pD = await makePhoto('mD');
   const impD = await importZip(
     u2,
@@ -718,7 +725,8 @@ try {
   eq('禁用前 D 可访问', (await req('/api/share/' + tokenD)).status, 200);
   const dis = await patchJson('/api/admin/users/' + reg2.body.user.id, { status: 'disabled' }, { jar: admin });
   eq('管理员禁用 u2', dis.status, 200);
-  eq('禁用后 D → 410', (await req('/api/share/' + tokenD)).status, 410);
+  // 2026-11-18 D-524：禁用账号 = 彻底删除他的分享（所以是 404，不是撤销墓碑的 410）
+  eq('禁用后 D → 404（分享已彻底删除）', (await req('/api/share/' + tokenD)).status, 404);
   eq('禁用后 D 目录已删', existsSync(dirD), false);
 
   section('14) 不会误删别人的分享');
@@ -745,7 +753,9 @@ try {
   const dirIsoC = join(sharesRoot, reg3.body.user.id, isoC.body.id);
   withDb((db) => db.prepare('UPDATE share SET expires_at = ? WHERE id = ?').run(Date.now() - 1000, isoA.body.id));
   await sleep(PRUNE_MS * 3);
-  eq('A 已删', existsSync(dirIsoA), false);
+  // 2026-11-18 D-524：过期不再自动删媒体，目录要等用户彻底删除
+  eq('A 过期后目录保留（不自动删媒体）', existsSync(dirIsoA), true);
+  eq('A 过期后 GET → 410', (await req('/api/share/' + tokenFrom(isoA))).status, 410);
   check('B 目录与文件完整', existsSync(dirIsoB) && walk(dirIsoB).length === 2);
   check('C（另一账号）目录与文件完整', existsSync(dirIsoC) && walk(dirIsoC).length === 2);
   eq('B 仍可访问', (await req('/api/share/' + tokenFrom(isoB))).status, 200);

@@ -215,6 +215,13 @@ export const CONFIG = {
   isDev,
   port: Number(env.PORT || 4000),
   /**
+   * 监听地址（2026-11-19 D-534）：默认 `127.0.0.1` —— 只给本机访问，行为与以前完全一致。
+   * 手机联调 / 局域网自托管时设 `HOST=0.0.0.0`，手机才能用局域网 IP 打开
+   * （D-533 的「手机版只读展示」就要在「手机真的访问到」这个形态下测）。
+   * ⚠️ 绑 0.0.0.0 = 把这份数据暴露给同一局域网内的设备，测完记得停掉实例。
+   */
+  host: env.HOST || '127.0.0.1',
+  /**
    * 2026-11-07 D-248（用户反馈「上传大文件报 Payload Too Large」）：
    * 单文件上传上限，默认 8 GiB；.env.local 里可用 MAX_UPLOAD_GB 调整（例如 16 / 4 / 2）。
    * 旧版硬编码 2 GiB，超过会被截断成 2 GiB 的半截文件并可能入库。
@@ -230,6 +237,14 @@ export const CONFIG = {
    * 只认 local / multi 两个值，非法值回落到 local。
    */
   authMode: env.AUTH_MODE === 'multi' ? 'multi' : 'local',
+  /**
+   * 云端「只读展示」模式（2026-11-18 D-522，用户要求：云端只做展示，不能新增地点 / 照片）：
+   * - 打开后服务端对所有**内容写**接口一律 403（登录、账号、分享导入与管理、快照导入等白名单除外）；
+   * - 前端据此把「+ 添加足迹 / 分享 / 上传」等入口变灰（不删除入口）；
+   * - 只对 AUTH_MODE=multi 有意义；local 模式忽略。
+   * 部署时在云端 .env 里写 `CLOUD_DISPLAY_ONLY=1` 即可。
+   */
+  displayOnly: env.CLOUD_DISPLAY_ONLY === '1',
   /** 会话有效期（天，默认 30；滚动续期） */
   sessionDays: Number(env.SESSION_DAYS) > 0 ? Number(env.SESSION_DAYS) : 30,
   /** 云端 HTTPS 部署时置 1：会话 Cookie 加 Secure（本地 http 调试不要开） */

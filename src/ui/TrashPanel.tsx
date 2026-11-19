@@ -13,6 +13,7 @@ import type {
   TrashJob,
   TrashJobKind,
   TrashSelection,
+  TrashShareRow,
 } from '../lib/types';
 
 interface Props {
@@ -23,7 +24,7 @@ interface Props {
   embedded?: boolean;
 }
 
-type Tab = 'all' | 'place' | 'visit' | 'media';
+type Tab = 'all' | 'place' | 'visit' | 'media' | 'share';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const fmtTime = (ms: number) => {
@@ -103,6 +104,13 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
   const [order, setOrder] = useState<SortOrder>('desc');
   const [selected, setSelected] = useState<string[]>([]);
   const [purge, setPurge] = useState<{ items: TrashItem[]; all: boolean } | null>(null);
+  /**
+   * 2026-11-18 D-527（用户要求「回收站直接用原有的」）：
+   * 分享删除后也进这个回收站，列表里单独一段「分享」。
+   * 分享不走下面那套内容批处理（选择 / 后台任务），只做单条「恢复 / 彻底删除」。
+   */
+  const [sharePurge, setSharePurge] = useState<TrashShareRow | null>(null);
+  const [shareBusy, setShareBusy] = useState<string | null>(null);
   /** 恢复父级时是否连带此前单独删除的子项 */
   const [restoreAsk, setRestoreAsk] = useState<{
     items: TrashItem[];
@@ -153,6 +161,48 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
   }, [load]);
 
   const items = data?.items ?? [];
+  /** 回收站里的分享（D-527）；与内容分开渲染，不参与上面的选择 / 批处理 */
+  const trashedShares = data?.shares ?? [];
+  const pendingTotal = items.length + trashedShares.length;
+
+  /** 恢复一份分享：恢复后是「已撤销」，要重新上线再去「我的分享」点一下 */
+  const restoreTrashedShare = async (row: TrashShareRow) => {
+    setShareBusy(row.id);
+    setErr(null);
+    setMsg(null);
+    try {
+      await api.restoreShare(row.id);
+      await load();
+      await onChanged?.();
+      setMsg(
+        t('已恢复分享「{title}」（状态为已撤销，可在「我的分享」里重新上线）', {
+          title: row.title || t('未命名分享'),
+        })
+      );
+    } catch (e: any) {
+      setErr(t('恢复分享失败：{msg}', { msg: e?.message || e }));
+    } finally {
+      setShareBusy(null);
+    }
+  };
+
+  /** 彻底删除一份分享（不可恢复） */
+  const purgeTrashedShare = async (row: TrashShareRow) => {
+    setShareBusy(row.id);
+    setErr(null);
+    setMsg(null);
+    try {
+      await api.purgeShare(row.id);
+      setSharePurge(null);
+      await load();
+      await onChanged?.();
+      setMsg(t('已彻底删除分享「{title}」', { title: row.title || t('未命名分享') }));
+    } catch (e: any) {
+      setErr(t('彻底删除分享失败：{msg}', { msg: e?.message || e }));
+    } finally {
+      setShareBusy(null);
+    }
+  };
   /** 服务端按删除时间倒序返回；asc 时客户端反转，不影响 selected 的 id 逻辑 */
   const orderedItems = useMemo(
     () => (order === 'desc' ? items : items.slice().reverse()),
@@ -160,6 +210,7 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
   );
   const tabItems = useMemo(() => {
     if (tab === 'all') return orderedItems;
+    if (tab === 'share') return [];
     return orderedItems.filter((it) => it.type === tab);
   }, [orderedItems, tab]);
   const selectedItems = useMemo(
@@ -455,6 +506,8 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
     { key: 'place', label: t('地点'), count: data?.placeCount ?? 0 },
     { key: 'visit', label: t('到访'), count: data?.visitCount ?? 0 },
     { key: 'media', label: t('照片视频'), count: data?.mediaCount ?? 0 },
+    // 2026-11-18 D-531（用户看截图要求）：分享删除后也进这个回收站，做成和上面平级的一个标签
+    { key: 'share', label: t('分享'), count: trashedShares.length },
   ];
 
   const emptyText: Record<Tab, string> = {
@@ -462,7 +515,53 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
     place: t('没有单独删除的地点。'),
     visit: t('没有单独删除的到访。'),
     media: t('没有单独删除的照片/视频。'),
+    share: t('回收站里没有分享。'),
   };
+
+  /** 当前标签是不是「空」：分享标签看 shares，全部标签要把分享也算上 */
+  const tabEmpty =
+    tab === 'share' ? trashedShares.length === 0 : tabItems.length === 0 && (tab !== 'all' || trashedShares.length === 0);
+
+  /** 分享行（D-531：在「分享」标签与「全部」标签里共用） */
+  const renderShareRow = (row: TrashShareRow) => (
+    <div className="trash-row trash-share-row" key={`share:${row.id}`}>
+      <div className="trash-main">
+        <div className="trash-title">
+          <span className="trash-type share">{t('分享')}</span>
+          {row.title || t('未命名分享')}
+        </div>
+        <div className="trash-meta">
+          {t('{places} 个地点 · {photos} 张照片 · {size}', {
+            places: row.itemCount,
+            photos: row.mediaCount,
+            size: fmtBytes(row.bytes),
+          })}
+          {row.hasPassword ? t(' · 已设密码') : ''}
+        </div>
+        <div className="trash-meta deleted-at">
+          {t('删除于 {time}', { time: fmtTime(row.deletedAt ?? 0) })}
+        </div>
+      </div>
+      <div className="trash-actions">
+        <button
+          className="text-btn"
+          onClick={() => void restoreTrashedShare(row)}
+          disabled={!!shareBusy}
+          title={t('恢复到「我的分享」（状态为已撤销）')}
+        >
+          {t('恢复')}
+        </button>
+        <button
+          className="text-btn danger"
+          onClick={() => setSharePurge(row)}
+          disabled={!!shareBusy}
+          title={t('彻底删除分享与文件，无法恢复')}
+        >
+          {t('彻底删除')}
+        </button>
+      </div>
+    </div>
+  );
 
   /** 一行回收站记录（2026-11-10 D-352：抽成函数，供平铺列表与「全部」分组共用） */
   const renderRow = (it: TrashItem) => {
@@ -579,8 +678,8 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
       {embedded ? (
         <div className="trash-embedded-head">
           <span className="muted">
-            {items.length > 0
-              ? t('{n} 项待处理', { n: items.length })
+            {pendingTotal > 0
+              ? t('{n} 项待处理', { n: pendingTotal })
               : t('暂无待处理内容')}
           </span>
           <div className="head-tools">
@@ -595,7 +694,7 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
         <div className="panel-head">
           <span className="title">
             {t('回收站')}
-            {items.length > 0 && <span className="count-inline">{items.length}</span>}
+            {pendingTotal > 0 && <span className="count-inline">{pendingTotal}</span>}
           </span>
           <div className="head-tools">
             <SortToggle
@@ -621,6 +720,7 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
             places: data?.placeCount ?? 0,
             visits: data?.visitCount ?? 0,
           })}
+          {trashedShares.length > 0 ? t(' · {n} 份分享', { n: trashedShares.length }) : ''}
         </div>
       </div>
 
@@ -644,38 +744,55 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
           }))}
           value={tab}
           onChange={switchTab}
-          disabled={!!busy}
+          disabled={!!busy || !!shareBusy}
         />
       </div>
 
       <div className="trash-toolbar">
-        <label className="trash-selectall">
-          <input
-            type="checkbox"
-            checked={allSelected}
-            onChange={toggleAll}
-            disabled={!tabItems.length}
-          />
-          {t('全选')}
-        </label>
-        <span className="muted">{t('已选 {n} 项', { n: selectedItems.length })}</span>
-        <span className="trash-spacer" />
-        <button
-          className="text-btn danger"
-          onClick={() => startPurge(items, true)}
-          disabled={!items.length || !!busy}
-        >
-          {t('清空回收站')}
-        </button>
-        <button className="text-btn" onClick={load} disabled={loading || !!busy}>
-          {t('刷新')}
-        </button>
+        {tab === 'share' ? (
+          <>
+            <span className="muted">{t('分享只能单条恢复或彻底删除。')}</span>
+            <span className="trash-spacer" />
+            <button className="text-btn" onClick={load} disabled={loading || !!busy || !!shareBusy}>
+              {t('刷新')}
+            </button>
+          </>
+        ) : (
+          <>
+            <label className="trash-selectall">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleAll}
+                disabled={!tabItems.length}
+              />
+              {t('全选')}
+            </label>
+            <span className="muted">{t('已选 {n} 项', { n: selectedItems.length })}</span>
+            <span className="trash-spacer" />
+            <button
+              className="text-btn danger"
+              onClick={() => startPurge(items, true)}
+              disabled={!items.length || !!busy}
+            >
+              {t('清空回收站')}
+            </button>
+            <button className="text-btn" onClick={load} disabled={loading || !!busy}>
+              {t('刷新')}
+            </button>
+          </>
+        )}
       </div>
 
       <div className="visits">
         {loading && !data && <div className="muted pad">{t('读取中…')}</div>}
 
-        {!loading && tabItems.length === 0 && <div className="muted pad">{emptyText[tab]}</div>}
+        {!loading && tabEmpty && <div className="muted pad">{emptyText[tab]}</div>}
+
+        {tab === 'share' && trashedShares.length > 0 && (
+          <p className="hint trash-note">{t('恢复后为「已撤销」，可在「我的分享」里重新上线。')}</p>
+        )}
+        {tab === 'share' && trashedShares.map((row) => renderShareRow(row))}
 
         {tab === 'all' && (data?.mediaTotal ?? 0) > (data?.mediaCount ?? 0) && (
           <p className="hint trash-note">
@@ -717,6 +834,21 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
             );
           })}
 
+        {tab === 'all' && trashedShares.length > 0 && (
+          <div className="trash-group">
+            <div className="trash-group-head trash-group-head-static">
+              <span className="trash-group-name">{t('分享')}</span>
+              <span className="trash-group-count">{t('（{n} 项）', { n: trashedShares.length })}</span>
+              <span className="muted trash-shares-note">
+                {t('恢复后为「已撤销」，可在「我的分享」里重新上线')}
+              </span>
+            </div>
+            <div className="trash-group-rows">
+              {trashedShares.map((row) => renderShareRow(row))}
+            </div>
+          </div>
+        )}
+
         {msg && <p className="hint pad">{msg}</p>}
         {err && (
           <p className="hint err pad" style={{ whiteSpace: 'pre-line' }}>
@@ -725,28 +857,31 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
         )}
       </div>
 
-      <div className="panel-foot">
-        <button
-          className="ghost"
-          onClick={() => requestRestore(selectedItems)}
-          disabled={!restorableSelected.length || !!busy}
-          title={
-            skippedSelected
-              ? t('{n} 项需要先恢复父级，已跳过', { n: skippedSelected })
-              : undefined
-          }
-        >
-          {t('恢复所选')}
-          {restorableSelected.length ? ` (${restorableSelected.length})` : ''}
-        </button>
-        <button
-          className="danger-btn"
-          onClick={() => startPurge(selectedItems)}
-          disabled={!selectedItems.length || !!busy}
-        >
-          {t('彻底删除所选')}
-        </button>
-      </div>
+      {/* 「分享」标签是单条操作（恢复 / 彻底删除在行上），不显示内容用的批量底栏 */}
+      {tab !== 'share' && (
+        <div className="panel-foot">
+          <button
+            className="ghost"
+            onClick={() => requestRestore(selectedItems)}
+            disabled={!restorableSelected.length || !!busy}
+            title={
+              skippedSelected
+                ? t('{n} 项需要先恢复父级，已跳过', { n: skippedSelected })
+                : undefined
+            }
+          >
+            {t('恢复所选')}
+            {restorableSelected.length ? ` (${restorableSelected.length})` : ''}
+          </button>
+          <button
+            className="danger-btn"
+            onClick={() => startPurge(selectedItems)}
+            disabled={!selectedItems.length || !!busy}
+          >
+            {t('彻底删除所选')}
+          </button>
+        </div>
+      )}
       {restoreAsk && (
         <ConfirmDialog
           title={t('恢复 {n} 项？', { n: restoreAsk.items.length })}
@@ -829,6 +964,23 @@ export default function TrashPanel({ onClose, onChanged, embedded = false }: Pro
               })}
             </p>
           )}
+        </ConfirmDialog>
+      )}
+      {sharePurge && (
+        <ConfirmDialog
+          title={t('彻底删除分享「{title}」？', { title: sharePurge.title || t('未命名分享') })}
+          danger
+          busy={shareBusy === sharePurge.id}
+          busyText={t('删除中…')}
+          confirmText={t('确认彻底删除')}
+          onCancel={() => setSharePurge(null)}
+          onConfirm={() => void purgeTrashedShare(sharePurge)}
+        >
+          <p>
+            {t('这份分享的分享包和缩略图会被')}
+            <b>{t('永久删除，无法恢复')}</b>
+            {t('；链接会立即失效。')}
+          </p>
         </ConfirmDialog>
       )}
     </aside>
