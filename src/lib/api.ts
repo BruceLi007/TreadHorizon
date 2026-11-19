@@ -1082,7 +1082,7 @@ export interface CloudStatus {
 export interface CloudSyncJob {
   jobId: string;
   state: 'running' | 'done' | 'error' | 'canceled';
-  phase: 'pack' | 'upload';
+  phase: 'pack' | 'zip' | 'upload';
   total: number;
   done: number;
   /** 打包产物 zip 的字节数 */
@@ -1091,6 +1091,10 @@ export interface CloudSyncJob {
   uploaded?: number;
   /** 是否复用了上次失败留下的打包结果（D-541） */
   reused?: boolean;
+  /** 2026-11-20 D-544：写 zip 阶段的字节进度 / 本次写回的 1600 预览缓存条数 */
+  zipDone?: number;
+  zipTotal?: number;
+  cached?: number;
   /** 账号配额 / 分享占用 / 本次可用字节（D-542：包大小上限 = 账号配额 - 分享占用） */
   quotaBytes?: number | null;
   sharesBytes?: number | null;
@@ -1123,13 +1127,17 @@ export interface ShareExportStartInput {
 export interface ShareExportStatus {
   jobId: string;
   state: 'running' | 'done' | 'error' | 'canceled';
-  phase?: 'export' | 'pack' | 'upload';
+  phase?: 'export' | 'pack' | 'zip' | 'upload';
   total: number;
   done: number;
   skipped: number;
   bytes: number;
   /** 直传云端时的已上传字节 / 账号可用空间（2026-11-19 D-543） */
   uploaded?: number;
+  /** 2026-11-20 D-544：写 zip 的字节进度 / 本次写回的预览缓存条数 */
+  zipDone?: number;
+  zipTotal?: number;
+  cached?: number;
   limitBytes?: number | null;
   usedBytes?: number | null;
   savedPath: string | null;

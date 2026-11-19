@@ -26,15 +26,21 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import http from 'node:http';
 import https from 'node:https';
-import sharp from 'sharp';
 import { CONFIG } from './config.mjs';
 import { db, now } from './db.mjs';
 import { sameOrigin } from './auth.mjs';
 import { mediaBaseFor } from './media-root.mjs';
 import { safeResolve } from './paths.mjs';
-import { decodeHeicToJpeg, isHeicFile } from './heic.mjs';
+import { isHeicFile } from './heic.mjs';
 import { writeZip } from './zip.mjs';
 import { SNAPSHOT_LIMITS } from './share-package.mjs';
+import {
+  HEIC_CONCURRENCY,
+  JPEG_CONCURRENCY,
+  makeCloudPreview,
+  orderByCostDesc,
+  persistPreviewNames,
+} from './preview-cache.mjs';
 import { haversineKm } from './stats.mjs';
 
 export class CloudError extends Error {
@@ -50,8 +56,6 @@ const CRED_PATH = join(CONFIG.dataDir, 'cloud-account.json');
 /** 2026-11-18 D-528：云端账号头像的本地缓存（云端头像要登录态 + 跨域，浏览器 <img> 拿不到） */
 const AVATAR_PATH = join(CONFIG.dataDir, 'cloud-avatar.webp');
 const AVATAR_META = join(CONFIG.dataDir, 'cloud-avatar.json');
-const PREVIEW_MAX = 1280;
-const PREVIEW_QUALITY = 75;
 const JOB_TTL_MS = 60 * 60 * 1000;
 const jobs = new Map();
 
@@ -406,33 +410,6 @@ export async function uploadSharePackage(zipPath, fields = {}, job = null) {
 }
 
 /* ───────────── 同步（本地打包 → 云端主库） ───────────── */
-
-function sourceImage(abs) {
-  if (isHeicFile(abs)) {
-    return decodeHeicToJpeg(abs).then((jpeg) => sharp(jpeg, { failOn: 'none' }));
-  }
-  return sharp(abs, { failOn: 'none' });
-}
-
-async function makePreview(abs, dest, previewName) {
-  /**
-   * 2026-11-19 D-541：**优先复用已有的 1600 预览图**再缩到 1280。
-   * 以前每次都从原图（可能是 12MP JPEG / HEIC）重新解码，3342 张要 30 多分钟；
-   * 上传时本来就已经生成过 `preview`（1600 长边 webp），直接读它再缩小快得多。
-   */
-  let src = abs;
-  if (previewName) {
-    const cached = join(CONFIG.thumbDir, previewName);
-    if (existsSync(cached)) src = cached;
-  }
-  const img = await sourceImage(src);
-  const info = await img
-    .rotate()
-    .resize({ width: PREVIEW_MAX, height: PREVIEW_MAX, fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: PREVIEW_QUALITY })
-    .toFile(dest);
-  return { width: info.width || 0, height: info.height || 0 };
-}
 
 async function pool(items, limit, fn) {
   let i = 0;
@@ -846,13 +823,28 @@ async function runSyncJob(job) {
       job.phase = 'upload';
     } else {
 
-    await pool(media, 2, async (m) => {
+    /**
+     * 2026-11-20 D-544：预览缓存 + HEIC 优先调度。
+     * - 先查 `<thumbDir>/<id>_p.webp`（或 DB preview）→ 命中就只解 1600 小图；
+     * - 未命中从原图生成 1600 并写盘，再由它缩 1280（第一次多一次编码，之后每次同步/分享都省）；
+     * - HEIC 是单线程 WASM：先把 HEIC（含大图）跑完、并发 4，再跑 JPEG/PNG（并发 2），避免慢尾巴。
+     */
+    const cacheUpdates = new Map();
+    let cacheCreated = 0;
+    const runOne = async (m) => {
       if (job.canceled) return;
       try {
         const abs = safeResolve(mediaBase, m.rel_path);
         if (!abs || !existsSync(abs)) throw new Error('missing');
         const file = `p_${sha16(m.id)}.webp`;
-        const dim = await makePreview(abs, join(tmp, 'media', file), m.preview);
+        const dim = await makeCloudPreview({
+          id: m.id,
+          abs,
+          previewName: m.preview,
+          dest: join(tmp, 'media', file),
+        });
+        if (dim.cacheName) cacheUpdates.set(m.id, dim.cacheName);
+        if (dim.cacheCreated) cacheCreated += 1;
         outMedia.push({
           id: m.id,
           kind: 'photo',
@@ -869,8 +861,17 @@ async function runSyncJob(job) {
       } finally {
         job.done += 1;
       }
-    });
+    };
+    const ordered = orderByCostDesc(media, (m) => m.rel_path, (m) => m.bytes);
+    const heicList = ordered.filter((m) => isHeicFile(m.rel_path));
+    const otherList = ordered.filter((m) => !isHeicFile(m.rel_path));
+    await pool(heicList, HEIC_CONCURRENCY, runOne);
+    await pool(otherList, JPEG_CONCURRENCY, runOne);
     if (job.canceled) throw new CloudError('已取消', 499, 'canceled');
+    job.cached = persistPreviewNames(db, cacheUpdates, (msg) => {
+      job.cacheWarn = msg;
+    });
+    job.cacheCreated = cacheCreated;
     if (!outMedia.length) throw new CloudError('本地没有可同步的照片', 400);
 
     const byPlace = new Map();
@@ -952,15 +953,24 @@ async function runSyncJob(job) {
       entries.push({ name: `media/${m.file}`, path: join(tmp, 'media', m.file), compress: false });
     }
     const zipPathInner = join(tmp, 'snapshot.zip');
-    await writeZip(zipPathInner, entries, { shouldCancel: () => job.canceled });
-    zipPath = zipPathInner;
-    job.bytes = fileSize(zipPath);
     /**
-     * 2026-11-19 D-542：云端按**解压后**的字节数卡账号配额（照片 1280 预览几乎不可再压），
-     * 这里在打包时就统计好，失败时连同 meta 一起留着，重试沿用同一份判断。
+     * 2026-11-20 D-544：写 zip 单独一个阶段，并给出**字节进度**。
+     * 以前 3342/3342 之后还要闷头写 400 MB，进度条停在 100% 看起来像卡住。
      */
     job.uncompressed =
       outMedia.reduce((n, m) => n + (Number(m.bytes) || 0), 0) + fileSize(join(tmp, 'manifest.json'));
+    job.phase = 'zip';
+    job.zipTotal = job.uncompressed;
+    job.zipDone = 0;
+    await writeZip(zipPathInner, entries, {
+      shouldCancel: () => job.canceled,
+      onProgress: ({ bytesDone }) => {
+        job.zipDone = bytesDone;
+      },
+    });
+    job.zipDone = job.zipTotal;
+    zipPath = zipPathInner;
+    job.bytes = fileSize(zipPath);
     // 记一份 meta：失败后重试时用它判断「能不能直接复用这个包」
     writeFileSync(
       join(tmp, 'meta.json'),
@@ -1062,7 +1072,11 @@ export function getCloudSyncStatus(jobId) {
     bytes: j.bytes,
     uploaded: j.uploaded || 0,
     reused: j.reused === true,
-    /** D-542：账号配额 / 本次可用 / 解压口径字节（前端可显示「上限 = 账号容量」的具体数） */
+    /** 2026-11-20 D-544：打包阶段里「写 zip」单独计数（字节） */
+    zipDone: j.zipDone || 0,
+    zipTotal: j.zipTotal || 0,
+    /** 本次新建 / 写回 DB 的 1600 预览缓存条数（新建才提示「下次更快」） */
+    cached: j.cacheCreated || 0,
     quotaBytes: j.quotaBytes ?? null,
     sharesBytes: j.sharesBytes ?? null,
     limitBytes: j.limitBytes ?? null,
@@ -1104,6 +1118,9 @@ export function listCloudSyncJobs() {
       bytes: j.bytes,
       uploaded: j.uploaded || 0,
       reused: j.reused === true,
+      zipDone: j.zipDone || 0,
+      zipTotal: j.zipTotal || 0,
+      cached: j.cacheCreated || 0,
       quotaBytes: j.quotaBytes ?? null,
       sharesBytes: j.sharesBytes ?? null,
       limitBytes: j.limitBytes ?? null,

@@ -556,6 +556,12 @@ const dict: Dict = {
   '{p} 地点 · {v} 到访 · {m} 照片': '{p} places · {v} visits · {m} photos',
   // 2026-11-19 D-541（同步：上传字节进度 / 复用打包 / 已用时长）
   '正在上传… {pct}%（{done} / {total}）': 'Uploading… {pct}% ({done} / {total})',
+  '正在打包成 zip… {pct}%（{done} / {total}）': 'Packing zip… {pct}% ({done} / {total})',
+  '正在打包成 zip…': 'Packing zip…',
+  '打包成 zip': 'Packing zip',
+  '打包中 {pct}%': 'Packing {pct}%',
+  '已建立 {n} 张预览缓存（下次同步 / 分享会更快）':
+    'Cached {n} previews (next sync / share will be faster)',
   '上传中 {pct}%': 'Uploading {pct}%',
   '复用上次打包': 'reused previous package',
   '复用上次打包好的结果，不用重新生成缩略图':

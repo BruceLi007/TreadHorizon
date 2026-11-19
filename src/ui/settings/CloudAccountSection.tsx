@@ -189,9 +189,13 @@ export default function CloudAccountSection({ status, onChanged, onSyncStarted }
       ? job.bytes > 0
         ? Math.min(100, Math.round(((job.uploaded || 0) / job.bytes) * 100))
         : 0
-      : job && job.total > 0
-        ? Math.round((job.done / job.total) * 100)
-        : 0;
+      : job?.phase === 'zip'
+        ? Number(job.zipTotal) > 0
+          ? Math.min(100, Math.round(((job.zipDone || 0) / Number(job.zipTotal)) * 100))
+          : 0
+        : job && job.total > 0
+          ? Math.round((job.done / job.total) * 100)
+          : 0;
 
   return (
     <>
@@ -311,11 +315,22 @@ export default function CloudAccountSection({ status, onChanged, onSyncStarted }
                         done: formatBytes(job?.uploaded || 0),
                         total: formatBytes(job?.bytes || 0),
                       })
-                    : t('正在生成缩略图… {done} / {total}', {
-                        done: job?.done || 0,
-                        total: job?.total || 0,
-                      })}
+                    : job?.phase === 'zip'
+                      ? t('正在打包成 zip… {pct}%（{done} / {total}）', {
+                          pct: progress,
+                          done: formatBytes(job?.zipDone || 0),
+                          total: formatBytes(job?.zipTotal || 0),
+                        })
+                      : t('正在生成缩略图… {done} / {total}', {
+                          done: job?.done || 0,
+                          total: job?.total || 0,
+                        })}
                 </p>
+                {Number(job?.cached) > 0 && (
+                  <p className="set-hint">
+                    {t('已建立 {n} 张预览缓存（下次同步 / 分享会更快）', { n: job?.cached || 0 })}
+                  </p>
+                )}
                 {job?.reused && <p className="set-hint">{t('复用上次打包好的结果，不用重新生成缩略图')}</p>}
                 <div className="cloud-progress">
                   <span style={{ width: `${Math.max(4, progress)}%` }} />

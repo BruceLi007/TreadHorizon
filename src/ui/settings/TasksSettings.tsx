@@ -312,18 +312,26 @@ export default function TasksSettings({
       (tasks.cloudSyncJobs as CloudSyncTaskRow[])
         .map((j) => {
           const running = j.state === 'running';
+          const uploading = running && j.phase === 'upload';
+          /** 2026-11-20 D-544：写 zip 单独一个阶段（以前 3342/3342 之后条子不动，像卡死） */
+          const zipping = running && j.phase === 'zip';
+          const uploadPct =
+            uploading && j.bytes > 0 ? Math.min(100, Math.round(((j.uploaded || 0) / j.bytes) * 100)) : 0;
+          const zipPct =
+            zipping && Number(j.zipTotal) > 0
+              ? Math.min(100, Math.round(((j.zipDone || 0) / Number(j.zipTotal)) * 100))
+              : 0;
           const phaseLabel = running
             ? j.phase === 'upload'
               ? t('上传中')
-              : t('打包中')
+              : zipping
+                ? t('打包成 zip')
+                : t('打包中')
             : j.state === 'done'
               ? t('已同步')
               : j.state === 'canceled'
                 ? t('已取消')
                 : undefined;
-          const uploading = running && j.phase === 'upload';
-          const uploadPct =
-            uploading && j.bytes > 0 ? Math.min(100, Math.round(((j.uploaded || 0) / j.bytes) * 100)) : 0;
           return {
             id: `cloud-${j.jobId}`,
             kind: t('同步到云端'),
@@ -331,22 +339,29 @@ export default function TasksSettings({
             /**
              * 2026-11-19 D-541：打包阶段用「已生成 / 总数」；上传阶段改用**字节**进度
              * （以前上传时 done/total 已经是 3342/3342，条子一直 100% 不动，看着像卡死）。
+             * 2026-11-20 D-544：写 zip 也用字节进度。
              */
-            done: uploading ? j.uploaded || 0 : running && j.total > 0 ? j.done : undefined,
-            total: uploading ? j.bytes || 0 : running && j.total > 0 ? j.total : undefined,
+            done: uploading ? j.uploaded || 0 : zipping ? j.zipDone || 0 : running && j.total > 0 ? j.done : undefined,
+            total: uploading ? j.bytes || 0 : zipping ? j.zipTotal || 0 : running && j.total > 0 ? j.total : undefined,
             percentLabel: uploading
               ? t('上传中 {pct}%', { pct: uploadPct })
-              : running && j.total === 0
-                ? t('打包中')
-                : undefined,
+              : zipping
+                ? t('打包中 {pct}%', { pct: zipPct })
+                : running && j.total === 0
+                  ? t('打包中')
+                  : undefined,
             detail: [
               phaseLabel,
-              uploading ? `${fmtBytes(j.uploaded || 0)} / ${fmtBytes(j.bytes || 0)}` : '',
+              uploading
+                ? `${fmtBytes(j.uploaded || 0)} / ${fmtBytes(j.bytes || 0)}`
+                : zipping
+                  ? `${fmtBytes(j.zipDone || 0)} / ${fmtBytes(j.zipTotal || 0)}`
+                  : '',
               j.reused ? t('复用上次打包') : '',
               j.places > 0 || j.visits > 0
                 ? t('{p} 地点 · {v} 到访 · {m} 照片', { p: j.places, v: j.visits, m: j.photos || j.total })
                 : '',
-              !uploading && j.bytes > 0 ? fmtBytes(j.bytes) : '',
+              !uploading && !zipping && j.bytes > 0 ? fmtBytes(j.bytes) : '',
               running ? t('已用 {n} 分钟', { n: Math.max(1, Math.round((Date.now() - j.createdAt) / 60000)) }) : '',
             ]
               .filter(Boolean)

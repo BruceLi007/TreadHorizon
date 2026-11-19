@@ -1005,7 +1005,7 @@ export interface BackgroundTasks {
 export interface CloudSyncTaskRow {
   jobId: string;
   state: 'running' | 'done' | 'error' | 'canceled';
-  phase: 'pack' | 'upload';
+  phase: 'pack' | 'zip' | 'upload';
   total: number;
   done: number;
   bytes: number;
@@ -1013,6 +1013,10 @@ export interface CloudSyncTaskRow {
   uploaded?: number;
   /** 复用了上次失败留下的打包结果（D-541） */
   reused?: boolean;
+  /** 2026-11-20 D-544：写 zip 的字节进度 / 预览缓存条数 */
+  zipDone?: number;
+  zipTotal?: number;
+  cached?: number;
   /** 账号配额 / 分享占用 / 本次可用 / 解压口径字节（D-542） */
   quotaBytes?: number | null;
   sharesBytes?: number | null;

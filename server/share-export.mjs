@@ -24,15 +24,21 @@ import {
 import { createHash } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import sharp from 'sharp';
 import { CONFIG } from './config.mjs';
 import { db, now } from './db.mjs';
 import { getUserById } from './auth.mjs';
 import { mediaBaseFor } from './media-root.mjs';
 import { safeResolve } from './paths.mjs';
-import { decodeHeicToJpeg, isHeicFile } from './heic.mjs';
+import { isHeicFile } from './heic.mjs';
 import { haversineKm } from './stats.mjs';
 import { writeZip, ZipError } from './zip.mjs';
+import {
+  HEIC_CONCURRENCY,
+  JPEG_CONCURRENCY,
+  makeCloudPreview,
+  orderByCostDesc,
+  persistPreviewNames,
+} from './preview-cache.mjs';
 
 export class ShareExportError extends Error {
   constructor(message, status = 400) {
@@ -43,8 +49,6 @@ export class ShareExportError extends Error {
 }
 class Canceled extends Error {}
 
-const PREVIEW_MAX = 1280;
-const PREVIEW_QUALITY = 75;
 const JOB_TTL_MS = 10 * 60 * 1000;
 
 const jobs = new Map(); // jobId -> job
@@ -84,30 +88,13 @@ function uniqueZipPath(dir, count) {
   return p;
 }
 
-async function sourceImage(absPath) {
-  // 2026-11-15 D-437：这里原来写的是 isHeicExt(absPath) —— 那是「扩展名」判断（只认 '.heic'），
-  // 传完整路径永远 false，于是 HEIC 全部直接交给 sharp，报「HEVC 插件没编进来」被 catch 成
-  // 「无法读取」跳过（用户导出 173 张跳过 65 张，全是 HEIC）。改用 isHeicFile（内部取扩展名）。
-  if (isHeicFile(absPath)) {
-    const jpeg = await decodeHeicToJpeg(absPath);
-    return sharp(jpeg, { failOn: 'none' });
-  }
-  return sharp(absPath, { failOn: 'none' });
-}
-
-export async function makePreview(absPath, destPath) {
-  const img = await sourceImage(absPath);
-  const info = await img
-    .rotate()
-    .resize({
-      width: PREVIEW_MAX,
-      height: PREVIEW_MAX,
-      fit: 'inside',
-      withoutEnlargement: true,
-    })
-    .webp({ quality: PREVIEW_QUALITY })
-    .toFile(destPath);
-  return { width: info.width || 0, height: info.height || 0 };
+/**
+ * 生成分享用的 1280 预览（2026-11-20 D-544）：优先用 1600 缓存，命中就不解原图。
+ * 传 id / previewName 时会把缓存写回 thumbs 并返回缓存名（调用方批量持久化到 DB）。
+ */
+export async function makePreview(absPath, destPath, { id = null, previewName = null } = {}) {
+  const r = await makeCloudPreview({ id, abs: absPath, previewName, dest: destPath });
+  return { width: r.width, height: r.height, cacheName: r.cacheName };
 }
 
 function parseJsonArray(s) {
@@ -304,7 +291,13 @@ async function runExportJob(job) {
     const outMedia = [];
     const fileOf = new Map();
 
-    await pool(job.sel.media, 2, async (m) => {
+    /**
+     * 2026-11-20 D-544：与同步共用预览缓存 + HEIC 优先调度。
+     * 命中 1600 缓存就不再解原图；HEIC 先跑（并发更高），JPEG/PNG 后跑，避免慢尾巴。
+     */
+    const cacheUpdates = new Map();
+    let cacheCreated = 0;
+    const runOne = async (m) => {
       if (job.canceled) throw new Canceled('导出已取消');
       let abs = null;
       try {
@@ -316,7 +309,9 @@ async function runExportJob(job) {
       const dest = join(jobTmp, 'media', file);
       try {
         if (!abs || !existsSync(abs)) throw new Error('文件不存在');
-        const dim = await makePreview(abs, dest);
+        const dim = await makePreview(abs, dest, { id: m.id, previewName: m.preview });
+        if (dim.cacheName) cacheUpdates.set(m.id, dim.cacheName);
+        if (dim.cacheCreated) cacheCreated += 1;
         outMedia.push({
           id: m.id,
           kind: 'photo',
@@ -338,8 +333,17 @@ async function runExportJob(job) {
       } finally {
         job.done += 1;
       }
-    });
+    };
+    const ordered = orderByCostDesc(job.sel.media, (m) => m.rel_path, (m) => m.bytes);
+    const heicList = ordered.filter((m) => isHeicFile(m.rel_path));
+    const otherList = ordered.filter((m) => !isHeicFile(m.rel_path));
+    await pool(heicList, HEIC_CONCURRENCY, runOne);
+    await pool(otherList, JPEG_CONCURRENCY, runOne);
     if (job.canceled) throw new Canceled('导出已取消');
+    job.cached = persistPreviewNames(db, cacheUpdates, () => {
+      /* 缓存指针写失败不影响分享包 */
+    });
+    job.cacheCreated = cacheCreated;
 
     // 按 place / visit 组装 manifest
     const placeRows = job.sel.places;
@@ -453,6 +457,9 @@ async function runExportJob(job) {
 
     writeFileSync(join(jobTmp, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
 
+    const manifestBytes = fileSize(join(jobTmp, 'manifest.json'));
+    const zipTotal = manifestBytes + outMedia.reduce((n, m) => n + (Number(m.bytes) || 0), 0);
+
     /**
      * 2026-11-19 D-543：分享也按账号配额动态限额（照片不设限）。
      * 打包后、上传前先按「配额 − 已用」拦一道，避免几百 MB 传完才被云端拒；
@@ -464,12 +471,9 @@ async function runExportJob(job) {
       if (cap) {
         job.limitBytes = cap.available;
         job.usedBytes = cap.used;
-        const uncompressed =
-          outMedia.reduce((n, m) => n + (Number(m.bytes) || 0), 0) +
-          fileSize(join(jobTmp, 'manifest.json'));
-        if (cap.available <= 0 || uncompressed > cap.available) {
+        if (cap.available <= 0 || zipTotal > cap.available) {
           throw new ShareExportError(
-            quotaMessage('share', cap.available <= 0 ? 0 : uncompressed, cap.usage)
+            quotaMessage('share', cap.available <= 0 ? 0 : zipTotal, cap.usage)
           );
         }
       }
@@ -481,8 +485,17 @@ async function runExportJob(job) {
     }
     const finalPath = uniqueZipPath(job.dir, manifest.counts.photos);
     const partPath = finalPath + '.part';
+    /** 2026-11-20 D-544：写 zip 单独一个阶段 + 字节进度（与同步一致） */
+    job.phase = 'zip';
+    job.zipTotal = zipTotal;
+    job.zipDone = 0;
     try {
-      await writeZip(partPath, entries, { shouldCancel: () => job.canceled });
+      await writeZip(partPath, entries, {
+        shouldCancel: () => job.canceled,
+        onProgress: ({ bytesDone }) => {
+          job.zipDone = bytesDone;
+        },
+      });
       copyFileSync(partPath, finalPath);
     } finally {
       try {
@@ -491,6 +504,7 @@ async function runExportJob(job) {
         /* ignore */
       }
     }
+    job.zipDone = job.zipTotal;
     job.savedPath = finalPath;
     job.savedName = finalPath.split(/[\\/]/).pop();
     job.bytes = fileSize(finalPath);
@@ -574,6 +588,10 @@ export function getShareExportStatus(jobId) {
     bytes: j.bytes,
     /** 2026-11-19 D-543：直传云端时的上传字节进度 */
     uploaded: j.uploaded || 0,
+    /** 2026-11-20 D-544：写 zip 阶段的字节进度 / 本次新建的预览缓存条数 */
+    zipDone: j.zipDone || 0,
+    zipTotal: j.zipTotal || 0,
+    cached: j.cacheCreated || 0,
     limitBytes: j.limitBytes ?? null,
     usedBytes: j.usedBytes ?? null,
     savedPath: j.savedPath,
@@ -609,6 +627,9 @@ export function listShareExportJobs() {
       skipped: j.skipped,
       bytes: j.bytes,
       uploaded: j.uploaded || 0,
+      zipDone: j.zipDone || 0,
+      zipTotal: j.zipTotal || 0,
+      cached: j.cacheCreated || 0,
       savedPath: j.savedPath,
       savedName: j.savedName,
       error: j.error,

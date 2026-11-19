@@ -233,9 +233,11 @@ export default function ShareConfirmDialog({
   const progress =
     status?.phase === 'upload' && Number(status.bytes) > 0
       ? Math.round(((Number(status.uploaded) || 0) / Number(status.bytes)) * 100)
-      : status && status.total > 0
-        ? Math.round((status.done / status.total) * 100)
-        : 4;
+      : status?.phase === 'zip' && Number(status.zipTotal) > 0
+        ? Math.round(((Number(status.zipDone) || 0) / Number(status.zipTotal)) * 100)
+        : status && status.total > 0
+          ? Math.round((status.done / status.total) * 100)
+          : 4;
 
   return (
     <div className="share-modal-mask" role="dialog" aria-modal="true" onClick={closeSelf}>
@@ -374,7 +376,13 @@ export default function ShareConfirmDialog({
 
         {phase === 'running' && (
           <>
-            <h2>{status?.phase === 'upload' ? t('正在上传到云端…') : t('正在生成缩略图…')}</h2>
+            <h2>
+              {status?.phase === 'upload'
+                ? t('正在上传到云端…')
+                : status?.phase === 'zip'
+                  ? t('正在打包成 zip…')
+                  : t('正在生成缩略图…')}
+            </h2>
             <p className="share-note">
               {status
                 ? status.phase === 'upload'
@@ -383,10 +391,16 @@ export default function ShareConfirmDialog({
                       done: fmtBytes(Number(status.uploaded) || 0),
                       total: fmtBytes(Number(status.bytes) || 0),
                     })
-                  : t('已处理 {done} / {total} 张照片', {
-                      done: status.done,
-                      total: Math.max(1, status.total),
-                    })
+                  : status.phase === 'zip'
+                    ? t('正在打包成 zip… {pct}%（{done} / {total}）', {
+                        pct: progress,
+                        done: fmtBytes(Number(status.zipDone) || 0),
+                        total: fmtBytes(Number(status.zipTotal) || 0),
+                      })
+                    : t('已处理 {done} / {total} 张照片', {
+                        done: status.done,
+                        total: Math.max(1, status.total),
+                      })
                 : t('正在读取照片…')}
             </p>
             <div className="share-progress">
