@@ -45,7 +45,6 @@ class Canceled extends Error {}
 
 const PREVIEW_MAX = 1280;
 const PREVIEW_QUALITY = 75;
-const MAX_MEDIA = 2000;
 const JOB_TTL_MS = 10 * 60 * 1000;
 
 const jobs = new Map(); // jobId -> job
@@ -134,7 +133,6 @@ function collectSelection(body, owner) {
     ? [...new Set(body.mediaIds.filter((x) => typeof x === 'string' && x))]
     : [];
   if (!placeIds.length && !mediaIds.length) throw new ShareExportError('请先选择要分享的地点或照片');
-  if (mediaIds.length > MAX_MEDIA) throw new ShareExportError(`最多选择 ${MAX_MEDIA} 张照片`);
   if (placeIds.length > 1000) throw new ShareExportError('最多选择 1000 个地点');
 
   const own = owner ? ' AND p.user_id = ?' : '';
@@ -247,6 +245,11 @@ export function startShareExport(body = {}, owner = null) {
     done: 0,
     skipped: sel.skipped,
     bytes: 0,
+    /** 2026-11-19 D-543：上传阶段已发字节（直传云端时给前端算真实进度） */
+    uploaded: 0,
+    /** 云端账号的可用空间（拿不到为 null；打包后据此先拦一道） */
+    limitBytes: null,
+    usedBytes: null,
     savedPath: null,
     savedName: null,
     error: null,
@@ -450,6 +453,28 @@ async function runExportJob(job) {
 
     writeFileSync(join(jobTmp, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
 
+    /**
+     * 2026-11-19 D-543：分享也按账号配额动态限额（照片不设限）。
+     * 打包后、上传前先按「配额 − 已用」拦一道，避免几百 MB 传完才被云端拒；
+     * 拿不到云端用量就不拦（云端导入时兜底）。
+     */
+    if (job.cloudMode) {
+      const { cloudShareCapacity, quotaMessage } = await import('./cloud.mjs');
+      const cap = await cloudShareCapacity();
+      if (cap) {
+        job.limitBytes = cap.available;
+        job.usedBytes = cap.used;
+        const uncompressed =
+          outMedia.reduce((n, m) => n + (Number(m.bytes) || 0), 0) +
+          fileSize(join(jobTmp, 'manifest.json'));
+        if (cap.available <= 0 || uncompressed > cap.available) {
+          throw new ShareExportError(
+            quotaMessage('share', cap.available <= 0 ? 0 : uncompressed, cap.usage)
+          );
+        }
+      }
+    }
+
     const entries = [{ name: 'manifest.json', data: readFileSync(join(jobTmp, 'manifest.json')) }];
     for (const m of manifest.media) {
       entries.push({ name: `media/${m.file}`, path: join(jobTmp, 'media', m.file), compress: false });
@@ -473,10 +498,11 @@ async function runExportJob(job) {
     if (job.cloudMode) {
       job.phase = 'upload';
       const { uploadSharePackage } = await import('./cloud.mjs');
-      const r = await uploadSharePackage(finalPath, {
-        expiresIn: job.expiresIn,
-        title: job.title,
-      });
+      const r = await uploadSharePackage(
+        finalPath,
+        { expiresIn: job.expiresIn, title: job.title },
+        job
+      );
       job.cloudUrl = r?.url || null;
       job.cloudId = r?.id || null;
       job.savedPath = null;
@@ -500,6 +526,14 @@ async function runExportJob(job) {
     } else {
       job.state = 'error';
       job.error = e instanceof ShareExportError ? e.message : e instanceof ZipError ? e.message : e?.message || String(e);
+    }
+    // 直传模式失败：临时目录 / 已打好的 zip 都清掉（分享重试就是重新选一次，不保留大文件）
+    if (job.cloudMode) {
+      try {
+        rmSync(job.dir, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
     }
   } finally {
     job.finishedAt = now();
@@ -538,6 +572,10 @@ export function getShareExportStatus(jobId) {
     done: j.done,
     skipped: j.skipped,
     bytes: j.bytes,
+    /** 2026-11-19 D-543：直传云端时的上传字节进度 */
+    uploaded: j.uploaded || 0,
+    limitBytes: j.limitBytes ?? null,
+    usedBytes: j.usedBytes ?? null,
     savedPath: j.savedPath,
     savedName: j.savedName,
     cloudUrl: j.cloudUrl,
@@ -565,10 +603,12 @@ export function listShareExportJobs() {
     out.push({
       jobId: j.jobId,
       state: j.state,
+      phase: j.phase,
       total: j.total,
       done: j.done,
       skipped: j.skipped,
       bytes: j.bytes,
+      uploaded: j.uploaded || 0,
       savedPath: j.savedPath,
       savedName: j.savedName,
       error: j.error,

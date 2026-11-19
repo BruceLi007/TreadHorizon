@@ -1009,6 +1009,15 @@ export interface CloudSyncTaskRow {
   total: number;
   done: number;
   bytes: number;
+  /** 已上传字节（D-541：上传阶段显示真实进度） */
+  uploaded?: number;
+  /** 复用了上次失败留下的打包结果（D-541） */
+  reused?: boolean;
+  /** 账号配额 / 分享占用 / 本次可用 / 解压口径字节（D-542） */
+  quotaBytes?: number | null;
+  sharesBytes?: number | null;
+  limitBytes?: number | null;
+  uncompressed?: number;
   photos: number;
   places: number;
   visits: number;

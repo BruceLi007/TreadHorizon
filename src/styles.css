@@ -4588,6 +4588,19 @@ html:is([data-theme='light'], [data-theme='white']) .trash-row.on {
   filter: url(#province-soft);
 }
 
+/* 2026-11-19 D-539（用户截图：「这个色块之前是边界模糊的那种」）：
+   低缩放恢复羽化 —— 这一层画的是市界，用小一号的模糊半径（#province-soft-city），
+   并且羽化时去掉描边、填充略降，让色块边缘"化开"而不是描出一圈线。 */
+.province-layer.city .province-g.soft {
+  filter: url(#province-soft-city);
+}
+.province-layer.city.lod-low .province-g.soft .province-path {
+  stroke: none !important;
+  /* 2026-11-19 D-539（用户「颜色深一点」）：羽化时不再额外压低透明度 ——
+     模糊本身就会稀释颜色，再乘 0.9 更淡；四档 rgba 已经在 provinces.ts 里整体加深。 */
+  fill-opacity: 1;
+}
+
 .province-warn {
   position: absolute;
   left: 50%;

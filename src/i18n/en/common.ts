@@ -439,6 +439,15 @@ const dict: Dict = {
   '用你在云端官网注册的账号登录。登录后，本地分享可以直接上传到云端（只传缩略图，不上传原图）。':
     'Sign in with the account you registered on the cloud site. After that, local shares can upload directly (thumbnails only).',
   '云端已用 {used} / {quota} · {n} 份分享': 'Cloud usage {used} / {quota} · {n} shares',
+  '云端已用 {used} / {quota} · 剩余 {free} · {n} 份分享':
+    'Cloud usage {used} / {quota} · {free} left · {n} shares',
+  '账号空间': 'Account space',
+  '剩余 {free}（上限 {quota}，已用 {used}）': '{free} left (quota {quota}, used {used})',
+  '未获取到': 'Unavailable',
+  '本次约 {size}，超过账号剩余空间 {free}；可以减少照片，或先在云端扩容。':
+    'About {size} selected — more than the {free} left on your account. Remove some photos or expand the quota on the cloud first.',
+  '已用 {used} / 上限 {quota} · 剩余 {free} · {n} 份 · 打开 {views} 次 · 访客 {visitors} 人':
+    'Used {used} / quota {quota} · {free} left · {n} shares · {views} views · {visitors} visitors',
   '同步到云端': 'Sync to cloud',
   '主页快照': 'Home snapshot',
   '主页快照 · 只保留一份': 'Home snapshot · only one is kept',
@@ -545,6 +554,13 @@ const dict: Dict = {
   '打包中': 'Packing',
   '已同步': 'Synced',
   '{p} 地点 · {v} 到访 · {m} 照片': '{p} places · {v} visits · {m} photos',
+  // 2026-11-19 D-541（同步：上传字节进度 / 复用打包 / 已用时长）
+  '正在上传… {pct}%（{done} / {total}）': 'Uploading… {pct}% ({done} / {total})',
+  '上传中 {pct}%': 'Uploading {pct}%',
+  '复用上次打包': 'reused previous package',
+  '复用上次打包好的结果，不用重新生成缩略图':
+    'Reusing the package from last time — thumbnails are not regenerated',
+  '已用 {n} 分钟': '{n} min elapsed',
   // 2026-11-19 D-537（同步完成提示）
   '已同步到云端：{p} 地点 · {v} 到访 · {m} 张照片':
     'Synced to the cloud: {p} places · {v} visits · {m} photos',

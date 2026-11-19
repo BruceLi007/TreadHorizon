@@ -63,6 +63,8 @@ export default function SharesSettings() {
   const [usage, setUsage] = useState<{
     sharesBytes: number;
     shareCount: number;
+    quotaBytes: number;
+    mediaBytes: number;
     views: number;
     visitors: number;
   } | null>(null);
@@ -147,8 +149,15 @@ export default function SharesSettings() {
         <h3 className="set-section-title">{t('我的分享')}</h3>
         {usage && (
           <span className="set-section-tag">
-            {t('占用 {size} · {n} 份 · 打开 {views} 次 · 访客 {visitors} 人', {
-              size: formatBytes(usage.sharesBytes),
+            {t('已用 {used} / 上限 {quota} · 剩余 {free} · {n} 份 · 打开 {views} 次 · 访客 {visitors} 人', {
+              used: formatBytes((usage.sharesBytes || 0) + (usage.mediaBytes || 0)),
+              quota: formatBytes(usage.quotaBytes || 0),
+              free: formatBytes(
+                Math.max(
+                  0,
+                  (usage.quotaBytes || 0) - (usage.sharesBytes || 0) - (usage.mediaBytes || 0)
+                )
+              ),
               n: usage.shareCount,
               views: usage.views,
               visitors: usage.visitors,

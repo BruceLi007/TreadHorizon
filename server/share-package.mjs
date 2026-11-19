@@ -10,7 +10,7 @@
  * - manifest 逐字段校验并**重建**一份干净对象（不接受包内多余字段，避免泄露原始路径等）；
  * - 解压到调用方给的 stageDir（目录由调用方创建 / 清理；失败由调用方删）。
  *
- * 业务校验（密码 / 配额 / 落库）在 server/share.mjs。
+ * 业务校验（密码 / 配额 / 落库）在 server/share.mjs 与 server/snapshot.mjs。
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -19,33 +19,66 @@ import { ZipError } from './zip.mjs';
 
 /** 分享包可预期的错误（消息直接给用户看，路由层映射成 400） */
 export class ShareError extends Error {
-  constructor(message, status = 400) {
+  constructor(message, status = 400, code = '') {
     super(message);
     this.name = 'ShareError';
     this.status = status;
+    /** 机器可判的类别（如 'too-large'）：调用方好把通用提示换成本账号的配额说明 */
+    this.code = code;
   }
 }
 
-/** 单份分享 zip 上限 100 MB（与 SHARE-BRIEF §15 一致；测试可用 SHARE_MAX_BYTES 调小） */
+/** 分享 zip 的历史上限（2026-11-19 D-543 起不再使用：实际按账号配额动态给；保留导出兼容旧引用） */
 export const MAX_SHARE_ZIP_BYTES = Number(process.env.SHARE_MAX_BYTES || 100 * 1024 ** 2);
-/** 包内条目上限（防 zip bomb） */
-export const MAX_SHARE_ENTRIES = Number(process.env.SHARE_MAX_ENTRIES || 5000);
-/** 解压后总大小上限 500 MB */
+/** 包内条目上限（防 zip bomb；D-543 起分享也按配额、照片不设限，结构上限放到 20 万） */
+export const MAX_SHARE_ENTRIES = Number(process.env.SHARE_MAX_ENTRIES || 200000);
+/** 历史解压总量上限（D-543 起由调用方按「账号可用空间」覆盖；保留 env 供测试） */
 export const MAX_SHARE_UNCOMPRESSED_BYTES = Number(
-  process.env.SHARE_MAX_UNCOMPRESSED_BYTES || 500 * 1024 ** 2
+  process.env.SHARE_MAX_UNCOMPRESSED_BYTES || Infinity
 );
-/** manifest.json 上限（正常几 MB，留足余量） */
+/** manifest.json 上限（分享 / 快照由 limits.maxManifestBytes 覆盖） */
 export const MAX_MANIFEST_BYTES = 16 * 1024 * 1024;
 /** 单张照片上限 2 MB */
 export const MAX_SHARE_FILE_BYTES = 2 * 1024 * 1024;
-/** 一份分享最多 2000 张照片 */
-export const MAX_SHARE_MEDIA = 2000;
+/** 一份分享的照片张数：2026-11-19 D-543 起**不设限**（按账号配额） */
+export const MAX_SHARE_MEDIA = Infinity;
+/**
+ * 快照导入用的上限（2026-11-19 D-541 → D-542 改为「跟账号配额走」）。
+ *
+ * 「分享」是挑一部分内容发出去，2000 张够用；但「同步」是**整库**，张数不该被一个写死的数字卡住。
+ * D-542 起：**照片张数不设限**，唯一的硬上限是**账号配额** —— 调用方（server/snapshot.mjs）
+ * 按 owner 的配额算出可用字节，放进 `maxUncompressed` 传进来；这里只留防 zip bomb 的结构上限。
+ * `SNAPSHOT_MAX_*` 环境变量仍可覆盖（测试里用来造小上限）。
+ */
+export const SNAPSHOT_LIMITS = {
+  /** 照片张数：不限制（Infinity）；只有测试会用 SNAPSHOT_MAX_MEDIA 显式卡一个小值 */
+  maxMedia: Number(process.env.SNAPSHOT_MAX_MEDIA || Infinity),
+  maxPlaces: Number(process.env.SNAPSHOT_MAX_PLACES || 20000),
+  /** 结构性上限（防「几百万个空条目」的 zip bomb）；正常个人库远达不到 */
+  maxEntries: Number(process.env.SNAPSHOT_MAX_ENTRIES || 200000),
+  /** 默认不限；调用方按账号配额传可用字节（见 snapshot.mjs 的 snapshotQuota） */
+  maxUncompressed: Number(process.env.SNAPSHOT_MAX_UNCOMPRESSED_BYTES || Infinity),
+  /** manifest 体积：分享那套 16 MB 按 ~826 B/张 只够约 1.9 万张，快照要单独放宽（D-542） */
+  maxManifestBytes: Number(process.env.SNAPSHOT_MAX_MANIFEST_BYTES || 128 * 1024 ** 2),
+  maxFileBytes: MAX_SHARE_FILE_BYTES,
+};
+/** 分享默认口径（调用方按账号可用空间覆盖 maxUncompressed；照片不设限，D-543） */
+export const SHARE_LIMITS = {
+  maxMedia: MAX_SHARE_MEDIA,
+  maxPlaces: 1000,
+  maxEntries: MAX_SHARE_ENTRIES,
+  maxUncompressed: MAX_SHARE_UNCOMPRESSED_BYTES,
+  maxManifestBytes: 128 * 1024 ** 2,
+  maxFileBytes: MAX_SHARE_FILE_BYTES,
+};
 /** 照片文件名：p_ + 3~40 位小写字母/数字/下划线 + .webp */
 const MEDIA_FILE_RE = /^p_[a-z0-9_]{3,40}\.webp$/;
 const ID_RE = /^[A-Za-z0-9_-]{1,120}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const isObj = (v) => v != null && typeof v === 'object' && !Array.isArray(v);
+/** 上限是 Infinity / NaN 时视为「不限」；返回 true 表示真的超了 */
+const overLimit = (n, limit) => Number.isFinite(limit) && n > limit;
 
 function str(v, max, field) {
   if (typeof v !== 'string') throw new ShareError(`manifest 字段 ${field} 必须是字符串`);
@@ -88,7 +121,7 @@ export function isWebpBuffer(buf) {
  * 校验并重建 manifest（只保留白名单字段；`secret` 保留给内部判断，公开响应前必须剔除）。
  * 返回 { manifest, hasSecret, mediaCount, visitCount, placeCount }。
  */
-export function normalizeManifest(raw) {
+export function normalizeManifest(raw, limits = SHARE_LIMITS) {
   if (!isObj(raw)) throw new ShareError('分享包缺少有效的 manifest.json');
   if (raw.format !== 'tread-horizon-share') {
     throw new ShareError('不是 Tread Horizon 分享包（format 不匹配）');
@@ -112,8 +145,8 @@ export function normalizeManifest(raw) {
   // ── media ──
   const mediaRaw = Array.isArray(raw.media) ? raw.media : null;
   if (!mediaRaw) throw new ShareError('manifest 缺少 media 数组');
-  if (mediaRaw.length > MAX_SHARE_MEDIA) {
-    throw new ShareError(`一份分享最多 ${MAX_SHARE_MEDIA} 张照片`);
+  if (overLimit(mediaRaw.length, limits.maxMedia)) {
+    throw new ShareError(`最多 ${limits.maxMedia} 张照片`);
   }
   const media = [];
   const mediaById = new Map();
@@ -129,7 +162,7 @@ export function normalizeManifest(raw) {
     const file = str(m.file, 80, `media[${i}].file`);
     if (!MEDIA_FILE_RE.test(file)) throw new ShareError(`照片文件名不合法：${file}`);
     if (fileSet.has(file)) throw new ShareError(`manifest 里有重复的照片文件：${file}`);
-    const bytes = num(m.bytes, `media[${i}].bytes`, { min: 1, max: MAX_SHARE_FILE_BYTES });
+    const bytes = num(m.bytes, `media[${i}].bytes`, { min: 1, max: limits.maxFileBytes });
     const w = num(m.w, `media[${i}].w`, { min: 0, max: 100000 });
     const h = num(m.h, `media[${i}].h`, { min: 0, max: 100000 });
     const takenAt = num(m.takenAt, `media[${i}].takenAt`, { min: 0 });
@@ -142,7 +175,9 @@ export function normalizeManifest(raw) {
   // ── places ──
   const placesRaw = Array.isArray(raw.places) ? raw.places : null;
   if (!placesRaw) throw new ShareError('manifest 缺少 places 数组');
-  if (placesRaw.length > 1000) throw new ShareError('一份分享最多 1000 个地点');
+  if (overLimit(placesRaw.length, limits.maxPlaces)) {
+    throw new ShareError(`最多 ${limits.maxPlaces} 个地点`);
+  }
   const placeIds = new Set();
   const visitIds = new Set();
   const referenced = new Set();
@@ -195,7 +230,7 @@ export function normalizeManifest(raw) {
             .map((c) => c.slice(0, 100))
         : [];
       const mediaIds = Array.isArray(v.media) ? v.media : [];
-      if (mediaIds.length > MAX_SHARE_MEDIA) throw new ShareError('单次到访的照片过多');
+      if (overLimit(mediaIds.length, limits.maxMedia)) throw new ShareError('单次到访的照片过多');
       const ids = [];
       for (const mid of mediaIds) {
         if (typeof mid !== 'string' || !mediaById.has(mid)) {
@@ -305,14 +340,28 @@ async function readEntryBuffer(zipfile, entry, maxBytes, label) {
  * 成功后 stageDir 里有 manifest.json（规范化后的）与 media/*.webp；
  * 失败抛 ShareError / ZipError，调用方负责删 stageDir / zip。
  *
+ * 2026-11-19 D-542：
+ * - **照片不设张数上限**，唯一的体积上限是 `limits.maxUncompressed`（快照按账号配额传）；
+ * - 媒体**边读边写盘**（以前全攒在内存里再写，几千张要几百 MB 堆；配额放大后必须改）；
+ * - 超体积抛 `code='too-large'`，调用方可以换成本账号的配额话术。
+ *
  * @returns {{ manifest, hasSecret, bytes, mediaCount, visitCount, placeCount, entries }}
  */
-export async function stageSharePackage(zipPath, stageDir) {
+export async function stageSharePackage(zipPath, stageDir, limits = SHARE_LIMITS) {
   mkdirSync(join(stageDir, 'media'), { recursive: true });
   let manifestRaw = null;
-  const mediaBuffers = new Map();
+  const mediaSizes = new Map(); // file -> 实际写入的字节数
   let entries = 0;
-  let total = 0;
+  let declaredTotal = 0;
+  let actualTotal = 0;
+
+  const tooLarge = () => new ShareError('分享包解压后总大小超过上限', 413, 'too-large');
+  const maxManifestBytes =
+    Number(limits.maxManifestBytes) > 0 ? Number(limits.maxManifestBytes) : MAX_MANIFEST_BYTES;
+  const addActual = (n) => {
+    actualTotal += n;
+    if (overLimit(actualTotal, limits.maxUncompressed)) throw tooLarge();
+  };
 
   let zipfile;
   try {
@@ -334,19 +383,18 @@ export async function stageSharePackage(zipPath, stageDir) {
         throw new ShareError(`分享包内含非法路径：${name}`);
       }
       entries += 1;
-      if (entries > MAX_SHARE_ENTRIES) {
-        throw new ShareError(`分享包文件条目过多（最多 ${MAX_SHARE_ENTRIES} 个）`);
+      if (overLimit(entries, limits.maxEntries)) {
+        throw new ShareError(`分享包文件条目过多（最多 ${limits.maxEntries} 个）`);
       }
       const size = Number(entry.uncompressedSize) || 0;
-      total += size;
-      if (total > MAX_SHARE_UNCOMPRESSED_BYTES) {
-        throw new ShareError('分享包解压后总大小超过上限（500 MB）');
-      }
+      declaredTotal += size;
+      if (overLimit(declaredTotal, limits.maxUncompressed)) throw tooLarge();
 
       if (name === 'manifest.json') {
         if (manifestRaw) throw new ShareError('分享包里有重复的 manifest.json');
-        if (size > MAX_MANIFEST_BYTES) throw new ShareError('manifest.json 过大');
-        const buf = await readEntryBuffer(zipfile, entry, MAX_MANIFEST_BYTES, 'manifest.json');
+        if (size > maxManifestBytes) throw new ShareError('manifest.json 过大');
+        const buf = await readEntryBuffer(zipfile, entry, maxManifestBytes, 'manifest.json');
+        addActual(buf.length);
         try {
           manifestRaw = JSON.parse(buf.toString('utf8'));
         } catch {
@@ -360,11 +408,16 @@ export async function stageSharePackage(zipPath, stageDir) {
         if (file.includes('/') || !MEDIA_FILE_RE.test(file)) {
           throw new ShareError(`分享包只能包含 media/p_*.webp：${name}`);
         }
-        if (mediaBuffers.has(file)) throw new ShareError(`分享包里有重复的照片：${file}`);
-        if (size > MAX_SHARE_FILE_BYTES) throw new ShareError(`照片超过 2 MB：${file}`);
-        const buf = await readEntryBuffer(zipfile, entry, MAX_SHARE_FILE_BYTES, file);
+        if (mediaSizes.has(file)) throw new ShareError(`分享包里有重复的照片：${file}`);
+        if (size > limits.maxFileBytes) {
+          throw new ShareError(`照片超过 ${Math.round(limits.maxFileBytes / 1024 / 1024)} MB：${file}`);
+        }
+        const buf = await readEntryBuffer(zipfile, entry, limits.maxFileBytes, file);
         if (!isWebpBuffer(buf)) throw new ShareError(`照片不是 WebP（或用错扩展名）：${file}`);
-        mediaBuffers.set(file, buf);
+        addActual(buf.length);
+        // 立刻落盘：内存里只保留这一张（D-542 前是全攒在 Map 里，几千张 = 几百 MB）
+        writeFileSync(join(stageDir, 'media', file), buf);
+        mediaSizes.set(file, buf.length);
         continue;
       }
 
@@ -383,27 +436,26 @@ export async function stageSharePackage(zipPath, stageDir) {
   }
 
   if (!manifestRaw) throw new ShareError('分享包缺少 manifest.json');
-  const normalized = normalizeManifest(manifestRaw);
+  const normalized = normalizeManifest(manifestRaw, limits);
   const { manifest } = normalized;
 
   const expected = new Set(manifest.media.map((m) => m.file));
-  for (const file of mediaBuffers.keys()) {
+  for (const file of mediaSizes.keys()) {
     if (!expected.has(file)) throw new ShareError(`分享包有未在 manifest 中声明的照片：${file}`);
   }
   for (const m of manifest.media) {
-    const buf = mediaBuffers.get(m.file);
-    if (!buf) throw new ShareError(`分享包缺少照片文件：${m.file}`);
-    if (buf.length !== m.bytes) {
-      throw new ShareError(`照片大小与 manifest 不一致：${m.file}（${buf.length} ≠ ${m.bytes}）`);
+    const size = mediaSizes.get(m.file);
+    if (size == null) throw new ShareError(`分享包缺少照片文件：${m.file}`);
+    if (size !== m.bytes) {
+      throw new ShareError(`照片大小与 manifest 不一致：${m.file}（${size} ≠ ${m.bytes}）`);
     }
-    writeFileSync(join(stageDir, 'media', m.file), buf);
   }
   writeFileSync(join(stageDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
 
   return {
     manifest,
     hasSecret: normalized.hasSecret,
-    bytes: total,
+    bytes: actualTotal,
     mediaCount: normalized.mediaCount,
     visitCount: normalized.visitCount,
     placeCount: normalized.placeCount,

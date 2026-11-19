@@ -12,10 +12,11 @@
  *   云端导入账号主库（每个账号只保留一份，覆盖式）。
  */
 import {
+  createReadStream,
   existsSync,
   mkdirSync,
-  openAsBlob,
   readFileSync,
+  readdirSync,
   rmSync,
   statSync,
   unlinkSync,
@@ -23,6 +24,8 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import http from 'node:http';
+import https from 'node:https';
 import sharp from 'sharp';
 import { CONFIG } from './config.mjs';
 import { db, now } from './db.mjs';
@@ -31,6 +34,7 @@ import { mediaBaseFor } from './media-root.mjs';
 import { safeResolve } from './paths.mjs';
 import { decodeHeicToJpeg, isHeicFile } from './heic.mjs';
 import { writeZip } from './zip.mjs';
+import { SNAPSHOT_LIMITS } from './share-package.mjs';
 import { haversineKm } from './stats.mjs';
 
 export class CloudError extends Error {
@@ -371,27 +375,33 @@ export async function cloudStatus() {
 
 /* ───────────── 上传 ───────────── */
 
-/** 分享包直传：POST 云端 /api/shares/import（multipart: file + expiresIn/expiresHours/title） */
-export async function uploadSharePackage(zipPath, fields = {}) {
+/**
+ * 分享包直传：POST 云端 /api/shares/import（multipart: file + expiresIn/expiresHours/title）。
+ *
+ * 2026-11-19 D-543：分享也按账号配额、照片不设限，包可能很大 → 改成和快照同一套**流式上传**
+ * （真实字节进度 + 按体积给超时 + 90 秒停滞判停），不再用 fetch + FormData（无进度、5 分钟硬超时）。
+ */
+export async function uploadSharePackage(zipPath, fields = {}, job = null) {
   const cred = requireCredential();
-  const blob = await openAsBlob(zipPath, { type: 'application/zip' });
-  const form = new FormData();
-  form.append('file', blob, 'share.zip');
-  form.append('expiresIn', String(fields.expiresIn || '24h'));
-  if (fields.expiresHours != null) form.append('expiresHours', String(fields.expiresHours));
-  if (fields.title) form.append('title', String(fields.title).slice(0, 200));
+  const progJob = job || { canceled: false, bytes: 0, uploaded: 0 };
+  const multipartFields = { expiresIn: String(fields.expiresIn || '24h') };
+  if (fields.expiresHours != null) multipartFields.expiresHours = String(fields.expiresHours);
+  const title = String(fields.title || '').slice(0, 200);
+  if (title) multipartFields.title = title;
 
-  const res = await cloudFetch(cred, '/api/shares/import', {
-    method: 'POST',
-    body: form,
-    timeoutMs: 5 * 60 * 1000,
+  const { status, data } = await uploadZipStream(cred, zipPath, {
+    path: '/api/shares/import',
+    filename: 'share.zip',
+    fields: multipartFields,
+    job: progJob,
   });
-  if (res.status === 401) {
+  if (status === 401) {
     clearCredential();
     throw new CloudError('云端登录已过期，请重新登录', 401, 'relogin');
   }
-  const data = await readJson(res);
-  if (!res.ok) throw new CloudError(data.error || `上传失败（HTTP ${res.status}）`, res.status);
+  if (status < 200 || status >= 300) {
+    throw new CloudError(data?.error || `上传失败（HTTP ${status}）`, status);
+  }
   return data;
 }
 
@@ -404,8 +414,18 @@ function sourceImage(abs) {
   return sharp(abs, { failOn: 'none' });
 }
 
-async function makePreview(abs, dest) {
-  const img = await sourceImage(abs);
+async function makePreview(abs, dest, previewName) {
+  /**
+   * 2026-11-19 D-541：**优先复用已有的 1600 预览图**再缩到 1280。
+   * 以前每次都从原图（可能是 12MP JPEG / HEIC）重新解码，3342 张要 30 多分钟；
+   * 上传时本来就已经生成过 `preview`（1600 长边 webp），直接读它再缩小快得多。
+   */
+  let src = abs;
+  if (previewName) {
+    const cached = join(CONFIG.thumbDir, previewName);
+    if (existsSync(cached)) src = cached;
+  }
+  const img = await sourceImage(src);
   const info = await img
     .rotate()
     .resize({ width: PREVIEW_MAX, height: PREVIEW_MAX, fit: 'inside', withoutEnlargement: true })
@@ -442,7 +462,18 @@ export function startCloudSync(body = {}) {
     phase: 'pack',
     total: 0,
     done: 0,
+    /** 打包产物的字节数（zip） */
     bytes: 0,
+    /** 2026-11-19 D-541：已上传字节，上传阶段用它算真实进度 */
+    uploaded: 0,
+    /** 是否复用了上一次失败留下的打包结果（省掉几十分钟重新打包） */
+    reused: false,
+    /** 2026-11-19 D-542：账号配额 / 分享占用 / 本次可用（拿不到云端 usage 时为 null） */
+    quotaBytes: null,
+    sharesBytes: null,
+    limitBytes: null,
+    /** 打包后**解压口径**的字节数（云端按它卡账号配额） */
+    uncompressed: 0,
     photos: 0,
     places: 0,
     visits: 0,
@@ -454,8 +485,276 @@ export function startCloudSync(body = {}) {
   };
   jobs.set(jobId, job);
   pruneJobs();
+  pruneSnapshotTmp();
   setImmediate(() => void runSyncJob(job));
   return { jobId };
+}
+
+/**
+ * 清理 `data/tmp/snapshot-*` 残留（2026-11-19 D-541）：
+ * 失败/取消时会**故意保留**打包好的 zip，好让下次重试直接上传；这里只按天数兜底清掉太旧的。
+ */
+function pruneSnapshotTmp(keepDays = 7) {
+  try {
+    const root = join(CONFIG.dataDir, 'tmp');
+    if (!existsSync(root)) return;
+    const cut = now() - keepDays * 24 * 60 * 60 * 1000;
+    for (const name of readdirSync(root)) {
+      if (!name.startsWith('snapshot-')) continue;
+      const dir = join(root, name);
+      try {
+        if (statSync(dir).mtimeMs < cut) rmSync(dir, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * 找一个可以复用的打包结果（2026-11-19 D-541）：同样是「地点 / 到访 / 照片」数量、
+ * 且 zip 与 meta 都在，就直接拿来上传，不再花几十分钟重新生成 3342 张预览。
+ */
+function findReusableZip(counts) {
+  try {
+    const root = join(CONFIG.dataDir, 'tmp');
+    if (!existsSync(root)) return null;
+    const candidates = readdirSync(root)
+      .filter((n) => n.startsWith('snapshot-'))
+      .map((n) => join(root, n))
+      .sort((a, b) => {
+        try {
+          return statSync(b).mtimeMs - statSync(a).mtimeMs;
+        } catch {
+          return 0;
+        }
+      });
+    for (const dir of candidates) {
+      const zip = join(dir, 'snapshot.zip');
+      const metaPath = join(dir, 'meta.json');
+      if (!existsSync(zip) || !existsSync(metaPath)) continue;
+      try {
+        const meta = JSON.parse(readFileSync(metaPath, 'utf8'));
+        if (
+          Number(meta.places) === counts.places &&
+          Number(meta.visits) === counts.visits &&
+          Number(meta.photos) === counts.photos
+        ) {
+          return { dir, zip, meta };
+        }
+      } catch {
+        /* 坏 meta 跳过 */
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 拉云端账号的用量（2026-11-19 D-542 / D-543）：配额 / 快照媒体 / 分享占用。
+ * 拿不到（离线 / 旧云端没有这个接口）就返回 null：本地不拦，交给云端导入时兜底。
+ */
+async function fetchCloudUsage(cred) {
+  try {
+    const res = await cloudFetch(cred, '/api/shares/usage', { timeoutMs: 8000 });
+    if (!res.ok) return null;
+    const u = await readJson(res);
+    const quota = Number(u?.quotaBytes) || 0;
+    if (!(quota > 0)) return null;
+    return {
+      quota,
+      mediaBytes: Number(u?.mediaBytes) || 0,
+      sharesBytes: Number(u?.sharesBytes) || 0,
+      shareCount: Number(u?.shareCount) || 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** 快照可用 = 配额 − 分享占用（快照整批替换自身，旧快照不重复计） */
+const snapshotAvailable = (u) => Math.max(0, u.quota - u.sharesBytes);
+/** 分享可用 = 配额 − 快照媒体 − 已有分享（分享是新增占用） */
+export const shareAvailableOf = (u) => Math.max(0, u.quota - u.mediaBytes - u.sharesBytes);
+
+/** 分享当前可用（给 share-export 打包后先拦一道；拿不到云端用量返回 null） */
+export async function cloudShareCapacity() {
+  const cred = readCredential();
+  if (!cred) return null;
+  const usage = await fetchCloudUsage(cred);
+  if (!usage) return null;
+  return {
+    quota: usage.quota,
+    used: usage.mediaBytes + usage.sharesBytes,
+    available: shareAvailableOf(usage),
+    usage,
+  };
+}
+
+const fmtMB = (n) => `${(n / 1024 ** 2).toFixed(1)} MB`;
+
+/**
+ * 配额不足的统一话术（2026-11-19 D-542/D-543）：**直接给出「已用 / 上限 / 剩余」**，
+ * 用户要的就是「下次的限额 = 总配额 − 已占用」。
+ */
+export function quotaMessage(kind, needBytes, usage) {
+  const isShare = kind === 'share';
+  const used = isShare ? usage.mediaBytes + usage.sharesBytes : usage.sharesBytes;
+  const remaining = Math.max(0, usage.quota - used);
+  const label = isShare ? '分享' : '同步';
+  const need = needBytes > 0 ? `本次${label}约需 ${fmtMB(needBytes)}，` : '';
+  const tail = isShare
+    ? '可以在云端「设置 → 账号」申请扩容，或减少要分享的照片。'
+    : '可以在云端「设置 → 账号」申请扩容，或先删掉一些分享；扩容后再点「立即同步」会直接复用这次打好的包。';
+  return `账号空间不足：${need}上限 ${fmtMB(usage.quota)}，已用 ${fmtMB(used)}，剩余 ${fmtMB(remaining)}。${tail}`;
+}
+
+function quotaError(needBytes, usage, kind = 'sync') {
+  return new CloudError(quotaMessage(kind, needBytes, usage), 413, 'quota');
+}
+
+/**
+ * 流式 multipart 上传 zip（2026-11-19 D-541 快照 / D-543 分享共用）。
+ *
+ * 为什么不用 fetch + FormData：那样**拿不到上传进度**，几百 MB 的包传几十分钟也只有
+ * 「完成数」停着不动，看起来就像卡死；这里手工拼 multipart，边写边数已发字节，
+ * 超时改成「按体积给预算 + 90 秒无进展就判停」。
+ *
+ * @param {{path:string, fields?:Record<string,string>, filename?:string, job:object}} opts
+ *   job 至少要有 canceled / bytes / uploaded 字段；上传中会持续更新 uploaded（只数文件字节）。
+ */
+function uploadZipStream(cred, zipPath, { path: apiPath, fields = {}, filename = 'package.zip', job }) {
+  return new Promise((resolve, reject) => {
+    const size = fileSize(zipPath);
+    job.bytes = size;
+    job.uploaded = 0;
+    const boundary = `----treadhorizon${randomUUID().replace(/-/g, '')}`;
+    const parts = [];
+    for (const [name, value] of Object.entries(fields)) {
+      if (value == null) continue;
+      parts.push(
+        Buffer.from(
+          `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${String(value)}\r\n`
+        )
+      );
+    }
+    parts.push(
+      Buffer.from(
+        `--${boundary}\r\n` +
+          `Content-Disposition: form-data; name="file"; filename="${filename}"\r\n` +
+          'Content-Type: application/zip\r\n\r\n'
+      )
+    );
+    const head = Buffer.concat(parts);
+    const tail = Buffer.from(`\r\n--${boundary}--\r\n`);
+    const total = head.length + size + tail.length;
+
+    let url;
+    try {
+      url = new URL(apiPath, cred.baseUrl);
+    } catch {
+      return reject(new CloudError('云端地址不合法', 502));
+    }
+    const mod = url.protocol === 'https:' ? https : http;
+    // 预算：10 分钟打底 + 每 40 MB 加 4 分钟（400 MB ≈ 50 分钟），上限 3 小时
+    const budgetMs = Math.min(
+      3 * 60 * 60 * 1000,
+      10 * 60 * 1000 + Math.ceil(size / (40 * 1024 * 1024)) * 4 * 60 * 1000
+    );
+    const IDLE_MS = 90 * 1000;
+
+    let settled = false;
+    let lastProgress = Date.now();
+    const watchdog = setInterval(() => {
+      if (job.canceled) {
+        req.destroy(new CloudError('已取消', 499, 'canceled'));
+        return;
+      }
+      if (Date.now() - lastProgress > IDLE_MS) {
+        req.destroy(new CloudError('上传停滞超过 90 秒，已中断（可重试）', 504));
+      }
+    }, 5000);
+    watchdog.unref?.();
+    const budgetTimer = setTimeout(() => {
+      req.destroy(new CloudError(`上传超时（预算 ${Math.round(budgetMs / 60000)} 分钟）`, 504));
+    }, budgetMs);
+    budgetTimer.unref?.();
+    const finish = (err, value) => {
+      if (settled) return;
+      settled = true;
+      clearInterval(watchdog);
+      clearTimeout(budgetTimer);
+      if (err) reject(err);
+      else resolve(value);
+    };
+
+    const req = mod.request(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': `multipart/form-data; boundary=${boundary}`,
+          'content-length': String(total),
+          cookie: cred.cookie,
+        },
+      },
+      (res) => {
+        const chunks = [];
+        res.on('data', (d) => chunks.push(d));
+        res.on('end', () => {
+          let data = {};
+          try {
+            data = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          } catch {
+            /* 非 JSON */
+          }
+          finish(null, { status: res.statusCode || 0, data });
+        });
+        res.on('error', (e) => finish(new CloudError(`读云端响应失败：${e.message}`, 502)));
+      }
+    );
+
+    req.on('error', (e) => {
+      if (e instanceof CloudError) return finish(e);
+      finish(new CloudError(`上传失败：${e?.message || String(e)}`, 502));
+    });
+
+    // 文件流 → 请求体，边写边记 bytes（backpressure 用 drain 等）；head 不算进度
+    const stream = createReadStream(zipPath);
+    req.write(head);
+    stream.on('data', (chunk) => {
+      if (settled) return;
+      lastProgress = Date.now();
+      const ok = req.write(chunk, () => {
+        job.uploaded += chunk.length;
+      });
+      if (!ok) stream.pause();
+    });
+    req.on('drain', () => stream.resume());
+    stream.on('end', () => {
+      if (settled) return;
+      req.end(tail, () => {
+        job.uploaded = size;
+      });
+    });
+    stream.on('error', (e) => {
+      req.destroy(e);
+      finish(new CloudError(`读打包文件失败：${e.message}`, 500));
+    });
+  });
+}
+
+/** 同步包上传（快照导入） */
+function uploadSnapshot(cred, zipPath, job) {
+  return uploadZipStream(cred, zipPath, {
+    path: '/api/snapshot/import',
+    filename: 'snapshot.zip',
+    job,
+  });
 }
 
 async function runSyncJob(job) {
@@ -493,9 +792,59 @@ async function runSyncJob(job) {
     job.visits = visits.length;
     job.total = media.length;
 
+    /**
+     * 2026-11-19 D-542：**包大小上限跟账号配额走，照片张数不设限**。
+     * 先拿云端 usage（拿不到就不在本地拦，云端导入时兜底），可用 = 配额 − 分享占用。
+     */
+    const usage = await fetchCloudUsage(requireCredential());
+    const syncAvailable = usage ? snapshotAvailable(usage) : 0;
+    if (usage) {
+      job.quotaBytes = usage.quota;
+      job.sharesBytes = usage.sharesBytes;
+      job.limitBytes = syncAvailable;
+      if (syncAvailable <= 0) throw quotaError(0, usage, 'sync');
+    }
+
+    /**
+     * 2026-11-19 D-541：**本地先把关**（张数口径保留给测试用 env 覆盖；默认不限制）。
+     * 以前是传完 403 MB 才被云端回「一份分享最多 2000 张照片」；现在超出配额在打包后立刻报错。
+     */
+    if (Number.isFinite(SNAPSHOT_LIMITS.maxMedia) && media.length > SNAPSHOT_LIMITS.maxMedia) {
+      throw new CloudError(
+        `照片太多（${media.length} 张），一次同步最多 ${SNAPSHOT_LIMITS.maxMedia} 张`,
+        400
+      );
+    }
+    if (places.length > SNAPSHOT_LIMITS.maxPlaces) {
+      throw new CloudError(
+        `地点太多（${places.length} 个），一次同步最多 ${SNAPSHOT_LIMITS.maxPlaces} 个`,
+        400
+      );
+    }
+
     const mediaBase = CONFIG.mediaRoot;
     const outMedia = [];
     const fileOf = new Map();
+    /**
+     * 2026-11-19 D-541：先看有没有**上次失败留下的打包结果**（地点/到访/照片数量一致才复用）。
+     * 这个包 403 MB、3342 张照片，重新生成预览要半个多小时；超时或断网后重试不该再付一次。
+     */
+    const reused = findReusableZip({
+      places: places.length,
+      visits: visits.length,
+      photos: media.length,
+    });
+    let zipPath = reused ? reused.zip : '';
+    let placeOut = [];
+    let visitCount = 0;
+    let photoCount = 0;
+    if (reused) {
+      job.reused = true;
+      job.done = job.total;
+      job.bytes = fileSize(zipPath);
+      job.uncompressed = Number(reused.meta?.uncompressed) || 0;
+      job.phase = 'upload';
+    } else {
 
     await pool(media, 2, async (m) => {
       if (job.canceled) return;
@@ -503,7 +852,7 @@ async function runSyncJob(job) {
         const abs = safeResolve(mediaBase, m.rel_path);
         if (!abs || !existsSync(abs)) throw new Error('missing');
         const file = `p_${sha16(m.id)}.webp`;
-        const dim = await makePreview(abs, join(tmp, 'media', file));
+        const dim = await makePreview(abs, join(tmp, 'media', file), m.preview);
         outMedia.push({
           id: m.id,
           kind: 'photo',
@@ -538,9 +887,9 @@ async function runSyncJob(job) {
     }
 
     const homeRow = places.find((p) => Number(p.home) === 1) || null;
-    const placeOut = [];
-    let photoCount = 0;
-    let visitCount = 0;
+    placeOut = [];
+    photoCount = 0;
+    visitCount = 0;
     for (const p of places) {
       const pv = (byPlace.get(p.id) || []).filter((v) => (mediaByVisit.get(v.id) || []).length > 0);
       const visitsOut = pv.map((v) => {
@@ -602,26 +951,57 @@ async function runSyncJob(job) {
     for (const m of manifest.media) {
       entries.push({ name: `media/${m.file}`, path: join(tmp, 'media', m.file), compress: false });
     }
-    const zipPath = join(tmp, 'snapshot.zip');
-    await writeZip(zipPath, entries, { shouldCancel: () => job.canceled });
+    const zipPathInner = join(tmp, 'snapshot.zip');
+    await writeZip(zipPathInner, entries, { shouldCancel: () => job.canceled });
+    zipPath = zipPathInner;
     job.bytes = fileSize(zipPath);
+    /**
+     * 2026-11-19 D-542：云端按**解压后**的字节数卡账号配额（照片 1280 预览几乎不可再压），
+     * 这里在打包时就统计好，失败时连同 meta 一起留着，重试沿用同一份判断。
+     */
+    job.uncompressed =
+      outMedia.reduce((n, m) => n + (Number(m.bytes) || 0), 0) + fileSize(join(tmp, 'manifest.json'));
+    // 记一份 meta：失败后重试时用它判断「能不能直接复用这个包」
+    writeFileSync(
+      join(tmp, 'meta.json'),
+      JSON.stringify(
+        {
+          places: places.length,
+          visits: visits.length,
+          photos: media.length,
+          bytes: job.bytes,
+          /** 解压口径（D-542：云端按它卡配额） */
+          uncompressed: job.uncompressed,
+          createdAt: now(),
+        },
+        null,
+        2
+      ),
+      'utf8'
+    );
     job.phase = 'upload';
+    }
 
+    /**
+     * 2026-11-19 D-542：本地按账号可用空间先拦一道。
+     * 超了不白传（包会留着，扩容后重试直接复用）；拿不到配额时交给云端 413 兜底。
+     */
+    if (usage && job.uncompressed > syncAvailable) {
+      // 还没开始上传，阶段别显示成 upload（否则「上传中」+ 0 字节看起来像卡住）
+      job.phase = 'pack';
+      throw quotaError(job.uncompressed, usage, 'sync');
+    }
+
+    // ── 上传（流式，带真实字节进度；失败时保留 zip 供下次复用）──
     const cred = requireCredential();
-    const blob = await openAsBlob(zipPath, { type: 'application/zip' });
-    const form = new FormData();
-    form.append('file', blob, 'snapshot.zip');
-    const res = await cloudFetch(cred, '/api/snapshot/import', {
-      method: 'POST',
-      body: form,
-      timeoutMs: 15 * 60 * 1000,
-    });
-    if (res.status === 401) {
+    const { status, data } = await uploadSnapshot(cred, zipPath, job);
+    if (status === 401) {
       clearCredential();
       throw new CloudError('云端登录已过期，请重新登录', 401, 'relogin');
     }
-    const data = await readJson(res);
-    if (!res.ok) throw new CloudError(data.error || `同步失败（HTTP ${res.status}）`, res.status);
+    if (status < 200 || status >= 300) {
+      throw new CloudError(data?.error || `同步失败（HTTP ${status}）`, status);
+    }
 
     job.state = 'done';
     job.photos = Number(data.photos) || photoCount;
@@ -641,10 +1021,31 @@ async function runSyncJob(job) {
     job.error = e?.message || String(e);
   } finally {
     job.finishedAt = now();
-    try {
-      rmSync(tmp, { recursive: true, force: true });
-    } catch {
-      /* ignore */
+    if (job.state === 'done') {
+      try {
+        rmSync(tmp, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
+    } else {
+      /**
+       * 2026-11-19 D-541：失败 / 取消时**保留打包好的 zip + meta**，
+       * 下次「立即同步」发现数量一致就能直接复用（省掉几十分钟重新生成 3342 张预览）；
+       * 只需要把中间文件（media/ 与 manifest.json）删掉，别白占几百 MB。
+       */
+      try {
+        rmSync(join(tmp, 'media'), { recursive: true, force: true });
+        rmSync(join(tmp, 'manifest.json'), { force: true });
+      } catch {
+        /* ignore */
+      }
+      if (!existsSync(join(tmp, 'snapshot.zip'))) {
+        try {
+          rmSync(tmp, { recursive: true, force: true });
+        } catch {
+          /* ignore */
+        }
+      }
     }
   }
 }
@@ -659,6 +1060,13 @@ export function getCloudSyncStatus(jobId) {
     total: j.total,
     done: j.done,
     bytes: j.bytes,
+    uploaded: j.uploaded || 0,
+    reused: j.reused === true,
+    /** D-542：账号配额 / 本次可用 / 解压口径字节（前端可显示「上限 = 账号容量」的具体数） */
+    quotaBytes: j.quotaBytes ?? null,
+    sharesBytes: j.sharesBytes ?? null,
+    limitBytes: j.limitBytes ?? null,
+    uncompressed: j.uncompressed || 0,
     photos: j.photos,
     places: j.places,
     visits: j.visits,
@@ -694,6 +1102,12 @@ export function listCloudSyncJobs() {
       total: j.total,
       done: j.done,
       bytes: j.bytes,
+      uploaded: j.uploaded || 0,
+      reused: j.reused === true,
+      quotaBytes: j.quotaBytes ?? null,
+      sharesBytes: j.sharesBytes ?? null,
+      limitBytes: j.limitBytes ?? null,
+      uncompressed: j.uncompressed || 0,
       photos: j.photos,
       places: j.places,
       visits: j.visits,

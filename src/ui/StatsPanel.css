@@ -1038,20 +1038,22 @@ html[lang='en'] .st-field-label {
   color: var(--accent);
 }
 
-/* ── 省份点亮 4 档橙色（D-168 用户指定：保持橙色、比原强调橙亮一档；覆盖基础 fill 的背景） ── */
+/* ── 省份点亮 4 档橙色（D-168 用户指定：保持橙色、比原强调橙亮一档；覆盖基础 fill 的背景）
+      2026-11-19 D-539（用户「颜色深一点」）：跟着地图填充一起加深（0.26/0.48/0.72 → 0.34/0.58/0.82），
+      保证图例和地图看上去是同一个浓度。 ── */
 .st-t1 {
   background: var(--province);
-  opacity: 0.26;
+  opacity: 0.34;
 }
 
 .st-t2 {
   background: var(--province);
-  opacity: 0.48;
+  opacity: 0.58;
 }
 
 .st-t3 {
   background: var(--province);
-  opacity: 0.72;
+  opacity: 0.82;
 }
 
 .st-t4 {

@@ -693,10 +693,13 @@ export default function MapView({
     const useLow = Boolean(low && Number(map.getZoom()) < 7);
     const data = useLow && low ? low : full;
     layer.classList.toggle('lod-low', useLow);
-    // 2026-11-16 D-490：省界时代低缩放靠「羽化填充」避免和底图省界线并排；
-    // 现在画的是市界（低缩放底图根本不画市界，不存在对不齐），羽化反而把小块糊成一团，
-    // 所以不再加 soft，低缩放的描边 / 填充交给 CSS 的 .city 规则。
-    provinceGRef.current?.classList.remove('soft');
+    /**
+     * 2026-11-19 D-539（用户截图：「这个色块之前是边界模糊的那种」）：
+     * 低缩放（z<7）**恢复羽化**。D-490 当年改成按市点亮时把 soft 去掉了（理由：羽化把小市块糊成一团），
+     * 但用户要的正是这种"边缘化开"的观感，所以：低缩放加 soft，放大到 z>=7 仍显示精确边界 + 描边。
+     * 模糊半径分两档：省界系用 5（历史值），市界用同名 CSS 类指向小一号的滤镜（见 styles.css）。
+     */
+    provinceGRef.current?.classList.toggle('soft', useLow);
     const center = map.getCenter();
     const lngC = center.getLng();
     const latC = center.getLat();
@@ -1900,8 +1903,12 @@ export default function MapView({
         <div className="province-layer city" ref={provinceLayerRef}>
           <svg className="province-svg" ref={provinceSvgRef}>
             <defs>
-              {/* 低缩放时给填充边缘做羽化：天地图低缩放底图省界是概化的，硬边缘会显得“对不齐” */}
+              {/* 低缩放时给填充边缘做羽化：天地图低缩放底图省界是概化的，硬边缘会显得“对不齐”
+                  2026-11-19 D-539：市界版本再补一个半径，CSS 里给 .province-layer.city 指向它。 */}
               <filter id="province-soft" x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur stdDeviation="5" />
+              </filter>
+              <filter id="province-soft-city" x="-30%" y="-30%" width="160%" height="160%">
                 <feGaussianBlur stdDeviation="5" />
               </filter>
             </defs>

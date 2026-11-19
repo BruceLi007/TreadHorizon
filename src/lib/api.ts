@@ -1078,14 +1078,25 @@ export interface CloudStatus {
   error?: string;
 }
 
-/** 本地同步任务状态（2026-11-18 D-525） */
+/** 本地同步任务状态（2026-11-18 D-525；2026-11-19 D-541 加上传字节进度 / 复用标记） */
 export interface CloudSyncJob {
   jobId: string;
   state: 'running' | 'done' | 'error' | 'canceled';
   phase: 'pack' | 'upload';
   total: number;
   done: number;
+  /** 打包产物 zip 的字节数 */
   bytes: number;
+  /** 已上传字节（上传阶段用；D-541） */
+  uploaded?: number;
+  /** 是否复用了上次失败留下的打包结果（D-541） */
+  reused?: boolean;
+  /** 账号配额 / 分享占用 / 本次可用字节（D-542：包大小上限 = 账号配额 - 分享占用） */
+  quotaBytes?: number | null;
+  sharesBytes?: number | null;
+  limitBytes?: number | null;
+  /** 打包后解压口径的字节数（云端按它卡配额；D-542） */
+  uncompressed?: number;
   photos: number;
   places: number;
   visits: number;
@@ -1117,6 +1128,10 @@ export interface ShareExportStatus {
   done: number;
   skipped: number;
   bytes: number;
+  /** 直传云端时的已上传字节 / 账号可用空间（2026-11-19 D-543） */
+  uploaded?: number;
+  limitBytes?: number | null;
+  usedBytes?: number | null;
   savedPath: string | null;
   savedName: string | null;
   /** 直传云端成功后的分享链接 / id */

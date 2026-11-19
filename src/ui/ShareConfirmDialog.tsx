@@ -72,6 +72,12 @@ export default function ShareConfirmDialog({
   const [jobId, setJobId] = useState<string | null>(null);
   const [status, setStatus] = useState<ShareExportStatus | null>(null);
   const [error, setError] = useState('');
+  /** 2026-11-19 D-543：云端账号用量（分享限额 = 上限 − 已用；打开弹窗时拉一次） */
+  const [usage, setUsage] = useState<{
+    quotaBytes: number;
+    mediaBytes: number;
+    sharesBytes: number;
+  } | null>(null);
   const sharedRef = useRef(false);
   /**
    * 2026-11-18 D-526：mediaIds 是 App 每次渲染都新建的数组，**不能**当 effect 依赖，
@@ -82,6 +88,12 @@ export default function ShareConfirmDialog({
   mediaIdsRef.current = mediaIds;
 
   const estimate = useMemo(() => mediaIds.length * 99 * 1024, [mediaIds.length]);
+
+  /** 2026-11-19 D-543：本次可用 = 账号上限 − 已用（快照 + 已有分享） */
+  const quota = Number(usage?.quotaBytes) || 0;
+  const usedBytes = (Number(usage?.mediaBytes) || 0) + (Number(usage?.sharesBytes) || 0);
+  const remaining = quota > 0 ? Math.max(0, quota - usedBytes) : 0;
+  const overQuota = quota > 0 && estimate > remaining;
 
   useEffect(() => {
     if (!open) return;
@@ -97,6 +109,29 @@ export default function ShareConfirmDialog({
     setPickerOpen(false);
     sharedRef.current = false;
   }, [open]);
+
+  /**
+   * 2026-11-19 D-543：打开确认弹窗时拉云端用量，把「本次可用 = 上限 − 已用」直接显示出来；
+   * 用户上传过分享后，下一次的可用额度会自然变小。
+   */
+  useEffect(() => {
+    if (!open || !cloudReady) {
+      setUsage(null);
+      return;
+    }
+    let alive = true;
+    api
+      .cloudStatus()
+      .then((st) => {
+        if (alive) setUsage(st.usage || null);
+      })
+      .catch(() => {
+        /* 拿不到用量：不显示限额，上传时由服务端兜底 */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [open, cloudReady]);
 
   useEffect(() => {
     if (!jobId) return;
@@ -196,7 +231,11 @@ export default function ShareConfirmDialog({
   };
 
   const progress =
-    status && status.total > 0 ? Math.round((status.done / status.total) * 100) : 4;
+    status?.phase === 'upload' && Number(status.bytes) > 0
+      ? Math.round(((Number(status.uploaded) || 0) / Number(status.bytes)) * 100)
+      : status && status.total > 0
+        ? Math.round((status.done / status.total) * 100)
+        : 4;
 
   return (
     <div className="share-modal-mask" role="dialog" aria-modal="true" onClick={closeSelf}>
@@ -229,7 +268,27 @@ export default function ShareConfirmDialog({
                   {t('{n} 张', { n: counts.photos })} · {t('约 {size}', { size: fmtBytes(estimate) })}
                 </dd>
               </div>
+              <div>
+                <dt>{t('账号空间')}</dt>
+                <dd>
+                  {quota > 0
+                    ? t('剩余 {free}（上限 {quota}，已用 {used}）', {
+                        free: fmtBytes(remaining),
+                        quota: fmtBytes(quota),
+                        used: fmtBytes(usedBytes),
+                      })
+                    : t('未获取到')}
+                </dd>
+              </div>
             </dl>
+            {overQuota && (
+              <p className="share-error-text">
+                {t('本次约 {size}，超过账号剩余空间 {free}；可以减少照片，或先在云端扩容。', {
+                  size: fmtBytes(estimate),
+                  free: fmtBytes(remaining),
+                })}
+              </p>
+            )}
 
             <div className="share-field-row">
               <label className="share-field">
@@ -318,10 +377,16 @@ export default function ShareConfirmDialog({
             <h2>{status?.phase === 'upload' ? t('正在上传到云端…') : t('正在生成缩略图…')}</h2>
             <p className="share-note">
               {status
-                ? t('已处理 {done} / {total} 张照片', {
-                    done: status.done,
-                    total: Math.max(1, status.total),
-                  })
+                ? status.phase === 'upload'
+                  ? t('正在上传… {pct}%（{done} / {total}）', {
+                      pct: progress,
+                      done: fmtBytes(Number(status.uploaded) || 0),
+                      total: fmtBytes(Number(status.bytes) || 0),
+                    })
+                  : t('已处理 {done} / {total} 张照片', {
+                      done: status.done,
+                      total: Math.max(1, status.total),
+                    })
                 : t('正在读取照片…')}
             </p>
             <div className="share-progress">

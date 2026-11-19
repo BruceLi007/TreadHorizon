@@ -59,10 +59,12 @@ export function provinceLevel(places: number): 0 | 1 | 2 | 3 | 4 {
  */
 export const PROVINCE_FILLS: Record<0 | 1 | 2 | 3 | 4, string> = {
   0: 'rgba(255, 255, 255, 0.045)',
-  1: 'rgba(var(--province-rgb), 0.22)',
-  2: 'rgba(var(--province-rgb), 0.40)',
-  3: 'rgba(var(--province-rgb), 0.60)',
-  4: 'rgba(var(--province-rgb), 0.82)',
+  // 2026-11-19 D-539（用户「颜色深一点」）：四档整体加深一档（0.22/0.40/0.60/0.82 → 0.30/0.52/0.74/0.95）。
+  // 只改"浓淡"，色相仍是 --province 那支橙；图例 4 档在 StatsPanel.css 里同步加深。
+  1: 'rgba(var(--province-rgb), 0.30)',
+  2: 'rgba(var(--province-rgb), 0.52)',
+  3: 'rgba(var(--province-rgb), 0.74)',
+  4: 'rgba(var(--province-rgb), 0.95)',
 };
 
 export const PROVINCE_STROKES: Record<0 | 1 | 2 | 3 | 4, string> = {

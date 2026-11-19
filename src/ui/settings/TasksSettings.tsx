@@ -321,20 +321,33 @@ export default function TasksSettings({
               : j.state === 'canceled'
                 ? t('已取消')
                 : undefined;
+          const uploading = running && j.phase === 'upload';
+          const uploadPct =
+            uploading && j.bytes > 0 ? Math.min(100, Math.round(((j.uploaded || 0) / j.bytes) * 100)) : 0;
           return {
             id: `cloud-${j.jobId}`,
             kind: t('同步到云端'),
             tone: (running ? 'running' : j.state === 'error' ? 'error' : j.state === 'canceled' ? 'idle' : 'done') as Tone,
-            // 打包阶段还没有照片总数，用「已打包 / 总数」；上传阶段是占位进度（服务端上传是一次请求）
-            done: running && j.total > 0 ? j.done : undefined,
-            total: running && j.total > 0 ? j.total : undefined,
-            percentLabel: running && j.total === 0 ? t('打包中') : undefined,
+            /**
+             * 2026-11-19 D-541：打包阶段用「已生成 / 总数」；上传阶段改用**字节**进度
+             * （以前上传时 done/total 已经是 3342/3342，条子一直 100% 不动，看着像卡死）。
+             */
+            done: uploading ? j.uploaded || 0 : running && j.total > 0 ? j.done : undefined,
+            total: uploading ? j.bytes || 0 : running && j.total > 0 ? j.total : undefined,
+            percentLabel: uploading
+              ? t('上传中 {pct}%', { pct: uploadPct })
+              : running && j.total === 0
+                ? t('打包中')
+                : undefined,
             detail: [
               phaseLabel,
+              uploading ? `${fmtBytes(j.uploaded || 0)} / ${fmtBytes(j.bytes || 0)}` : '',
+              j.reused ? t('复用上次打包') : '',
               j.places > 0 || j.visits > 0
                 ? t('{p} 地点 · {v} 到访 · {m} 照片', { p: j.places, v: j.visits, m: j.photos || j.total })
                 : '',
-              j.bytes > 0 ? fmtBytes(j.bytes) : '',
+              !uploading && j.bytes > 0 ? fmtBytes(j.bytes) : '',
+              running ? t('已用 {n} 分钟', { n: Math.max(1, Math.round((Date.now() - j.createdAt) / 60000)) }) : '',
             ]
               .filter(Boolean)
               .join(' · '),

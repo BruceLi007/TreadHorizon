@@ -180,7 +180,18 @@ export default function CloudAccountSection({ status, onChanged, onSyncStarted }
   };
 
   const syncing = job?.state === 'running';
-  const progress = job && job.total > 0 ? Math.round((job.done / job.total) * 100) : 0;
+  /**
+   * 进度：打包阶段按「已生成 / 总数」，上传阶段按「已上传字节 / 包大小」（2026-11-19 D-541）。
+   * 以前上传阶段一直停在 3342/3342（100%），看起来像卡死。
+   */
+  const progress =
+    job?.phase === 'upload'
+      ? job.bytes > 0
+        ? Math.min(100, Math.round(((job.uploaded || 0) / job.bytes) * 100))
+        : 0
+      : job && job.total > 0
+        ? Math.round((job.done / job.total) * 100)
+        : 0;
 
   return (
     <>
@@ -265,9 +276,17 @@ export default function CloudAccountSection({ status, onChanged, onSyncStarted }
             </div>
             {status?.usage && (
               <p className="set-hint">
-                {t('云端已用 {used} / {quota} · {n} 份分享', {
+                {t('云端已用 {used} / {quota} · 剩余 {free} · {n} 份分享', {
                   used: formatBytes((status.usage.sharesBytes || 0) + (status.usage.mediaBytes || 0)),
                   quota: formatBytes(status.usage.quotaBytes || 0),
+                  free: formatBytes(
+                    Math.max(
+                      0,
+                      (status.usage.quotaBytes || 0) -
+                        (status.usage.sharesBytes || 0) -
+                        (status.usage.mediaBytes || 0)
+                    )
+                  ),
                   n: status.usage.shareCount,
                 })}
               </p>
@@ -287,12 +306,17 @@ export default function CloudAccountSection({ status, onChanged, onSyncStarted }
               <>
                 <p className="set-hint">
                   {job?.phase === 'upload'
-                    ? t('正在上传…')
+                    ? t('正在上传… {pct}%（{done} / {total}）', {
+                        pct: progress,
+                        done: formatBytes(job?.uploaded || 0),
+                        total: formatBytes(job?.bytes || 0),
+                      })
                     : t('正在生成缩略图… {done} / {total}', {
                         done: job?.done || 0,
                         total: job?.total || 0,
                       })}
                 </p>
+                {job?.reused && <p className="set-hint">{t('复用上次打包好的结果，不用重新生成缩略图')}</p>}
                 <div className="cloud-progress">
                   <span style={{ width: `${Math.max(4, progress)}%` }} />
                 </div>

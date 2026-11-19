@@ -39,6 +39,7 @@ import {
   MAX_SHARE_ENTRIES,
   MAX_SHARE_UNCOMPRESSED_BYTES,
   MAX_SHARE_ZIP_BYTES,
+  SHARE_LIMITS,
   ShareError,
   stageSharePackage,
 } from './share-package.mjs';
@@ -415,6 +416,37 @@ export function countTrashShares(ownerId) {
   return Number(row?.n) || 0;
 }
 
+const MB = 1024 ** 2;
+const fmtBytes = (n) =>
+  n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(1)} GB` : `${(n / MB).toFixed(1)} MB`;
+
+/**
+ * 2026-11-19 D-543：**分享也按账号配额动态限额，照片张数不设限**。
+ * 分享是新增占用：可用 = 配额 − 快照媒体 − 已有分享（与快照的「整批替换」口径不同）。
+ */
+export function shareQuota(ownerId) {
+  const quota = quotaBytesOf(getUserById(ownerId));
+  const usage = userUsage(ownerId);
+  const used = usage.mediaBytes + usage.sharesBytes;
+  return {
+    quota,
+    mediaBytes: usage.mediaBytes,
+    sharesBytes: usage.sharesBytes,
+    used,
+    available: Math.max(0, quota - used),
+  };
+}
+
+function shareQuotaError(q, needBytes = 0) {
+  const need = needBytes > 0 ? `本次分享约需 ${fmtBytes(needBytes)}，` : '';
+  return new ShareError(
+    `账号空间不足：${need}上限 ${fmtBytes(q.quota)}，已用 ${fmtBytes(q.used)}，剩余 ${fmtBytes(q.available)}。` +
+      '可以在云端「设置 → 账号」申请扩容，或减少要分享的照片。',
+    413,
+    'quota'
+  );
+}
+
 // ───────────── 路由 ─────────────
 
 /** @param {import('fastify').FastifyInstance} app */
@@ -426,11 +458,19 @@ export async function registerShareRoutes(app) {
       return reply.code(400).send({ error: '本地版没有账号；分享包请在云端账号里上传' });
     }
 
+    /**
+     * 2026-11-19 D-543：包大小上限跟账号配额走（照片张数不设限）。
+     * 可用 = 配额 − 快照媒体 − 已有分享；先算出来，收包时就按它卡，不用传完再拒。
+     */
+    const quota = shareQuota(owner);
+    if (quota.available <= 0) {
+      return reply.code(413).send({ error: shareQuotaError(quota).message });
+    }
+    const MAX_ZIP = quota.available + Math.max(32 * MB, Math.ceil(quota.available * 0.02));
+
     const declared = Number(req.headers['content-length']);
-    if (Number.isFinite(declared) && declared > MAX_SHARE_ZIP_BYTES + 2 * 1024 * 1024) {
-      return reply.code(413).send({
-        error: `分享包超过上限（${(MAX_SHARE_ZIP_BYTES / 1024 ** 2).toFixed(0)} MB）`,
-      });
+    if (Number.isFinite(declared) && declared > MAX_ZIP) {
+      return reply.code(413).send({ error: shareQuotaError(quota).message });
     }
     if (Number.isFinite(declared) && declared > 0) {
       try {
@@ -454,7 +494,7 @@ export async function registerShareRoutes(app) {
     let extraFile = false;
     try {
       for await (const part of req.parts({
-        limits: { fileSize: MAX_SHARE_ZIP_BYTES, files: 1, fields: 20 },
+        limits: { fileSize: MAX_ZIP, files: 1, fields: 20 },
       })) {
         if (part.type === 'file') {
           if (part.fieldname !== 'file' || fileBytes > 0) {
@@ -463,7 +503,7 @@ export async function registerShareRoutes(app) {
             continue;
           }
           await pipeline(part.file, createWriteStream(zipPath));
-          if (part.file.truncated) throw new ShareError('分享包超过 100 MB', 413);
+          if (part.file.truncated) throw shareQuotaError(quota);
           fileBytes = Number(part.file.bytesRead) || 0;
         } else {
           const key = String(part.fieldname || '');
@@ -483,7 +523,7 @@ export async function registerShareRoutes(app) {
     try {
       if (extraFile) throw new ShareError('只能上传一个分享包（multipart 字段名 file）');
       if (!fileBytes) throw new ShareError('缺少分享包（multipart 字段名 file）');
-      if (fileBytes > MAX_SHARE_ZIP_BYTES) throw new ShareError('分享包超过 100 MB', 413);
+      if (fileBytes > MAX_ZIP) throw shareQuotaError(quota);
 
       const expiresIn = String(fields.expiresIn || '24h').trim().toLowerCase();
       // 2026-11-15 D-424：支持「自定义」时效（1–8760 小时）
@@ -499,7 +539,19 @@ export async function registerShareRoutes(app) {
       const password = String(fields.password ?? '');
       if (password.length > 128) throw new ShareError('分享密码不能超过 128 位');
 
-      const pkg = await stageSharePackage(zipPath, stageDir);
+      /**
+       * 2026-11-19 D-543：照片不设限、体积按账号可用空间卡（解压阶段就中断，不落盘白占）。
+       */
+      let pkg;
+      try {
+        pkg = await stageSharePackage(zipPath, stageDir, {
+          ...SHARE_LIMITS,
+          maxUncompressed: quota.available,
+        });
+      } catch (e) {
+        if (e instanceof ShareError && e.code === 'too-large') throw shareQuotaError(quota);
+        throw e;
+      }
       // 2026-11-15 D-427（用户拍板「秘密基地还是不参与分享吧，默认不允许分享」）：
       // 含秘密基地的包一律拒收 —— 不再要求「设密码就能传」。
       // 这是给老版本客户端 / 手改包的兜底（本地导出侧已经先拦一道）。
@@ -513,16 +565,12 @@ export async function registerShareRoutes(app) {
         if (usage.shareCount >= SHARE_MAX_ACTIVE) {
           throw new ShareError(`每个账号最多同时保留 ${SHARE_MAX_ACTIVE} 份分享，请先撤销旧的`);
         }
-        const user = getUserById(owner);
-        const quota = quotaBytesOf(user);
-        if (usage.mediaBytes + usage.sharesBytes + pkg.bytes > quota) {
-          throw new ShareError(
-            `账号空间不足：分享约 ${(pkg.bytes / 1024 ** 2).toFixed(1)} MB，` +
-              `已用 ${((usage.mediaBytes + usage.sharesBytes) / 1024 ** 2).toFixed(1)} MB / ` +
-              `${(quota / 1024 ** 2).toFixed(0)} MB`,
-            413
-          );
+        // 并发上传兜底：按「此刻」的用量再核一次配额
+        const fresh = shareQuota(owner);
+        if (fresh.used + pkg.bytes > fresh.quota) {
+          throw shareQuotaError(fresh, pkg.bytes);
         }
+        const user = getUserById(owner);
 
         const shareId = randomUUID();
         const token = randomBytes(16).toString('base64url');

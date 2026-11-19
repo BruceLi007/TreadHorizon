@@ -15,7 +15,8 @@ import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { CONFIG } from './config.mjs';
 import { db, now } from './db.mjs';
-import { stageSharePackage, ShareError } from './share-package.mjs';
+import { getUserById, quotaBytesOf, userUsage } from './auth.mjs';
+import { stageSharePackage, ShareError, SNAPSHOT_LIMITS } from './share-package.mjs';
 import { mediaBaseFor } from './media-root.mjs';
 import { safeResolve } from './paths.mjs';
 
@@ -37,13 +38,67 @@ export function snapshotInfo(ownerId) {
 const idFor = (owner, prefix, raw) =>
   `sn_${prefix}${createHash('sha256').update(`${owner}:${raw}`).digest('hex').slice(0, 18)}`;
 
+const MB = 1024 ** 2;
+const fmtBytes = (n) =>
+  n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(1)} GB` : `${(n / MB).toFixed(1)} MB`;
+
+/**
+ * 该账号可用于快照的空间（2026-11-19 D-542：包大小上限跟账号配额走）。
+ *
+ * 快照是「整批替换」账号主库 —— 导入成功后旧快照的 media 行会被删掉，所以旧快照不占「可用」；
+ * 只有分享副本会继续占配额。可用 = 配额 - 分享占用。
+ */
+export function snapshotQuota(ownerId) {
+  const quota = quotaBytesOf(getUserById(ownerId));
+  const usage = userUsage(ownerId);
+  return {
+    quota,
+    sharesBytes: usage.sharesBytes,
+    currentBytes: usage.mediaBytes,
+    available: Math.max(0, quota - usage.sharesBytes),
+  };
+}
+
+function quotaError(quota, needBytes = 0) {
+  const used = quota.sharesBytes;
+  const remaining = quota.available;
+  const tail = '可以在云端「设置 → 账号」申请扩容，或先删掉一些分享。';
+  const detail = `上限 ${fmtBytes(quota.quota)}，已用 ${fmtBytes(used)}，剩余 ${fmtBytes(remaining)}`;
+  if (needBytes > 0) {
+    return new ShareError(
+      `账号空间不足：本次同步约需 ${fmtBytes(needBytes)}，${detail}。${tail}`,
+      413,
+      'quota'
+    );
+  }
+  return new ShareError(
+    `账号空间不足：本次同步超过可用空间，${detail}。${tail}`,
+    413,
+    'quota'
+  );
+}
+
 /**
  * 导入一份快照包（调用方已把 zip 落到临时路径；这里负责解压、落盘、换库）。
+ * @param {{quota:number, sharesBytes:number, currentBytes:number, available:number}} [quota]
  * @returns {{ places:number, visits:number, photos:number, bytes:number }}
  */
-export async function importSnapshot(ownerId, zipPath, stageDir) {
+export async function importSnapshot(ownerId, zipPath, stageDir, quota = snapshotQuota(ownerId)) {
   if (!ownerId) throw new ShareError('本地版没有账号，快照请导入云端账号', 400);
-  const pkg = await stageSharePackage(zipPath, stageDir);
+  /**
+   * 2026-11-19 D-542：快照**不再按照片张数限制**，体积上限 = 账号配额 - 分享占用。
+   * 提前拦一次（0 字节可用时不用解压），解压过程中按同一上限边解边卡。
+   */
+  if (quota.available <= 0) throw quotaError(quota);
+  const limits = { ...SNAPSHOT_LIMITS, maxUncompressed: quota.available };
+  let pkg;
+  try {
+    pkg = await stageSharePackage(zipPath, stageDir, limits);
+  } catch (e) {
+    if (e instanceof ShareError && e.code === 'too-large') throw quotaError(quota);
+    throw e;
+  }
+  if (pkg.bytes > quota.available) throw quotaError(quota, pkg.bytes);
   if (pkg.hasSecret) throw new ShareError('快照不能包含秘密基地', 400);
   const manifest = pkg.manifest;
   if (!manifest.media.length) throw new ShareError('快照里没有照片', 400);
@@ -219,9 +274,18 @@ export async function registerSnapshotRoutes(app) {
     if (req.method !== 'POST') return reply.code(405).send({ error: 'method' });
 
     const declared = Number(req.headers['content-length']);
-    const MAX_ZIP = 2 * 1024 ** 3; // 2 GB
+    /**
+     * 2026-11-19 D-542：zip 接收上限也跟账号配额走（以前写死 2 GB）。
+     * 留一点余量给 zip 目录 / manifest / multipart 头，真正卡量的是解压后的字节数；
+     * 超配额的包在解压阶段会以 `too-large` 提前中断。
+     */
+    const quota = snapshotQuota(owner);
+    if (quota.available <= 0) {
+      return reply.code(413).send({ error: quotaError(quota).message });
+    }
+    const MAX_ZIP = quota.available + Math.max(32 * MB, Math.ceil(quota.available * 0.02));
     if (Number.isFinite(declared) && declared > MAX_ZIP) {
-      return reply.code(413).send({ error: '快照包超过 2 GB 上限' });
+      return reply.code(413).send({ error: quotaError(quota).message });
     }
 
     const tmpRoot = join(CONFIG.dataDir, 'tmp');
@@ -239,16 +303,20 @@ export async function registerSnapshotRoutes(app) {
         const { createWriteStream } = await import('node:fs');
         const { pipeline } = await import('node:stream/promises');
         await pipeline(part.file, createWriteStream(zipPath));
+        if (part.file.truncated) {
+          throw new ShareError(quotaError(quota).message, 413, 'quota');
+        }
         fileBytes = Number(part.file.bytesRead) || 0;
       }
     } catch (e) {
       rmSync(zipPath, { force: true });
-      return reply.code(400).send({ error: e?.message || '读取快照包失败' });
+      const status = e instanceof ShareError ? e.status : 400;
+      return reply.code(status).send({ error: e?.message || '读取快照包失败' });
     }
 
     try {
       if (!fileBytes) throw new ShareError('缺少快照包（multipart 字段名 file）', 400);
-      const out = await importSnapshot(owner, zipPath, stageDir);
+      const out = await importSnapshot(owner, zipPath, stageDir, quota);
       return { ok: true, ...out };
     } catch (e) {
       const status = e instanceof ShareError ? e.status : 400;
