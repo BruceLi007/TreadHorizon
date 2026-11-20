@@ -87,83 +87,171 @@ html[data-font='kaiti'] {
    文件在 public/fonts/（随仓库发布，许可见 public/fonts/LICENSES.md；不进备份）。
    已删除：乐米栀夏浅风体 / 乐米清砚方墨体（© 乐米 All rights reserved，不适合公开仓库）、
    方塘像素体（无许可声明）、系统「仿宋」选项（用户要求）、嗷呜碎瘾黑（2026-11-08 D-299 用户要求）。
-   D-298 新增：猫啃什锦黑（完整版）/ 荆南波波黑（简）/ 游趣体 / 铁蒺藜体 / 呆萌手写体 / 字魂扁桃体，
-   全部按原文件原样分发（未修改字形），OFL 版权行见 LICENSES.md。
+   D-298 新增：猫啃什锦黑（完整版）/ 荆南波波黑（简）/ 游趣体 / 铁蒺藜体 / 呆萌手写体 / 字魂扁桃体。
+
+   2026-11-20 D-549（云端带宽问题：65.3 MB 字体、默认字体单次 12 MB）：
+   - 全部改为**子集 woff2**：BMP 全部汉字 20902 + ASCII + CJK/全角标点 + 本应用 UI 文案（共 21278 字）；
+     65.3 MB → **15.9 MB**，默认字体（猫啃什锦黑）12.0 MB → **2.23 MB**。
+   - 子集 = OFL 的「修改版」→ 内部字体名已改为 `TM UI …`（猫啃什锦黑原名含保留字体名 Assorted / 什锦，
+     修改版不得沿用）；版权 / OFL 字段原样保留，见 LICENSES.md。
+   - **原文件（ttf/otf）在 assets/fonts-original/**（不进发布包，只用于重新生成）；
+     生成脚本 backup/tools/build-fonts.py（也不进包）。
+   - 文件名带 `v1` 版本号：改了字集重新生成时把 v1 升 v2，并同步改下面 7 条 @font-face
+     （服务端对 /fonts/ 给一年 immutable 缓存，靠文件名换版本让老客户拿新文件）。
    - font-display: swap：先用系统字体渲染，字体就绪后替换，避免首屏被大字体阻塞。
-   - 每个自定义字体后面都接系统中文栈：字体缺字时按字回退，不会出现方块。
+   - 每个自定义字体后面都接系统中文栈：BMP 之外的生僻字按字回退，不会出现方块。
    - 单字重字体声明 font-weight: normal，粗体由浏览器合成（D-183 另加同色描边兜底）。 */
 @font-face {
-  font-family: 'TM Miorning Goupa Hei';
-  src: url('/fonts/miao-goupa-hei.ttf') format('truetype');
+  font-family: 'TM UI Miao';
+  src: url('/fonts/miao-goupa-hei.v1.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'TM Maoken Assorted Sans';
-  src: url('/fonts/maoken-shijin-hei.ttf') format('truetype');
+  font-family: 'TM UI Maoken';
+  src: url('/fonts/maoken-shijin-hei.v1.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'TM Jingnan Bobohei';
-  src: url('/fonts/jingnan-bobohei.ttf') format('truetype');
+  font-family: 'TM UI Jingnan';
+  src: url('/fonts/jingnan-bobohei.v1.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'TM Child Fun Sans';
-  src: url('/fonts/childfun-sans.ttf') format('truetype');
+  font-family: 'TM UI Childfun';
+  src: url('/fonts/childfun-sans.v1.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'TM Tiejili SC';
-  src: url('/fonts/tiejili-sc.otf') format('opentype');
+  font-family: 'TM UI Tiejili';
+  src: url('/fonts/tiejili-sc.v1.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'TM Dymon ShouXieTi';
-  src: url('/fonts/dymon-shouxieti.otf') format('opentype');
+  font-family: 'TM UI Dymon';
+  src: url('/fonts/dymon-shouxieti.v1.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'TM ZiHun Biantaoti';
-  src: url('/fonts/zihun-biantaoti.ttf') format('truetype');
+  font-family: 'TM UI Zihun';
+  src: url('/fonts/zihun-biantaoti.v1.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* D-549：字体选项的「迷你预览字体」——每款只含选项名 + 示例文案（10~35 KB，合计 0.12 MB），
+   让设置里每个选项**永远显示自己的字形**（用户要求「每个字体保持本身的样式」），
+   又不必为了看一眼就把整款字体（2~4 MB）拉下来；完整字体只在真正选中时作为 --font-ui 加载。 */
+@font-face {
+  font-family: 'TM Preview Miao';
+  src: url('/fonts/miao-goupa-hei.preview.v1.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TM Preview Maoken';
+  src: url('/fonts/maoken-shijin-hei.preview.v1.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TM Preview Jingnan';
+  src: url('/fonts/jingnan-bobohei.preview.v1.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TM Preview Childfun';
+  src: url('/fonts/childfun-sans.preview.v1.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TM Preview Tiejili';
+  src: url('/fonts/tiejili-sc.preview.v1.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TM Preview Dymon';
+  src: url('/fonts/dymon-shouxieti.preview.v1.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TM Preview Zihun';
+  src: url('/fonts/zihun-biantaoti.preview.v1.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
 }
 
 :root {
-  /* D-140 / D-227 / D-298 / D-299：下载字体的选项预览变量（后面接系统中文栈做缺字回退） */
-  --font-opt-miao-goupa: 'TM Miorning Goupa Hei', -apple-system, 'PingFang SC',
+  /* D-140 / D-227 / D-298 / D-299 / D-549：下载字体的选项预览变量（后面接系统中文栈做缺字回退） */
+  --font-opt-miao-goupa: 'TM UI Miao', -apple-system, 'PingFang SC',
     'Microsoft YaHei', system-ui, sans-serif;
-  --font-opt-maoken-shijin: 'TM Maoken Assorted Sans', -apple-system, 'PingFang SC',
+  --font-opt-maoken-shijin: 'TM UI Maoken', -apple-system, 'PingFang SC',
     'Microsoft YaHei', system-ui, sans-serif;
-  --font-opt-jingnan-bobohei: 'TM Jingnan Bobohei', -apple-system, 'PingFang SC',
+  --font-opt-jingnan-bobohei: 'TM UI Jingnan', -apple-system, 'PingFang SC',
     'Microsoft YaHei', system-ui, sans-serif;
-  --font-opt-childfun-sans: 'TM Child Fun Sans', -apple-system, 'PingFang SC', 'Microsoft YaHei',
+  --font-opt-childfun-sans: 'TM UI Childfun', -apple-system, 'PingFang SC', 'Microsoft YaHei',
     system-ui, sans-serif;
-  --font-opt-tiejili: 'TM Tiejili SC', -apple-system, 'PingFang SC', 'Microsoft YaHei',
+  --font-opt-tiejili: 'TM UI Tiejili', -apple-system, 'PingFang SC', 'Microsoft YaHei',
     system-ui, sans-serif;
-  --font-opt-dymon-shouxieti: 'TM Dymon ShouXieTi', -apple-system, 'PingFang SC',
+  --font-opt-dymon-shouxieti: 'TM UI Dymon', -apple-system, 'PingFang SC',
     'Microsoft YaHei', system-ui, sans-serif;
-  --font-opt-zihun-biantaoti: 'TM ZiHun Biantaoti', -apple-system, 'PingFang SC',
+  --font-opt-zihun-biantaoti: 'TM UI Zihun', -apple-system, 'PingFang SC',
     'Microsoft YaHei', system-ui, sans-serif;
+
+  /* D-549：设置里字体选项用的「预览字体栈」——下载字体走迷你预览子集，系统字体直接复用 */
+  --font-prev-miao-goupa: 'TM Preview Miao', -apple-system, 'PingFang SC',
+    'Microsoft YaHei', system-ui, sans-serif;
+  --font-prev-maoken-shijin: 'TM Preview Maoken', -apple-system, 'PingFang SC',
+    'Microsoft YaHei', system-ui, sans-serif;
+  --font-prev-jingnan-bobohei: 'TM Preview Jingnan', -apple-system, 'PingFang SC',
+    'Microsoft YaHei', system-ui, sans-serif;
+  --font-prev-childfun-sans: 'TM Preview Childfun', -apple-system, 'PingFang SC',
+    'Microsoft YaHei', system-ui, sans-serif;
+  --font-prev-tiejili: 'TM Preview Tiejili', -apple-system, 'PingFang SC', 'Microsoft YaHei',
+    system-ui, sans-serif;
+  --font-prev-dymon-shouxieti: 'TM Preview Dymon', -apple-system, 'PingFang SC',
+    'Microsoft YaHei', system-ui, sans-serif;
+  --font-prev-zihun-biantaoti: 'TM Preview Zihun', -apple-system, 'PingFang SC',
+    'Microsoft YaHei', system-ui, sans-serif;
+  --font-prev-yahei: var(--font-opt-yahei);
+  --font-prev-songti: var(--font-opt-songti);
+  --font-prev-heiti: var(--font-opt-heiti);
+  --font-prev-kaiti: var(--font-opt-kaiti);
 }
 
 html[data-font='miao-goupa'] {

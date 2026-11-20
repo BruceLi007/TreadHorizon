@@ -1095,6 +1095,8 @@ export interface CloudSyncJob {
   zipDone?: number;
   zipTotal?: number;
   cached?: number;
+  /** D-547：本次直接命中已有缓存的张数（实时累加） */
+  cacheHits?: number;
   /** 账号配额 / 分享占用 / 本次可用字节（D-542：包大小上限 = 账号配额 - 分享占用） */
   quotaBytes?: number | null;
   sharesBytes?: number | null;
@@ -1138,6 +1140,8 @@ export interface ShareExportStatus {
   zipDone?: number;
   zipTotal?: number;
   cached?: number;
+  /** D-547：本次直接命中已有缓存的张数（实时累加） */
+  cacheHits?: number;
   limitBytes?: number | null;
   usedBytes?: number | null;
   savedPath: string | null;

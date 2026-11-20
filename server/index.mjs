@@ -4116,6 +4116,10 @@ if (existsSync(CONFIG.distDir)) {
       const p = String(filePath).replace(/\\/g, '/');
       if (p.includes('/assets/')) {
         reply.header('cache-control', 'public, max-age=31536000, immutable');
+      } else if (p.includes('/fonts/') && p.endsWith('.woff2')) {
+        // 2026-11-20 D-549：字体是子集 woff2、文件名带版本号（v1），可以放心一年 immutable；
+        // 换字集时把版本号升到 v2（文件名变 → 老客户端重新拉），别只改内容不改名。
+        reply.header('cache-control', 'public, max-age=31536000, immutable');
       } else {
         reply.header('cache-control', 'no-cache');
       }

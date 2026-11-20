@@ -31,7 +31,9 @@ media/
 TravelMedia/
 
 # ── 字体 ──
-# public/fonts/ 随仓库发布（仅 2 款 SIL OFL 字体：喵咛狗爬黑 / 嗷呜碎瘾黑，许可见 public/fonts/LICENSES.md）
+# public/fonts/ 随仓库发布：7 款 SIL OFL 1.1 字体的「子集 woff2」（2026-11-20 D-549 起，见 public/fonts/LICENSES.md）
+# 上游原始 ttf/otf（65.3 MB）只在本地 assets/fonts-original/，不进仓库、不进发布包（发布包由 pack 的 SKIP_PREFIXES 排除）
+assets/fonts-original/
 # ── 本地不上传资料 ──
 # _local-only/：原始字体 ttc、第三方天地图类型定义等本地档案（不随仓库 / 源码包发布，可随时整体删除或移走）
 _local-only/

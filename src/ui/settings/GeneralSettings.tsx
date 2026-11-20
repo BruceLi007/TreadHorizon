@@ -392,7 +392,9 @@ export default function GeneralSettings({
               aria-checked={font === f.id}
               className={font === f.id ? 'set-font-opt on' : 'set-font-opt'}
               data-font={f.id}
-              style={{ fontFamily: `var(--font-opt-${f.id})` }}
+              // D-549：用「迷你预览字体」渲染（每款 10~35 KB，只含选项名 + 示例文案），
+              // 这样每个选项永远显示自己的字形，又不用为了看一眼就下载整款字体（选中时才加载完整字体）。
+              style={{ fontFamily: `var(--font-prev-${f.id})` }}
               onClick={() => onFont(f.id)}
             >
               <span className="set-font-label">{t(f.label)}</span>

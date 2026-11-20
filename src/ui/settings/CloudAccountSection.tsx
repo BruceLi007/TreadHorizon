@@ -331,6 +331,11 @@ export default function CloudAccountSection({ status, onChanged, onSyncStarted }
                     {t('已建立 {n} 张预览缓存（下次同步 / 分享会更快）', { n: job?.cached || 0 })}
                   </p>
                 )}
+                {Number(job?.cacheHits) > 0 && (
+                  <p className="set-hint">
+                    {t('命中已有预览缓存 {n} 张（无需重新解码）', { n: job?.cacheHits || 0 })}
+                  </p>
+                )}
                 {job?.reused && <p className="set-hint">{t('复用上次打包好的结果，不用重新生成缩略图')}</p>}
                 <div className="cloud-progress">
                   <span style={{ width: `${Math.max(4, progress)}%` }} />

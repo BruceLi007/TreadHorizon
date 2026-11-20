@@ -38,7 +38,6 @@ import { isInside, safeResolve } from './paths.mjs';
 import {
   MAX_SHARE_ENTRIES,
   MAX_SHARE_UNCOMPRESSED_BYTES,
-  MAX_SHARE_ZIP_BYTES,
   SHARE_LIMITS,
   ShareError,
   stageSharePackage,

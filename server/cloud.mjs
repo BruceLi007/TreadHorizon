@@ -844,7 +844,13 @@ async function runSyncJob(job) {
           dest: join(tmp, 'media', file),
         });
         if (dim.cacheName) cacheUpdates.set(m.id, dim.cacheName);
-        if (dim.cacheCreated) cacheCreated += 1;
+        if (dim.cacheCreated) {
+          cacheCreated += 1;
+          // D-547：实时写进 job，打包过程中界面就能看到「已建立 N 张缓存」
+          job.cacheCreated = cacheCreated;
+        } else if (dim.cacheName) {
+          job.cacheHits = (job.cacheHits || 0) + 1;
+        }
         outMedia.push({
           id: m.id,
           kind: 'photo',
@@ -1077,6 +1083,8 @@ export function getCloudSyncStatus(jobId) {
     zipTotal: j.zipTotal || 0,
     /** 本次新建 / 写回 DB 的 1600 预览缓存条数（新建才提示「下次更快」） */
     cached: j.cacheCreated || 0,
+    /** D-547：本次直接命中已有缓存的张数（实时累加） */
+    cacheHits: j.cacheHits || 0,
     quotaBytes: j.quotaBytes ?? null,
     sharesBytes: j.sharesBytes ?? null,
     limitBytes: j.limitBytes ?? null,
@@ -1121,6 +1129,7 @@ export function listCloudSyncJobs() {
       zipDone: j.zipDone || 0,
       zipTotal: j.zipTotal || 0,
       cached: j.cacheCreated || 0,
+      cacheHits: j.cacheHits || 0,
       quotaBytes: j.quotaBytes ?? null,
       sharesBytes: j.sharesBytes ?? null,
       limitBytes: j.limitBytes ?? null,

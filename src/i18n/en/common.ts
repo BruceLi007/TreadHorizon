@@ -562,6 +562,9 @@ const dict: Dict = {
   '打包中 {pct}%': 'Packing {pct}%',
   '已建立 {n} 张预览缓存（下次同步 / 分享会更快）':
     'Cached {n} previews (next sync / share will be faster)',
+  // D-547：打包过程中实时显示命中 / 新建（cached 以前只在结束时才写）
+  '命中已有预览缓存 {n} 张（无需重新解码）':
+    'Reused {n} cached previews (no re-decode needed)',
   '上传中 {pct}%': 'Uploading {pct}%',
   '复用上次打包': 'reused previous package',
   '复用上次打包好的结果，不用重新生成缩略图':

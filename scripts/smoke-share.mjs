@@ -686,9 +686,12 @@ try {
     buildManifest({ places: [placeOf({ id: 'pBig', mediaIds: ['mBig'] })], photos: [pBig] }),
     [pBig]
   );
-  check('大包 zip 超过测试上限', statSync(bigZip).size > SHARE_MAX_ZIP, `${statSync(bigZip).size} B`);
+  check('大包 zip 比测试配额大', statSync(bigZip).size > SHARE_MAX_ZIP, `${statSync(bigZip).size} B`);
+  // 2026-11-19 D-543 起「单份上限」= 账号可用空间（写死的 MAX_SHARE_ZIP_BYTES / SHARE_MAX_BYTES 已作废），
+  // 所以把 u3 的配额压到 20 KB 来验「单个包超配额 → 413」；下一项再压到 100 B 验「剩余不足」。
+  await patchJson('/api/admin/users/' + reg3.body.user.id, { quotaBytes: SHARE_MAX_ZIP }, { jar: admin });
   const bigRes = await importZip(u3, bigZip);
-  eq('单份超过上限 → 413', bigRes.status, 413);
+  eq('单份超过账号配额 → 413', bigRes.status, 413);
 
   await patchJson('/api/admin/users/' + reg3.body.user.id, { quotaBytes: 100 }, { jar: admin });
   eq('配额不足 → 413', (await importZip(u3, tinyZip)).status, 413);

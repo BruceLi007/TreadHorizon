@@ -10,10 +10,12 @@
  * - 未命中：从原图生成 1600 并写盘，再由它缩 1280（第一次多一次编码，之后都省）；
  * - 兼容：DB `media.preview` 为空时按 `<id>_p.webp` 约定回退（历史按需看图生成的那些也能用）。
  *
- * HEIC 解码是单线程 WASM：同步/分享按「HEIC 优先、体积从大到小」排序 + 更高并发，
- * 避免最后只剩 HEIC 拖出长尾。
+ * HEIC 解码是单线程 WASM：同步/分享按「HEIC 优先、体积从大到小」排序，
+ * 解码名额按内存自适应（见 heic.mjs 的 HEIC_DECODE_CONCURRENCY），避免最后只剩 HEIC 拖出长尾。
+ * 2026-11-20 D-547：新建缓存时直接把 1600 buffer 交给调用方缩 1280（不再写盘再读回）。
  */
 import { existsSync, mkdirSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import os from 'node:os';
 import sharp from 'sharp';
@@ -31,7 +33,11 @@ const CPU =
   typeof os.availableParallelism === 'function'
     ? os.availableParallelism()
     : Math.max(1, os.cpus()?.length || 1);
-/** HEIC 是单线程 WASM：多开几个（默认 4；可用 PREVIEW_HEIC_CONCURRENCY 覆盖，上限 6） */
+/**
+ * HEIC 调度并发（默认 min(4, 核数/4)，可用 PREVIEW_HEIC_CONCURRENCY 覆盖，2~6）。
+ * ⚠️ 它只决定「多少个任务在等解码名额」——`heic.mjs` 内部是串行 WASM 解码，
+ * 调大这个数字**不会**让 HEIC 变快（2026-11-20 D-547 实测 1/2/3 路无差异）。
+ */
 export const HEIC_CONCURRENCY = Math.max(
   2,
   Math.min(6, Number(process.env.PREVIEW_HEIC_CONCURRENCY || 0) || Math.max(2, Math.min(4, Math.floor(CPU / 4))))
@@ -66,23 +72,26 @@ export function findCachedPreview({ id, previewName, thumbDir = CONFIG.thumbDir 
 /**
  * 确保 1600 预览存在（命中即返回；未命中从原图生成）。
  * 生成失败返回 null：调用方回退到「直接解原图」，不影响打包结果。
- * @returns {Promise<null | {path:string, name:string, created:boolean}>}
+ * 新建时额外带回 `buffer`（D-547：调用方直接拿内存里的 1600 缩 1280，
+ * 不必再「写盘 → 读回来 → 再解一次」）。
+ * @returns {Promise<null | {path:string, name:string, created:boolean, buffer?:Buffer|null}>}
  */
 export async function ensureCachedPreview({ id, abs, previewName, thumbDir = CONFIG.thumbDir }) {
   const hit = findCachedPreview({ id, previewName, thumbDir });
-  if (hit) return { ...hit, created: false };
+  if (hit) return { ...hit, created: false, buffer: null };
   if (!id || !abs) return null;
   const name = cacheNameFor(id);
   const out = join(thumbDir, name);
   try {
     mkdirSync(thumbDir, { recursive: true });
     const img = await decodeSource(abs);
-    await img
+    const buffer = await img
       .rotate()
       .resize({ width: CACHE_MAX, height: CACHE_MAX, fit: 'inside', withoutEnlargement: true })
       .webp({ quality: CACHE_QUALITY })
-      .toFile(out);
-    return { path: out, name, created: true };
+      .toBuffer();
+    await writeFile(out, buffer);
+    return { path: out, name, created: true, buffer };
   } catch {
     return null;
   }
@@ -95,8 +104,10 @@ export async function ensureCachedPreview({ id, abs, previewName, thumbDir = CON
  */
 export async function makeCloudPreview({ id, abs, previewName, dest, thumbDir = CONFIG.thumbDir }) {
   const cache = await ensureCachedPreview({ id, abs, previewName, thumbDir });
-  const src = cache ? cache.path : abs;
-  const img = await decodeSource(src);
+  // D-547：刚新建的缓存直接用内存 buffer 缩 1280，省掉一次「写盘 → 读回 → 解码」
+  const img = cache?.buffer
+    ? sharp(cache.buffer, { failOn: 'none' })
+    : await decodeSource(cache ? cache.path : abs);
   const info = await img
     .rotate()
     .resize({ width: PREVIEW_MAX, height: PREVIEW_MAX, fit: 'inside', withoutEnlargement: true })

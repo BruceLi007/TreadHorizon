@@ -311,7 +311,12 @@ async function runExportJob(job) {
         if (!abs || !existsSync(abs)) throw new Error('文件不存在');
         const dim = await makePreview(abs, dest, { id: m.id, previewName: m.preview });
         if (dim.cacheName) cacheUpdates.set(m.id, dim.cacheName);
-        if (dim.cacheCreated) cacheCreated += 1;
+        if (dim.cacheCreated) {
+          cacheCreated += 1;
+          job.cacheCreated = cacheCreated; // D-547：实时可见
+        } else if (dim.cacheName) {
+          job.cacheHits = (job.cacheHits || 0) + 1;
+        }
         outMedia.push({
           id: m.id,
           kind: 'photo',
@@ -592,6 +597,7 @@ export function getShareExportStatus(jobId) {
     zipDone: j.zipDone || 0,
     zipTotal: j.zipTotal || 0,
     cached: j.cacheCreated || 0,
+    cacheHits: j.cacheHits || 0,
     limitBytes: j.limitBytes ?? null,
     usedBytes: j.usedBytes ?? null,
     savedPath: j.savedPath,
@@ -630,6 +636,7 @@ export function listShareExportJobs() {
       zipDone: j.zipDone || 0,
       zipTotal: j.zipTotal || 0,
       cached: j.cacheCreated || 0,
+      cacheHits: j.cacheHits || 0,
       savedPath: j.savedPath,
       savedName: j.savedName,
       error: j.error,
