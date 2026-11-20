@@ -535,11 +535,16 @@ function pruneEmptyVisitDirs() {
  * 2026-11-15 D-443：启动时把「库和磁盘对不上」的素材归位。
  * 移动照片的旧版本只改了 visit_id，文件还留在原地；也可能因为改地点名 / 日期而错位。
  * 只处理仍然有效的素材（回收站里的不动），源文件不存在就跳过。
+ *
+ * 2026-11-20 D-551（云端实测：每次重启把 3342 个快照文件搬回旧布局，重启卡 15 秒）：
+ * **快照媒体不参与**。snapshot 导入（D-525）把照片落到 `snapshot/<owner>/<batch>/`、写 `media.snapshot=1`，
+ * 这个布局由 snapshot 导入 / D-536 批次清理自己管理；按 place/visit 推导出来的「地点路径」对它是**错的**，
+ * 搬走会让 D-525/D-536 的验收口径失效、并和下次同步的批次清理交错。两个判据（标记 + 前缀）都判，双保险。
  */
 function reconcileMediaPaths() {
   const rows = db
     .prepare(`
-      SELECT m.id, m.user_id, m.rel_path, v.date,
+      SELECT m.id, m.user_id, m.rel_path, m.snapshot, v.date,
              p.province, p.city, p.county, p.name AS place_name
       FROM media m
       JOIN visit v ON v.id = m.visit_id
@@ -552,6 +557,8 @@ function reconcileMediaPaths() {
   let missing = 0;
   let failed = 0;
   for (const r of rows) {
+    // 快照媒体：由 snapshot 导入自己管理，不按地点路径归位（D-551）
+    if (Number(r.snapshot) === 1 || String(r.rel_path || '').startsWith('snapshot/')) continue;
     const owner = r.user_id || null;
     if (!bases.has(owner)) bases.set(owner, resolve(mediaBaseFor(owner)));
     try {
