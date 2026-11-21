@@ -6266,9 +6266,17 @@ button:focus-visible {
     padding: 8px 10px 0;
   }
   html:root .trash-tabs .seg-btn {
-    padding: 0 4px;
+    padding: 0 3px;
     font-size: var(--fs-caption);
-    gap: 3px;
+    gap: 2px;
+  }
+  /* D-553（D-531 遗留）：375px 下回收站 5 个标签（全部/地点/到访/照片视频/分享）
+     内容 310 > 可用 301 → 溢出 9px，最右「分享」的计数胶囊顶到轨道内边。
+     `.seg-btn` 是 nowrap + flex 最小宽度按内容，缩不下去；这里只收紧内边距 / 间隙、
+     并压窄计数胶囊，390px 及桌面不受影响（那里 316 = 316 正好放下）。 */
+  html:root .trash-tabs .seg-count {
+    min-width: 13px;
+    padding: 0 2px;
   }
   html:root .trash-toolbar {
     flex-wrap: wrap;
